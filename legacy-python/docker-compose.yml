@@ -1,0 +1,19 @@
+# Бот и сайт — два процесса над одной базой.
+services:
+  bot:
+    build: .
+    env_file: .env
+    volumes: ["qairu-data:/data"]
+    command: python -m bot.main
+    restart: unless-stopped
+
+  web:
+    build: .
+    env_file: .env
+    volumes: ["qairu-data:/data"]
+    command: uvicorn web.app:app --host 0.0.0.0 --port 8000
+    ports: ["8000:8000"]
+    restart: unless-stopped
+
+volumes:
+  qairu-data:

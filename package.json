@@ -1,0 +1,37 @@
+{
+  "name": "qairu-cowork",
+  "version": "3.0.0",
+  "private": true,
+  "description": "Finds shared free windows for a student group. Website + Telegram bot on Next.js.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build && node scripts/set-webhook.mjs",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push",
+    "bot:webhook": "node scripts/set-webhook.mjs --force"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.44.6",
+    "next": "^15.5.4",
+    "postgres": "^3.4.7",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "server-only": "^0.0.1"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@electric-sql/pglite-socket": "^0.2.11",
+    "@tailwindcss/postcss": "^4.1.13",
+    "@types/node": "^22.18.6",
+    "@types/react": "^19.1.13",
+    "@types/react-dom": "^19.1.9",
+    "drizzle-kit": "^0.31.5",
+    "tailwindcss": "^4.1.13",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

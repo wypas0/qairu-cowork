@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}{{ t('w_me_title') }} — {{ chat.title }}{% endblock %}
+
+{% block topbar %}
+<span class="spacer"></span>
+<a class="btn btn-sm" href="/g/{{ chat.slug }}">{{ t('w_back') }}</a>
+{% endblock %}
+
+{% block content %}
+<meta name="qairu-slug" content="{{ chat.slug }}">
+
+<h1>{{ t('w_me_title') }}</h1>
+<p class="muted">{{ t('w_me_lead') }}</p>
+
+<div id="editor" data-slug="{{ chat.slug }}" data-step="{{ step }}">
+<div class="grid-2">
+
+  <section class="card">
+    <p class="small muted">{{ t('w_paint_hint') }}</p>
+
+    <div class="gridwrap">
+      <table class="week">
+        <thead>
+          <tr>
+            <th class="timecol"></th>
+            {% for weekday in range(7) %}
+              <th>
+                <button type="button" class="btn btn-sm btn-quiet" data-fillday="{{ weekday }}"
+                        style="padding:2px 6px">{{ weekday_name(weekday)[:3] }}</button>
+              </th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for slot in slot_times %}
+          <tr>
+            <td class="timecol">{% if loop.index0 % 2 == 0 %}{{ fmt(slot) }}{% endif %}</td>
+            {% for weekday in range(7) %}
+              {% set ns = namespace(busy=false) %}
+              {% for item in weekly[weekday] %}
+                {% if item.start <= slot and slot < item.end %}{% set ns.busy = true %}{% endif %}
+              {% endfor %}
+              <td class="cell {% if ns.busy %}busy{% endif %}"
+                  tabindex="0" role="button"
+                  aria-pressed="{{ 'true' if ns.busy else 'false' }}"
+                  aria-label="{{ weekday_name(weekday) }} {{ fmt(slot) }}"
+                  data-weekday="{{ weekday }}" data-start="{{ slot }}"></td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="row" style="margin-top:14px">
+      <button class="btn btn-primary" type="button" id="save-btn" style="flex:0 0 auto"
+              data-saved="{{ t('w_saved') }}" data-dirty="{{ t('w_unsaved') }}"
+              data-saved-toast="{{ t('w_saved') }}" data-error="{{ t('w_save_error') }}">
+        {{ t('w_save') }}
+      </button>
+      <button class="btn btn-quiet" type="button" id="clear-btn" style="flex:0 0 auto">
+        {{ t('w_clear') }}
+      </button>
+    </div>
+  </section>
+
+  <div>
+    <section class="card">
+      <h2>{{ t('w_import_title') }}</h2>
+      <p class="small muted">{{ t('w_import_hint') }}</p>
+      <textarea id="import-text" placeholder="Пн 9:00-10:30 Матан, 13:00-14:30 История
+Вт 8:00–9:30
+Ср нет пар
+Сб 18:00-22:00 работа"></textarea>
+      <button class="btn" type="button" id="import-btn" style="margin-top:8px"
+              data-parsed="{{ t('w_import_parsed') }}"
+              data-failed="{{ t('w_import_failed') }}"
+              data-error="{{ t('w_save_error') }}">{{ t('w_import_btn') }}</button>
+      <div id="import-preview" style="margin-top:10px"></div>
+    </section>
+
+    <section class="card">
+      <h2>{{ t('w_dated') }}</h2>
+      {% if dated %}
+        <ul class="windows">
+          {% for slot in dated %}
+            <li>
+              <span class="when">
+                {% if slot.specific_date %}{{ slot.specific_date.strftime('%d.%m.%Y') }}
+                {% else %}{{ slot.date_from.strftime('%d.%m') }}–{{ slot.date_to.strftime('%d.%m.%Y') }}
+                {% endif %}
+              </span>
+              <span class="small muted">{{ fmt(slot.start_min) }}–{{ fmt(slot.end_min) }}
+                {% if slot.label %}· {{ slot.label }}{% endif %}</span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="muted small">—</p>
+      {% endif %}
+      <p class="small muted" style="margin-top:8px">{{ t('w_dated_hint') }}</p>
+    </section>
+  </div>
+</div>
+</div>
+{% endblock %}
