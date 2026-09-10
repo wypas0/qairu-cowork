@@ -230,7 +230,7 @@ export const RU: Strings = {
   w_group_title: "Название группы",
   w_group_title_ph: "ИС-21, проектная команда…",
   w_your_name: "Как тебя зовут",
-  w_your_name_ph: "Амир",
+  w_your_name_ph: "Ваше имя",
   w_tz: "Часовой пояс",
   w_lang: "Язык",
   w_my_groups: "Твои группы",

@@ -222,7 +222,7 @@ export const KK: Strings = {
   w_group_title: "Топ атауы",
   w_group_title_ph: "АЖ-21, жоба тобы…",
   w_your_name: "Атың кім",
-  w_your_name_ph: "Әмір",
+  w_your_name_ph: "Атыңыз",
   w_tz: "Уақыт белдеуі",
   w_lang: "Тіл",
   w_my_groups: "Сенің топтарың",

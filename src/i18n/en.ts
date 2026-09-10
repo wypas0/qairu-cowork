@@ -220,7 +220,7 @@ export const EN: Strings = {
   w_group_title: "Group name",
   w_group_title_ph: "CS-21, project team…",
   w_your_name: "Your name",
-  w_your_name_ph: "Amir",
+  w_your_name_ph: "Your name",
   w_tz: "Timezone",
   w_lang: "Language",
   w_my_groups: "Your groups",
