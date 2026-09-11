@@ -42,7 +42,7 @@ export default async function GroupPage({ params }: { params: Promise<{ slug: st
   return (
     <>
       <TelegramAuth slug={slug} authed />
-      <Topbar>
+      <Topbar lang={lang}>
         <Link className="btn btn-sm" href={`/g/${slug}/me`}>
           {t("w_edit_mine")}
         </Link>

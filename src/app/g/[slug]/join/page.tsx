@@ -25,7 +25,7 @@ export default async function JoinPage({ params }: { params: Promise<{ slug: str
     <>
       {/* В Mini App человек уже опознан подписью — форму показывать не придётся. */}
       <TelegramAuth slug={slug} authed={false} />
-      <Topbar />
+      <Topbar lang={chat.lang} />
       <main className="wrap">
         <div className="card" style={{ maxWidth: 520, margin: "32px auto" }}>
           <h1 style={{ fontSize: 22 }}>{t("w_join_title", { title: chat.title })}</h1>

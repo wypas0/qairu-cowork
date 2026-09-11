@@ -292,4 +292,16 @@ export const EN: Strings = {
   w_not_found: "Group not found",
   w_not_found_lead: "Check the link — the group may have been deleted, or the address is mistyped.",
   w_home: "Home",
+
+  // --- profile ---
+  w_profile: "Profile",
+  w_close: "Close",
+  w_no_groups: "You're not in any group yet.",
+  w_leave: "Leave",
+  w_leave_confirm: "Leave “{title}”? Your schedule stays saved — you can rejoin with the same link.",
+  w_no_meetings: "No upcoming meetings.",
+  w_join_other: "Join another group",
+  w_join_other_ph: "invite link or group code",
+  w_join_other_btn: "Go",
+  w_profile_anon: "Open an invite link to any group — your profile will show up here.",
 };

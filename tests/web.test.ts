@@ -270,6 +270,87 @@ describe("настройки группы", () => {
   });
 });
 
+describe("выход из группы и профиль", () => {
+  it("выход убирает из участников и из списка групп, но не удаляет группу", async () => {
+    const { repo } = await mods();
+    const { chat, user } = await makeGroup("Уходим", "Амир");
+
+    expect(await repo.isMember(chat.chatId, user.userId)).toBe(true);
+    expect((await repo.userChats(user.userId)).map((c) => c.chatId)).toContain(chat.chatId);
+
+    await repo.removeMembership(chat.chatId, user.userId);
+
+    expect(await repo.isMember(chat.chatId, user.userId)).toBe(false);
+    expect((await repo.userChats(user.userId)).map((c) => c.chatId)).not.toContain(chat.chatId);
+    expect(await repo.getChatBySlug(chat.slug!)).not.toBeNull();
+  });
+
+  it("вышедший может вернуться по той же ссылке-приглашению и не теряет расписание", async () => {
+    const { repo } = await mods();
+    const { chat, user } = await makeGroup("Возврат", "Амир");
+    await repo.replaceWeeklySlots(user.userId, [0], [{ weekday: 0, start: 540, end: 630 }], "web");
+
+    await repo.removeMembership(chat.chatId, user.userId);
+    expect(await repo.isMember(chat.chatId, user.userId)).toBe(false);
+
+    await repo.addMembership(chat.chatId, user.userId);
+    expect(await repo.isMember(chat.chatId, user.userId)).toBe(true);
+    expect(await repo.getSlots(user.userId)).toHaveLength(1);
+  });
+
+  it("userMeetings собирает открытые встречи по всем группам пользователя, без отменённых и чужих", async () => {
+    const { repo } = await mods();
+    const { chat: chatA, user } = await makeGroup("Профиль А", "Амир");
+    const { chat: chatB } = await makeGroup("Профиль Б", "Асель");
+    await repo.addMembership(chatB.chatId, user.userId);
+
+    const meetingA = await repo.createMeeting({
+      chatId: chatA.chatId,
+      initiatorId: user.userId,
+      place: "Кафе",
+      whenText: "пн",
+      goal: "A",
+      invitees: [user.userId],
+    });
+    const meetingB = await repo.createMeeting({
+      chatId: chatB.chatId,
+      initiatorId: user.userId,
+      place: "Библиотека",
+      whenText: "вт",
+      goal: "B",
+      invitees: [user.userId],
+    });
+    const cancelled = await repo.createMeeting({
+      chatId: chatA.chatId,
+      initiatorId: user.userId,
+      place: "X",
+      whenText: "ср",
+      goal: "Отменённая",
+      invitees: [user.userId],
+    });
+    await repo.updateMeeting(cancelled.id, { status: "cancelled" });
+
+    const other = await repo.createWebUser({ fullName: "Чужой", lang: "ru" });
+    const { chat: chatC } = await makeGroup("Не моя группа", "Чужой2");
+    await repo.addMembership(chatC.chatId, other.userId);
+    await repo.createMeeting({
+      chatId: chatC.chatId,
+      initiatorId: other.userId,
+      place: "Y",
+      whenText: "чт",
+      goal: "Не видно",
+      invitees: [other.userId],
+    });
+
+    const rows = await repo.userMeetings(user.userId);
+    const ids = rows.map((row) => row.meeting.id);
+    expect(ids).toContain(meetingA.id);
+    expect(ids).toContain(meetingB.id);
+    expect(ids).not.toContain(cancelled.id);
+    expect(rows.every((row) => row.meeting.goal !== "Не видно")).toBe(true);
+  });
+});
+
 // --- Telegram Mini App ------------------------------------------------------
 
 function signInitData(payload: Record<string, string>, token = BOT_TOKEN): string {

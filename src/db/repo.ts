@@ -539,6 +539,22 @@ export async function chatMeetings(chatId: number, limit = 20, exec?: Exec): Pro
     .limit(limit);
 }
 
+/** Открытые встречи во всех группах пользователя — для профильной панели. */
+export async function userMeetings(
+  userId: number,
+  limit = 20,
+  exec?: Exec,
+): Promise<{ meeting: Meeting; chat: Chat }[]> {
+  return ex(exec)
+    .select({ meeting: meetings, chat: chats })
+    .from(meetings)
+    .innerJoin(chats, eq(chats.chatId, meetings.chatId))
+    .innerJoin(memberships, eq(memberships.chatId, chats.chatId))
+    .where(and(eq(memberships.userId, userId), eq(meetings.status, "open")))
+    .orderBy(desc(meetings.createdAt))
+    .limit(limit);
+}
+
 /**
  * Открытые встречи, которым пора отправить напоминание.
  *

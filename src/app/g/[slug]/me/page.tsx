@@ -56,7 +56,7 @@ export default async function MySchedulePage({
   return (
     <>
       <TelegramAuth slug={slug} authed />
-      <Topbar>
+      <Topbar lang={lang}>
         <Link className="btn btn-sm" href={`/g/${slug}`}>
           {t("w_back")}
         </Link>
