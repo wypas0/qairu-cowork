@@ -33,14 +33,15 @@ type CellDetail = {
   missing: string[];
 };
 
+/** Чем меньше свободных, тем темнее клетка — h0 светлее всего (свободны все), h5 темнее всего (никого). */
 function heatClass(count: number, total: number): string {
-  if (!total || count <= 0) return "h0";
+  if (!total || count <= 0) return "h5";
   const share = count / total;
-  if (share >= 1) return "h5";
-  if (share >= 0.8) return "h4";
-  if (share >= 0.6) return "h3";
-  if (share >= 0.4) return "h2";
-  return "h1";
+  if (share >= 1) return "h0";
+  if (share >= 0.8) return "h1";
+  if (share >= 0.6) return "h2";
+  if (share >= 0.4) return "h3";
+  return "h4";
 }
 
 function hhmm(minutes: number): string {
@@ -187,11 +188,11 @@ export function Board({
         </div>
 
         <div className="legend">
-          <span>{labels.legendNone}</span>
+          <span>{labels.legendAll}</span>
           {["h0", "h1", "h2", "h3", "h4", "h5"].map((cls) => (
             <i key={cls} className={cls} />
           ))}
-          <span>{labels.legendAll}</span>
+          <span>{labels.legendNone}</span>
         </div>
       </section>
 

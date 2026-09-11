@@ -234,7 +234,7 @@ export const EN: Strings = {
   w_copy: "Copy",
   w_copied: "Copied",
   w_heat_title: "The whole week",
-  w_heat_hint: "The darker the cell, the more people are free. Hover to see how many.",
+  w_heat_hint: "The darker the cell, the fewer people are free. Hover to see how many.",
   w_legend_none: "nobody",
   w_legend_all: "everyone",
   w_quorum_label: "{q} of {n} is enough",
