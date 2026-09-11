@@ -25,7 +25,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const lang = normalizeLang((requestHeaders.get("accept-language") ?? "").split(",")[0]);
 
   return (
-    <html lang={lang}>
+    // suppressHydrationWarning: скрипт Telegram Mini App подставляет свои
+    // CSS-переменные (--tg-viewport-height и т.п.) прямо в style этого узла,
+    // иногда раньше, чем React успевает гидрироваться — это ожидаемо и не
+    // баг гидратации.
+    <html lang={lang} suppressHydrationWarning>
       <body>
         {children}
         <footer className="foot">
