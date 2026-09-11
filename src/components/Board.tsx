@@ -21,6 +21,16 @@ export type BoardLabels = {
   minSlot: string;
   minutesShort: string;
   quorumTemplate: string;
+  close: string;
+};
+
+type CellDetail = {
+  date: string;
+  dayLabel: string;
+  start: number;
+  end: number;
+  count: number;
+  missing: string[];
 };
 
 function heatClass(count: number, total: number): string {
@@ -59,7 +69,17 @@ export function Board({
   const [payload, setPayload] = useState(initial);
   const [quorum, setQuorum] = useState(initialQuorum);
   const [minSlot, setMinSlot] = useState(initialMinSlot);
+  const [activeCell, setActiveCell] = useState<CellDetail | null>(null);
   const requestId = useRef(0);
+
+  useEffect(() => {
+    if (!activeCell) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setActiveCell(null);
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [activeCell]);
 
   const refresh = useCallback(
     async (nextQuorum: number, nextMinSlot: number) => {
@@ -132,6 +152,31 @@ export function Board({
                         key={`${day.date}-${cell.start}`}
                         className={`cell ${heatClass(cell.count, total)}`}
                         title={`${cell.count}/${total}`}
+                        tabIndex={0}
+                        role="button"
+                        aria-label={`${day.label} ${hhmm(cell.start)}–${hhmm(cell.end)}: ${cell.count}/${total}`}
+                        onClick={() =>
+                          setActiveCell({
+                            date: day.date,
+                            dayLabel: day.label,
+                            start: cell.start,
+                            end: cell.end,
+                            count: cell.count,
+                            missing: cell.missing,
+                          })
+                        }
+                        onKeyDown={(event) => {
+                          if (event.key !== " " && event.key !== "Enter") return;
+                          event.preventDefault();
+                          setActiveCell({
+                            date: day.date,
+                            dayLabel: day.label,
+                            start: cell.start,
+                            end: cell.end,
+                            count: cell.count,
+                            missing: cell.missing,
+                          });
+                        }}
                       />
                     );
                   })}
@@ -219,6 +264,53 @@ export function Board({
           )}
         </div>
       </section>
+
+      {activeCell && (
+        <div className="cell-popover-overlay" onClick={() => setActiveCell(null)}>
+          <div
+            className="cell-popover"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${activeCell.dayLabel} ${hhmm(activeCell.start)}–${hhmm(activeCell.end)}`}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="profile-head">
+              <h3 style={{ margin: 0 }}>{activeCell.dayLabel}</h3>
+              <button
+                type="button"
+                className="btn btn-sm btn-quiet"
+                onClick={() => setActiveCell(null)}
+              >
+                {labels.close}
+              </button>
+            </div>
+            <p className="when" style={{ fontSize: 16 }}>
+              {hhmm(activeCell.start)}–{hhmm(activeCell.end)}
+            </p>
+            <p className="small muted">
+              {activeCell.count}/{total}
+              {activeCell.missing.length > 0 &&
+                ` — ${labels.missingShort} ${activeCell.missing.join(", ")}`}
+            </p>
+            <button
+              type="button"
+              className="btn btn-primary"
+              style={{ width: "100%", marginTop: 8 }}
+              onClick={() => {
+                pick(
+                  activeCell.date,
+                  activeCell.start,
+                  activeCell.end,
+                  `${activeCell.dayLabel} · ${hhmm(activeCell.start)}–${hhmm(activeCell.end)}`,
+                );
+                setActiveCell(null);
+              }}
+            >
+              {labels.pick}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

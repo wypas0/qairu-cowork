@@ -82,6 +82,7 @@ export default async function GroupPage({ params }: { params: Promise<{ slug: st
             minSlot: t("w_min_slot"),
             minutesShort: t("w_minutes_short"),
             quorumTemplate: t("w_quorum_label", { q: "{q}", n: "{n}" }),
+            close: t("w_close"),
           }}
         />
 

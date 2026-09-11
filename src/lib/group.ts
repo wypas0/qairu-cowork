@@ -18,7 +18,7 @@ import {
 } from "@/core/availability";
 import { slotTimes } from "@/core/grid";
 import { fmtInterval } from "@/core/intervals";
-import { type DateStr, chatTz, todayIn } from "@/core/timeutils";
+import { type DateStr, addDays, chatTz, todayIn, weekdayOf } from "@/core/timeutils";
 import * as repo from "@/db/repo";
 import type { Chat, Meeting, MeetingResponse, User } from "@/db/schema";
 import { displayName } from "@/db/schema";
@@ -60,8 +60,13 @@ export async function loadGroupState(
   const today = todayIn(chatTz(chat));
   const parityOf = parityOfChat(chat);
   const minimum = minSlot ?? chat.minSlotMin;
+  // Тепловая карта — это «эта неделя», а не «7 дней вперёд»: понедельник
+  // всегда первым столбцом, даже если сегодня, скажем, четверг. Список окон
+  // ниже (computeAvailability) по-прежнему считается вперёд от сегодня —
+  // предлагать встречу на прошедший день не нужно.
+  const weekStart = addDays(today, -weekdayOf(today));
 
-  const grid = heatmap(people, today, {
+  const grid = heatmap(people, weekStart, {
     daysAhead: DAYS_AHEAD,
     dayStart: chat.dayStartMin,
     dayEnd: chat.dayEndMin,
@@ -104,7 +109,7 @@ export type BoardPayload = {
   days: {
     date: string;
     label: string;
-    cells: { start: number; end: number; count: number }[];
+    cells: { start: number; end: number; count: number; missing: string[] }[];
   }[];
   windows: {
     date: string;
@@ -132,6 +137,9 @@ export function toBoardPayload(state: GroupState, lang: string): BoardPayload {
         start: cell.startMin,
         end: cell.endMin,
         count: cell.freeIds.length,
+        missing: state.result.participants
+          .filter((person) => !cell.freeIds.includes(person.userId))
+          .map((person) => state.names.get(person.userId) ?? "?"),
       })),
     })),
     windows: state.result.days

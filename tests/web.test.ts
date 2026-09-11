@@ -160,13 +160,22 @@ describe("второй участник и кворум", () => {
     expect(relaxed.payload.quorum).toBe(1);
     expect(relaxed.payload.everyone).toBe(false);
 
-    // Ищем понедельник — день, где владелец занят целиком. Там окно обязано
-    // найтись, и в нём должно быть честно указано, что Амира не хватает.
-    const busyDay = relaxed.state.grid.find((day) => weekdayOf(day.day) === 0);
-    expect(busyDay).toBeDefined();
-    const windowsThatDay = relaxed.payload.windows.find((day) => day.date === busyDay!.day);
-    expect(windowsThatDay, "при кворуме 1 окно в понедельник обязано найтись").toBeDefined();
-    expect(windowsThatDay!.items[0].missing).toContain("Амир");
+    // Занятость еженедельная, поэтому понедельник владельца занят целиком
+    // в любую неделю — в том числе в те 7 дней вперёд от сегодня, что
+    // считает computeAvailability. Там обязано найтись окно с честной
+    // пометкой, что Амира не хватает.
+    const mondayWindows = relaxed.payload.windows.find((day) => weekdayOf(day.date) === 0);
+    expect(mondayWindows, "при кворуме 1 окно в понедельник обязано найтись").toBeDefined();
+    expect(mondayWindows!.items[0].missing).toContain("Амир");
+  });
+
+  it("тепловая карта всегда начинается с понедельника, независимо от текущего дня недели", async () => {
+    const { chat } = await makeGroup("Неделя с понедельника", "Амир");
+    const { state } = await board(chat.slug!);
+    const { weekdayOf } = await import("@/core/timeutils");
+    expect(state.grid).toHaveLength(7);
+    expect(weekdayOf(state.grid[0].day)).toBe(0);
+    expect(weekdayOf(state.grid[6].day)).toBe(6);
   });
 });
 
