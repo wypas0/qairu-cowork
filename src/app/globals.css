@@ -175,16 +175,12 @@ a {
   .wrap {
     padding-top: 16px;
   }
-  /* 16px не даёт iOS Safari автоматически зумить страницу при фокусе на поле. */
-  input[type="text"],
-  input[type="number"],
-  input[type="date"],
-  select,
-  textarea {
-    font-size: 16px;
-  }
   .btn {
     min-height: 40px;
+  }
+  .icon-btn {
+    width: 40px;
+    height: 40px;
   }
 }
 
@@ -343,6 +339,18 @@ textarea {
   resize: vertical;
   font-family: var(--mono);
   font-size: 13px;
+}
+/* 16px не даёт iOS Safari автоматически зумить страницу при фокусе на поле.
+   Идёт после базовых правил выше (включая textarea), иначе они бы
+   перекрыли этот размер по порядку каскада. */
+@media (max-width: 560px) {
+  input[type="text"],
+  input[type="number"],
+  input[type="date"],
+  select,
+  textarea {
+    font-size: 16px;
+  }
 }
 input:focus,
 select:focus,
@@ -623,6 +631,11 @@ input[type="range"] {
   color: var(--muted);
   max-width: 62ch;
 }
+@media (max-width: 400px) {
+  .hero h1 {
+    font-size: 28px;
+  }
+}
 .steps {
   display: grid;
   gap: 14px;
@@ -656,13 +669,15 @@ input[type="range"] {
 .toast {
   position: fixed;
   left: 50%;
-  bottom: 22px;
+  bottom: max(22px, calc(env(safe-area-inset-bottom) + 12px));
   transform: translateX(-50%);
+  max-width: calc(100vw - 32px);
   background: var(--text);
   color: var(--bg);
   padding: 9px 16px;
   border-radius: 4px;
   font-size: 14px;
+  text-align: center;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.18s;
