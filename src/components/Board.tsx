@@ -6,7 +6,7 @@ import type { BoardPayload } from "@/lib/group";
 
 export type PickDetail = { value: string; text: string };
 
-/** Событие «назначить встречу на это окно» — им доска говорит форме встречи. */
+/** Событие «назначить встречу на это время» — им доска говорит форме встречи. */
 export const PICK_EVENT = "qairu:pick";
 
 export type BoardLabels = {
@@ -16,10 +16,15 @@ export type BoardLabels = {
   legendAll: string;
   windowsTitle: string;
   windowsEmpty: string;
+  windowsNoData: string;
   missingShort: string;
   pick: string;
-  minSlot: string;
-  minutesShort: string;
+  day: string;
+  duration: string;
+  durationTemplate: string; // «{h} ч {m} мин» — литеральные {h} и {m}
+  hoursOnlyTemplate: string; // «{h} ч»
+  minutesTemplate: string; // «{m} мин»
+  variantsTemplate: string; // «{n} вариантов» — литеральный {n}
   quorumTemplate: string;
   close: string;
 };
@@ -50,26 +55,37 @@ function hhmm(minutes: number): string {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
-const MIN_SLOT_OPTIONS = [30, 45, 60, 90, 120];
+function durationText(minutes: number, labels: BoardLabels): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return labels.minutesTemplate.replace("{m}", String(m));
+  if (m === 0) return labels.hoursOnlyTemplate.replace("{h}", String(h));
+  return labels.durationTemplate.replace("{h}", String(h)).replace("{m}", String(m));
+}
+
+/** День по умолчанию: первый, где есть хоть один вариант; иначе сегодня. */
+function firstDayWithSlots(payload: BoardPayload): string {
+  return (payload.slotDays.find((day) => day.items.length > 0) ?? payload.slotDays[0])?.date ?? "";
+}
 
 export function Board({
   slug,
   initial,
   dayHeaders,
-  initialQuorum,
-  initialMinSlot,
+  durationOptions,
   labels,
 }: {
   slug: string;
   initial: BoardPayload;
   dayHeaders: { short: string; dm: string }[];
-  initialQuorum: number;
-  initialMinSlot: number;
+  durationOptions: number[];
   labels: BoardLabels;
 }) {
   const [payload, setPayload] = useState(initial);
-  const [quorum, setQuorum] = useState(initialQuorum);
-  const [minSlot, setMinSlot] = useState(initialMinSlot);
+  const [quorum, setQuorum] = useState(initial.quorum);
+  const [duration, setDuration] = useState(initial.duration);
+  const [selectedDay, setSelectedDay] = useState(() => firstDayWithSlots(initial));
+  const [loading, setLoading] = useState(false);
   const [activeCell, setActiveCell] = useState<CellDetail | null>(null);
   const requestId = useRef(0);
 
@@ -83,12 +99,13 @@ export function Board({
   }, [activeCell]);
 
   const refresh = useCallback(
-    async (nextQuorum: number, nextMinSlot: number) => {
+    async (nextQuorum: number, nextDuration: number) => {
       const id = ++requestId.current;
+      setLoading(true);
       try {
         const params = new URLSearchParams({
           quorum: String(nextQuorum),
-          min: String(nextMinSlot),
+          duration: String(nextDuration),
         });
         const response = await fetch(`/api/g/${slug}/state?${params}`, {
           credentials: "same-origin",
@@ -99,6 +116,8 @@ export function Board({
         if (id === requestId.current) setPayload(data);
       } catch {
         // При сетевой ошибке просто оставляем прежнюю картинку.
+      } finally {
+        if (id === requestId.current) setLoading(false);
       }
     },
     [slug],
@@ -106,13 +125,14 @@ export function Board({
 
   // Ползунок двигают непрерывно — ждём паузы, иначе на каждый пиксель уходит запрос.
   useEffect(() => {
-    if (quorum === initialQuorum && minSlot === initialMinSlot) return;
-    const timer = setTimeout(() => void refresh(quorum, minSlot), 180);
+    if (quorum === initial.quorum && duration === initial.duration) return;
+    const timer = setTimeout(() => void refresh(quorum, duration), 180);
     return () => clearTimeout(timer);
-  }, [quorum, minSlot, initialQuorum, initialMinSlot, refresh]);
+  }, [quorum, duration, initial.quorum, initial.duration, refresh]);
 
   const total = payload.total;
   const rows = payload.days[0]?.cells.length ?? 0;
+  const day = payload.slotDays.find((entry) => entry.date === selectedDay) ?? payload.slotDays[0];
 
   function pick(date: string, start: number, end: number, text: string) {
     const detail: PickDetail = { value: `${date}T${hhmm(start)}|${end - start}`, text };
@@ -131,8 +151,8 @@ export function Board({
             <thead>
               <tr>
                 <th className="timecol" />
-                {payload.days.map((day, index) => (
-                  <th key={day.date}>
+                {payload.days.map((heatDay, index) => (
+                  <th key={heatDay.date}>
                     {dayHeaders[index]?.short}
                     <br />
                     <span className="small muted">{dayHeaders[index]?.dm}</span>
@@ -146,37 +166,29 @@ export function Board({
                   <td className="timecol">
                     {row % 2 === 0 ? hhmm(payload.days[0].cells[row].start) : ""}
                   </td>
-                  {payload.days.map((day) => {
-                    const cell = day.cells[row];
+                  {payload.days.map((heatDay) => {
+                    const cell = heatDay.cells[row];
+                    const detail: CellDetail = {
+                      date: heatDay.date,
+                      dayLabel: heatDay.label,
+                      start: cell.start,
+                      end: cell.end,
+                      count: cell.count,
+                      missing: cell.missing,
+                    };
                     return (
                       <td
-                        key={`${day.date}-${cell.start}`}
+                        key={`${heatDay.date}-${cell.start}`}
                         className={`cell ${heatClass(cell.count, total)}`}
                         title={`${cell.count}/${total}`}
                         tabIndex={0}
                         role="button"
-                        aria-label={`${day.label} ${hhmm(cell.start)}–${hhmm(cell.end)}: ${cell.count}/${total}`}
-                        onClick={() =>
-                          setActiveCell({
-                            date: day.date,
-                            dayLabel: day.label,
-                            start: cell.start,
-                            end: cell.end,
-                            count: cell.count,
-                            missing: cell.missing,
-                          })
-                        }
+                        aria-label={`${heatDay.label} ${hhmm(cell.start)}–${hhmm(cell.end)}: ${cell.count}/${total}`}
+                        onClick={() => setActiveCell(detail)}
                         onKeyDown={(event) => {
                           if (event.key !== " " && event.key !== "Enter") return;
                           event.preventDefault();
-                          setActiveCell({
-                            date: day.date,
-                            dayLabel: day.label,
-                            start: cell.start,
-                            end: cell.end,
-                            count: cell.count,
-                            missing: cell.missing,
-                          });
+                          setActiveCell(detail);
                         }}
                       />
                     );
@@ -196,72 +208,106 @@ export function Board({
         </div>
       </section>
 
-      {/* ============ окна и фильтры ============ */}
-      <section className="card">
+      {/* ============ выбор дня и длительности ============ */}
+      <section className="card" aria-busy={loading}>
         <h2>{labels.windowsTitle}</h2>
 
         <div className="field">
-          <label htmlFor="quorum">
-            {labels.quorumTemplate
-              .replace("{q}", String(payload.quorum))
-              .replace("{n}", String(total))}
-          </label>
-          <input
-            id="quorum"
-            type="range"
-            min={1}
-            max={Math.max(1, total)}
-            value={Math.min(quorum, Math.max(1, total))}
-            onChange={(event) => setQuorum(Number(event.target.value))}
-            style={{ width: "100%" }}
-          />
+          <span className="label" id="slot-day-label">
+            {labels.day}
+          </span>
+          <div className="daypicker" role="radiogroup" aria-labelledby="slot-day-label">
+            {payload.slotDays.map((entry) => {
+              const active = entry.date === day?.date;
+              return (
+                <button
+                  key={entry.date}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  className={`daychip${active ? " active" : ""}${entry.items.length === 0 ? " empty" : ""}`}
+                  onClick={() => setSelectedDay(entry.date)}
+                  title={entry.label}
+                >
+                  <span>{entry.short}</span>
+                  <span className="count">{entry.items.length}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        <div className="field">
-          <label htmlFor="minslot">{labels.minSlot}</label>
-          <select
-            id="minslot"
-            value={minSlot}
-            onChange={(event) => setMinSlot(Number(event.target.value))}
-          >
-            {MIN_SLOT_OPTIONS.map((value) => (
-              <option key={value} value={value}>
-                {value} {labels.minutesShort}
-              </option>
-            ))}
-          </select>
+        <div className="row">
+          <div className="field">
+            <label htmlFor="duration">{labels.duration}</label>
+            <select
+              id="duration"
+              value={duration}
+              onChange={(event) => setDuration(Number(event.target.value))}
+            >
+              {durationOptions.map((value) => (
+                <option key={value} value={value}>
+                  {durationText(value, labels)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <label htmlFor="quorum">
+              {labels.quorumTemplate
+                .replace("{q}", String(payload.quorum))
+                .replace("{n}", String(total))}
+            </label>
+            <input
+              id="quorum"
+              type="range"
+              min={1}
+              max={Math.max(1, total)}
+              value={Math.min(quorum, Math.max(1, total))}
+              disabled={total <= 1}
+              onChange={(event) => setQuorum(Number(event.target.value))}
+              style={{ width: "100%" }}
+            />
+          </div>
         </div>
 
-        <div>
-          {payload.windows.length === 0 ? (
+        {day && (
+          <p className="small muted" style={{ margin: "2px 0 6px" }}>
+            {day.label} ·{" "}
+            {labels.variantsTemplate.replace("{n}", String(day.items.length))} ·{" "}
+            {durationText(payload.duration, labels)}
+          </p>
+        )}
+
+        <div className="slotlist">
+          {total === 0 ? (
+            <p className="muted small">{labels.windowsNoData}</p>
+          ) : !day || day.items.length === 0 ? (
             <p className="muted small">{labels.windowsEmpty}</p>
           ) : (
-            payload.windows.map((day) => (
-              <div className="daygroup" key={day.date}>
-                <h3>{day.label}</h3>
-                <ul className="windows">
-                  {day.items.map((item) => (
-                    <li key={`${day.date}-${item.start}`}>
-                      <span className="when">{item.text}</span>{" "}
-                      {!payload.everyone && (
-                        <span className="small muted">
-                          {item.count}/{total}
-                          {item.missing.length > 0 &&
-                            ` — ${labels.missingShort} ${item.missing.join(", ")}`}
-                        </span>
-                      )}{" "}
-                      <button
-                        type="button"
-                        className="btn btn-sm"
-                        onClick={() => pick(day.date, item.start, item.end, item.text)}
-                      >
-                        {labels.pick}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))
+            <ul className="windows">
+              {day.items.map((item) => (
+                <li key={`${day.date}-${item.start}`} className="slotrow">
+                  <div className="slotinfo">
+                    <span className="when">{item.text}</span>{" "}
+                    <span className="small muted">
+                      {item.count}/{total}
+                      {item.missing.length > 0 &&
+                        ` — ${labels.missingShort} ${item.missing.join(", ")}`}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    onClick={() =>
+                      pick(day.date, item.start, item.end, `${day.label} · ${item.text}`)
+                    }
+                  >
+                    {labels.pick}
+                  </button>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
       </section>

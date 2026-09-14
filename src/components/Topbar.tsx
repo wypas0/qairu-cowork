@@ -57,6 +57,9 @@ export async function Topbar({
           joinOtherPh: t("w_join_other_ph"),
           joinOtherBtn: t("w_join_other_btn"),
           anon: t("w_profile_anon"),
+          account: t("w_acct_title"),
+          login: t("w_login_btn"),
+          logout: t("w_logout"),
         }}
       />
       <Link className="brand" href="/">
@@ -67,6 +70,11 @@ export async function Topbar({
       </Link>
       <span className="spacer" />
       {children}
+      {!user && (
+        <Link className="btn btn-sm" href="/login">
+          {t("w_login_btn")}
+        </Link>
+      )}
     </header>
   );
 }

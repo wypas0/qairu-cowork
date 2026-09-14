@@ -21,14 +21,19 @@ import {
   type Chat,
   type Meeting,
   type MeetingResponse,
+  type Notice,
   type User,
+  ROLE_ADMIN,
+  ROLE_MEMBER,
   botState,
   busySlots,
   chats,
+  credentials,
   displayName,
   meetingResponses,
   meetings,
   memberships,
+  notices,
   scheduleState,
   users,
   webSessions,
@@ -123,18 +128,68 @@ export async function updateChat(
   await ex(exec).update(chats).set(patch).where(eq(chats.chatId, chatId));
 }
 
-/** true, если участник добавлен впервые. */
+/** true, если участник добавлен впервые. Роль уже состоящего участника не меняется. */
 export async function addMembership(
   chatId: number,
   userId: number,
   exec?: Exec,
+  role: string = ROLE_MEMBER,
 ): Promise<boolean> {
   const inserted = await ex(exec)
     .insert(memberships)
-    .values({ chatId, userId })
+    .values({ chatId, userId, role })
     .onConflictDoNothing()
     .returning({ chatId: memberships.chatId });
   return inserted.length > 0;
+}
+
+export type RosterEntry = { user: User; role: string; joinedAt: Date };
+
+/** Участники вместе с ролью: администраторы первыми, дальше по имени. */
+export async function chatRoster(chatId: number, exec?: Exec): Promise<RosterEntry[]> {
+  const rows = await ex(exec)
+    .select({ user: users, role: memberships.role, joinedAt: memberships.joinedAt })
+    .from(users)
+    .innerJoin(memberships, eq(memberships.userId, users.userId))
+    .where(eq(memberships.chatId, chatId))
+    .orderBy(users.fullName);
+  return rows.sort((a, b) => Number(b.role === ROLE_ADMIN) - Number(a.role === ROLE_ADMIN));
+}
+
+export async function memberRole(
+  chatId: number,
+  userId: number,
+  exec?: Exec,
+): Promise<string | null> {
+  const [row] = await ex(exec)
+    .select({ role: memberships.role })
+    .from(memberships)
+    .where(and(eq(memberships.chatId, chatId), eq(memberships.userId, userId)))
+    .limit(1);
+  return row?.role ?? null;
+}
+
+/** Сменить роль. false — человек не состоит в группе. */
+export async function setMemberRole(
+  chatId: number,
+  userId: number,
+  role: string,
+  exec?: Exec,
+): Promise<boolean> {
+  const updated = await ex(exec)
+    .update(memberships)
+    .set({ role: role === ROLE_ADMIN ? ROLE_ADMIN : ROLE_MEMBER })
+    .where(and(eq(memberships.chatId, chatId), eq(memberships.userId, userId)))
+    .returning({ userId: memberships.userId });
+  return updated.length > 0;
+}
+
+export async function adminIds(chatId: number, exec?: Exec): Promise<number[]> {
+  const rows = await ex(exec)
+    .select({ userId: memberships.userId })
+    .from(memberships)
+    .where(and(eq(memberships.chatId, chatId), eq(memberships.role, ROLE_ADMIN)));
+  return rows.map((row) => row.userId);
 }
 
 export async function removeMembership(
@@ -187,6 +242,7 @@ export async function userChats(userId: number, exec?: Exec): Promise<Chat[]> {
       travelBufferMin: chats.travelBufferMin,
       semesterStart: chats.semesterStart,
       reminderMin: chats.reminderMin,
+      createdBy: chats.createdBy,
       createdAt: chats.createdAt,
     })
     .from(chats)
@@ -324,6 +380,30 @@ export async function addRangeSlot(
   await markFilled(args.userId, true, db);
 }
 
+/** Удалить одну занятость. Чужую удалить нельзя: false. */
+export async function deleteSlot(userId: number, slotId: number, exec?: Exec): Promise<boolean> {
+  const removed = await ex(exec)
+    .delete(busySlots)
+    .where(and(eq(busySlots.id, slotId), eq(busySlots.userId, userId)))
+    .returning({ id: busySlots.id });
+  return removed.length > 0;
+}
+
+/** Разовые занятости и периоды, по возрастанию даты. */
+export async function datedSlots(userId: number, exec?: Exec): Promise<BusySlot[]> {
+  const rows = await ex(exec)
+    .select()
+    .from(busySlots)
+    .where(
+      and(
+        eq(busySlots.userId, userId),
+        or(isNotNull(busySlots.specificDate), isNotNull(busySlots.dateFrom)),
+      ),
+    );
+  const dayOf = (slot: BusySlot) => slot.specificDate ?? slot.dateFrom ?? "";
+  return rows.sort((a, b) => dayOf(a).localeCompare(dayOf(b)) || a.startMin - b.startMin);
+}
+
 /** Удалить все разовые занятости и диапазоны, оставив недельное расписание. */
 export async function deleteDatedSlots(userId: number, exec?: Exec): Promise<number> {
   const removed = await ex(exec)
@@ -347,13 +427,17 @@ export async function getSlots(userId: number, exec?: Exec): Promise<BusySlot[]>
 }
 
 export async function markFilled(userId: number, filled: boolean, exec?: Exec): Promise<void> {
-  await ex(exec)
+  const db = ex(exec);
+  await db
     .insert(scheduleState)
     .values({ userId, filled, updatedAt: new Date() })
     .onConflictDoUpdate({
       target: scheduleState.userId,
       set: { filled, updatedAt: new Date() },
     });
+  // Любой способ заполнить расписание — сайт, бот, мастер, /busy — выполняет
+  // просьбу администратора, поэтому её баннер гаснет здесь, в одном месте.
+  if (filled) await markFillNoticesRead(userId, db);
 }
 
 export async function isFilled(userId: number, exec?: Exec): Promise<boolean> {
@@ -685,6 +769,11 @@ export async function issueWebSession(userId: number, exec?: Exec): Promise<stri
   return token;
 }
 
+export async function deleteWebSession(token: string, exec?: Exec): Promise<void> {
+  if (!token) return;
+  await ex(exec).delete(webSessions).where(eq(webSessions.token, token));
+}
+
 export async function userByWebToken(token: string, exec?: Exec): Promise<User | null> {
   if (!token) return null;
   const db = ex(exec);
@@ -699,6 +788,191 @@ export async function userByWebToken(token: string, exec?: Exec): Promise<User |
     .set({ lastSeenAt: new Date() })
     .where(eq(webSessions.token, token));
   return getUser(session.userId, db);
+}
+
+// --------------------------------------------------------------------------
+// Вход по логину и паролю
+// --------------------------------------------------------------------------
+
+export type CredentialsRow = typeof credentials.$inferSelect;
+
+export async function getCredentials(userId: number, exec?: Exec): Promise<CredentialsRow | null> {
+  const [row] = await ex(exec)
+    .select()
+    .from(credentials)
+    .where(eq(credentials.userId, userId))
+    .limit(1);
+  return row ?? null;
+}
+
+/**
+ * Занят ли логин кем-то, кроме `exceptUserId`.
+ *
+ * Логин не должен совпадать ни с чужим логином, ни с чужим подтверждённым
+ * @username из Telegram — иначе ввод «amir» на странице входа стал бы
+ * двусмысленным.
+ */
+export async function loginTaken(login: string, exceptUserId: number, exec?: Exec): Promise<boolean> {
+  const db = ex(exec);
+  const [byLogin] = await db
+    .select({ userId: credentials.userId })
+    .from(credentials)
+    .where(eq(credentials.login, login))
+    .limit(1);
+  if (byLogin && byLogin.userId !== exceptUserId) return true;
+
+  const [byUsername] = await db
+    .select({ userId: users.userId })
+    .from(users)
+    .where(and(sql`lower(${users.username}) = ${login}`, eq(users.isWeb, false)))
+    .limit(1);
+  return Boolean(byUsername && byUsername.userId !== exceptUserId);
+}
+
+export async function setCredentials(
+  args: { userId: number; login: string; passwordHash: string },
+  exec?: Exec,
+): Promise<void> {
+  await ex(exec)
+    .insert(credentials)
+    .values({ userId: args.userId, login: args.login, passwordHash: args.passwordHash })
+    .onConflictDoUpdate({
+      target: credentials.userId,
+      set: { login: args.login, passwordHash: args.passwordHash, updatedAt: new Date() },
+    });
+}
+
+export async function deleteCredentials(userId: number, exec?: Exec): Promise<void> {
+  await ex(exec).delete(credentials).where(eq(credentials.userId, userId));
+}
+
+/** Все сессии человека, кроме текущей: после смены пароля чужие входы обрываются. */
+export async function deleteOtherWebSessions(
+  userId: number,
+  keepToken: string,
+  exec?: Exec,
+): Promise<void> {
+  await ex(exec)
+    .delete(webSessions)
+    .where(and(eq(webSessions.userId, userId), sql`${webSessions.token} <> ${keepToken}`));
+}
+
+/**
+ * Найти учётные данные по тому, что человек ввёл в поле «логин».
+ *
+ * `@name` — только Telegram-ник подтверждённого аккаунта. Без @ сначала ищем
+ * логин сайта, затем Telegram-ник: пересечься они не могут (см. loginTaken).
+ */
+export async function credentialsForLogin(
+  input: string,
+  exec?: Exec,
+): Promise<{ user: User; credentials: CredentialsRow } | null> {
+  const raw = input.trim();
+  const clean = raw.replace(/^@+/, "").toLowerCase();
+  if (!clean) return null;
+  const db = ex(exec);
+
+  if (!raw.startsWith("@")) {
+    const [row] = await db
+      .select({ user: users, credentials })
+      .from(credentials)
+      .innerJoin(users, eq(users.userId, credentials.userId))
+      .where(eq(credentials.login, clean))
+      .limit(1);
+    if (row) return row;
+  }
+
+  const [row] = await db
+    .select({ user: users, credentials })
+    .from(credentials)
+    .innerJoin(users, eq(users.userId, credentials.userId))
+    .where(and(sql`lower(${users.username}) = ${clean}`, eq(users.isWeb, false)))
+    .limit(1);
+  return row ?? null;
+}
+
+// --------------------------------------------------------------------------
+// Уведомления на сайте
+// --------------------------------------------------------------------------
+
+export async function addNotices(
+  rows: {
+    chatId: number;
+    userId: number;
+    kind: string;
+    meetingId?: number | null;
+    fromUserId?: number | null;
+    text?: string;
+  }[],
+  exec?: Exec,
+): Promise<void> {
+  if (rows.length === 0) return;
+  await ex(exec)
+    .insert(notices)
+    .values(
+      rows.map((row) => ({
+        chatId: row.chatId,
+        userId: row.userId,
+        kind: row.kind.slice(0, 24),
+        meetingId: row.meetingId ?? null,
+        fromUserId: row.fromUserId ?? null,
+        text: (row.text ?? "").slice(0, 500),
+      })),
+    );
+}
+
+export async function unreadNotices(chatId: number, userId: number, exec?: Exec): Promise<Notice[]> {
+  return ex(exec)
+    .select()
+    .from(notices)
+    .where(and(eq(notices.chatId, chatId), eq(notices.userId, userId), isNull(notices.readAt)))
+    .orderBy(desc(notices.createdAt))
+    .limit(20);
+}
+
+/** Закрыть уведомление. Чужое закрыть нельзя. */
+export async function markNoticeRead(noticeId: number, userId: number, exec?: Exec): Promise<void> {
+  await ex(exec)
+    .update(notices)
+    .set({ readAt: new Date() })
+    .where(and(eq(notices.id, noticeId), eq(notices.userId, userId), isNull(notices.readAt)));
+}
+
+/** Человек ответил на встречу — баннер «ответь на встречу» больше не нужен. */
+export async function markMeetingNoticesRead(
+  meetingId: number,
+  userId: number,
+  exec?: Exec,
+): Promise<void> {
+  await ex(exec)
+    .update(notices)
+    .set({ readAt: new Date() })
+    .where(
+      and(
+        eq(notices.meetingId, meetingId),
+        eq(notices.userId, userId),
+        eq(notices.kind, "meeting"),
+        isNull(notices.readAt),
+      ),
+    );
+}
+
+/** Встречу отменили — все её баннеры у всех участников больше не актуальны. */
+export async function closeMeetingNotices(meetingId: number, exec?: Exec): Promise<void> {
+  await ex(exec)
+    .update(notices)
+    .set({ readAt: new Date() })
+    .where(and(eq(notices.meetingId, meetingId), isNull(notices.readAt)));
+}
+
+/** Сохранил расписание — напоминания «заполни расписание» во всех группах гаснут. */
+export async function markFillNoticesRead(userId: number, exec?: Exec): Promise<void> {
+  await ex(exec)
+    .update(notices)
+    .set({ readAt: new Date() })
+    .where(
+      and(eq(notices.userId, userId), eq(notices.kind, "fill_schedule"), isNull(notices.readAt)),
+    );
 }
 
 // --------------------------------------------------------------------------
@@ -728,4 +1002,27 @@ export async function deleteBotState(key: string, exec?: Exec): Promise<void> {
   await ex(exec).delete(botState).where(eq(botState.key, key));
 }
 
-export { displayName };
+/**
+ * Счётчик попыток в скользящем окне поверх bot_state.
+ *
+ * Возвращает, сколько попыток уже было в текущем окне, включая эту. Нужен для
+ * ограничения перебора паролей и частоты напоминаний — отдельная таблица ради
+ * этого не нужна.
+ */
+export async function bumpCounter(key: string, windowMs: number, exec?: Exec): Promise<number> {
+  const db = ex(exec);
+  const now = Date.now();
+  const current = await getBotState<{ count: number; since: number }>(key, db);
+  const fresh = !current || now - current.since > windowMs;
+  const next = fresh ? { count: 1, since: now } : { count: current.count + 1, since: current.since };
+  await setBotState(key, next, db);
+  return next.count;
+}
+
+export async function peekCounter(key: string, windowMs: number, exec?: Exec): Promise<number> {
+  const current = await getBotState<{ count: number; since: number }>(key, exec);
+  if (!current || Date.now() - current.since > windowMs) return 0;
+  return current.count;
+}
+
+export { ROLE_ADMIN, ROLE_MEMBER, displayName };

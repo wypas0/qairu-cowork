@@ -6,13 +6,53 @@ import { revalidatePath } from "next/cache";
 import { fmtMinutes } from "@/core/intervals";
 import { chatTz, isDateStr, zonedWallToUtc } from "@/core/timeutils";
 import * as repo from "@/db/repo";
+import { type Chat, ROLE_ADMIN, ROLE_MEMBER, type User } from "@/db/schema";
 import { formatDay, normalizeLang } from "@/i18n";
+import { adminSource, isGroupAdmin, telegramAdminIds } from "@/lib/admin";
 import { currentUser, setTokenCookie } from "@/lib/auth";
+import {
+  type Delivery,
+  notifyFillSchedule,
+  notifyMeetingCreated,
+  notifyNonResponders,
+  notifyVote,
+} from "@/lib/notify";
 
-async function requireChat(slug: string) {
+/** Не чаще раза в 10 минут на одного адресата — напоминание не должно становиться спамом. */
+const REMIND_WINDOW_MS = 10 * 60 * 1000;
+
+async function requireChat(slug: string): Promise<Chat> {
   const chat = await repo.getChatBySlug(slug);
   if (!chat) redirect("/");
   return chat;
+}
+
+async function requireMember(slug: string): Promise<{ chat: Chat; user: User }> {
+  const chat = await requireChat(slug);
+  const user = await currentUser();
+  if (!user || !(await repo.isMember(chat.chatId, user.userId))) redirect(`/g/${slug}/join`);
+  return { chat, user };
+}
+
+async function requireAdmin(slug: string): Promise<{ chat: Chat; user: User }> {
+  const { chat, user } = await requireMember(slug);
+  if (!(await isGroupAdmin(chat, user.userId))) redirect(`/g/${slug}?err=not_admin`);
+  return { chat, user };
+}
+
+/**
+ * Вернуться на страницу группы. Якорь передаётся параметром `at`: редирект
+ * из серверного действия `#фрагмент` не сохраняет (см. ScrollToAnchor).
+ */
+function back(slug: string, params: Record<string, string> = {}, hash = ""): never {
+  const all = hash ? { ...params, at: hash.replace(/^#/, "") } : params;
+  const query = new URLSearchParams(all).toString();
+  revalidatePath(`/g/${slug}`);
+  redirect(`/g/${slug}${query ? `?${query}` : ""}`);
+}
+
+function deliveryParams(delivery: Delivery): Record<string, string> {
+  return { sent: `${delivery.telegram}-${delivery.site}` };
 }
 
 /** Вход по ссылке-приглашению: человек только называет себя. */
@@ -44,14 +84,12 @@ export async function joinGroup(slug: string, formData: FormData): Promise<void>
 /**
  * Создание встречи.
  *
- * Поле `when` приходит либо из сетки как «2026-09-14T15:00|90», либо свободным
- * текстом. Точное время начала сохраняется только в первом случае: разбирать
- * произвольную фразу в дату — значит поставить напоминание не туда.
+ * Поле `when` приходит либо из выбора времени как «2026-09-14T15:00|90», либо
+ * свободным текстом. Точное время начала сохраняется только в первом случае:
+ * разбирать произвольную фразу в дату — значит поставить напоминание не туда.
  */
 export async function createMeetingAction(slug: string, formData: FormData): Promise<void> {
-  const chat = await requireChat(slug);
-  const user = await currentUser();
-  if (!user || !(await repo.isMember(chat.chatId, user.userId))) redirect(`/g/${slug}/join`);
+  const { chat, user } = await requireMember(slug);
 
   const place = String(formData.get("place") ?? "").trim();
   const goal = String(formData.get("goal") ?? "").trim();
@@ -77,7 +115,7 @@ export async function createMeetingAction(slug: string, formData: FormData): Pro
   }
 
   const members = await repo.chatMembers(chat.chatId);
-  await repo.createMeeting({
+  const meeting = await repo.createMeeting({
     chatId: chat.chatId,
     initiatorId: user.userId,
     place: place.slice(0, 200),
@@ -86,9 +124,11 @@ export async function createMeetingAction(slug: string, formData: FormData): Pro
     invitees: members.map((member) => member.userId),
     whenStart,
   });
+  // Организатор, очевидно, согласен со своей встречей.
+  await repo.setResponse({ meetingId: meeting.id, userId: user.userId, answer: "yes" });
 
-  revalidatePath(`/g/${slug}`);
-  redirect(`/g/${slug}`);
+  const delivery = await notifyMeetingCreated(chat, meeting);
+  back(slug, deliveryParams(delivery), `#meeting-${meeting.id}`);
 }
 
 export async function voteAction(
@@ -96,38 +136,53 @@ export async function voteAction(
   meetingId: number,
   formData: FormData,
 ): Promise<void> {
-  const chat = await requireChat(slug);
-  const user = await currentUser();
-  if (!user || !(await repo.isMember(chat.chatId, user.userId))) redirect(`/g/${slug}/join`);
+  const { chat, user } = await requireMember(slug);
 
   const answer = String(formData.get("answer") ?? "");
-  if (answer !== "yes" && answer !== "no" && answer !== "change") redirect(`/g/${slug}`);
+  if (answer !== "yes" && answer !== "no" && answer !== "change") back(slug);
 
   const meeting = await repo.getMeeting(meetingId);
-  if (!meeting || meeting.chatId !== chat.chatId) redirect(`/g/${slug}`);
+  if (!meeting || meeting.chatId !== chat.chatId || meeting.status !== "open") back(slug);
 
-  await repo.setResponse({
-    meetingId,
-    userId: user.userId,
-    answer,
-    comment: String(formData.get("comment") ?? "").trim().slice(0, 300),
-  });
+  const comment = String(formData.get("comment") ?? "").trim().slice(0, 300);
+  // «Предложить изменения» без текста бессмысленно: организатору нечего читать.
+  if (answer === "change" && !comment) back(slug, { err: "empty_comment" }, `#meeting-${meetingId}`);
 
-  revalidatePath(`/g/${slug}`);
-  redirect(`/g/${slug}`);
+  await repo.setResponse({ meetingId, userId: user.userId, answer, comment });
+  await notifyVote(chat, meeting, user, answer, comment);
+  back(slug, {}, `#meeting-${meetingId}`);
 }
 
+/** Отменить встречу может организатор или администратор группы. */
 export async function cancelMeetingAction(slug: string, meetingId: number): Promise<void> {
-  const chat = await requireChat(slug);
-  const user = await currentUser();
+  const { chat, user } = await requireMember(slug);
   const meeting = await repo.getMeeting(meetingId);
-  if (!meeting || meeting.chatId !== chat.chatId) redirect(`/g/${slug}`);
-  // Отменить встречу может только тот, кто её создал.
-  if (!user || meeting.initiatorId !== user.userId) redirect(`/g/${slug}`);
+  if (!meeting || meeting.chatId !== chat.chatId) back(slug);
+  if (meeting.initiatorId !== user.userId && !(await isGroupAdmin(chat, user.userId))) {
+    back(slug, { err: "not_admin" });
+  }
 
   await repo.updateMeeting(meetingId, { status: "cancelled" });
-  revalidatePath(`/g/${slug}`);
-  redirect(`/g/${slug}`);
+  await repo.closeMeetingNotices(meetingId);
+  // Карточка в Telegram-чате должна показать отмену — иначе туда продолжат голосовать.
+  await notifyVote(chat, { ...meeting, status: "cancelled" }, user, "cancel", "");
+  back(slug, {}, `#meeting-${meetingId}`);
+}
+
+/** Напомнить тем, кто ещё не ответил на встречу. */
+export async function pingNonRespondersAction(slug: string, meetingId: number): Promise<void> {
+  const { chat, user } = await requireMember(slug);
+  const meeting = await repo.getMeeting(meetingId);
+  if (!meeting || meeting.chatId !== chat.chatId || meeting.status !== "open") back(slug);
+  if (meeting.initiatorId !== user.userId && !(await isGroupAdmin(chat, user.userId))) {
+    back(slug, { err: "not_admin" });
+  }
+  if ((await repo.bumpCounter(`ping:${meetingId}`, REMIND_WINDOW_MS)) > 1) {
+    back(slug, { err: "throttled" }, `#meeting-${meetingId}`);
+  }
+
+  const delivery = await notifyNonResponders(chat, meeting, user);
+  back(slug, deliveryParams(delivery), `#meeting-${meetingId}`);
 }
 
 function hhmm(value: string, fallback: number): number {
@@ -138,9 +193,7 @@ function hhmm(value: string, fallback: number): number {
 }
 
 export async function saveSettingsAction(slug: string, formData: FormData): Promise<void> {
-  const chat = await requireChat(slug);
-  const user = await currentUser();
-  if (!user || !(await repo.isMember(chat.chatId, user.userId))) redirect(`/g/${slug}/join`);
+  const { chat } = await requireAdmin(slug);
 
   const start = hhmm(String(formData.get("day_start") ?? ""), chat.dayStartMin);
   const end = hhmm(String(formData.get("day_end") ?? ""), chat.dayEndMin);
@@ -149,7 +202,7 @@ export async function saveSettingsAction(slug: string, formData: FormData): Prom
   const semester = String(formData.get("semester") ?? "").trim();
 
   const patch: Parameters<typeof repo.updateChat>[1] = {
-    minSlotMin: Math.max(5, Math.min(Number.isFinite(minSlot) ? minSlot : 30, 12 * 60)),
+    minSlotMin: Math.max(15, Math.min(Number.isFinite(minSlot) ? minSlot : 30, 12 * 60)),
     travelBufferMin: Math.max(0, Math.min(Number.isFinite(buffer) ? buffer : 0, 120)),
     lang: normalizeLang(String(formData.get("lang") ?? chat.lang)),
     semesterStart: semester && isDateStr(semester) ? semester : null,
@@ -160,6 +213,86 @@ export async function saveSettingsAction(slug: string, formData: FormData): Prom
   }
 
   await repo.updateChat(chat.chatId, patch);
-  revalidatePath(`/g/${slug}`);
-  redirect(`/g/${slug}`);
+  back(slug, { saved: "settings" });
+}
+
+// --------------------------------------------------------------------------
+// Администрирование участников
+// --------------------------------------------------------------------------
+
+/**
+ * Попросить заполнить расписание: одного человека (`user_id`) или всех,
+ * кто ещё не заполнил (без `user_id`).
+ */
+export async function remindFillAction(slug: string, formData: FormData): Promise<void> {
+  const { chat, user } = await requireAdmin(slug);
+  const rawTarget = String(formData.get("user_id") ?? "").trim();
+
+  const members = await repo.chatMembers(chat.chatId);
+  const filled = await repo.filledIds(members.map((member) => member.userId));
+  let targets = members.filter((member) => !filled.has(member.userId) && member.userId !== user.userId);
+  if (rawTarget) {
+    const targetId = Number(rawTarget);
+    targets = targets.filter((member) => member.userId === targetId);
+  }
+  if (targets.length === 0) back(slug, { err: "nobody_to_remind" }, "#members");
+
+  const fresh: User[] = [];
+  for (const target of targets) {
+    const count = await repo.bumpCounter(`remind:${chat.chatId}:${target.userId}`, REMIND_WINDOW_MS);
+    if (count === 1) fresh.push(target);
+  }
+  if (fresh.length === 0) back(slug, { err: "throttled" }, "#members");
+
+  const delivery = await notifyFillSchedule(chat, user, fresh);
+  back(slug, deliveryParams(delivery), "#members");
+}
+
+/** Назначить или снять администратора сайта. */
+export async function setRoleAction(slug: string, formData: FormData): Promise<void> {
+  const { chat, user } = await requireAdmin(slug);
+  const targetId = Number(formData.get("user_id"));
+  const role = String(formData.get("role") ?? "") === ROLE_ADMIN ? ROLE_ADMIN : ROLE_MEMBER;
+  if (!Number.isFinite(targetId) || !(await repo.isMember(chat.chatId, targetId))) {
+    back(slug, {}, "#members");
+  }
+
+  if (role === ROLE_MEMBER) {
+    const source = await adminSource(chat, targetId);
+    // Создателя и администраторов Telegram-чата сайт разжаловать не может:
+    // первого — чтобы группа не осталась без хозяина, вторых назначает Telegram.
+    if (source === "creator" || source === "telegram") back(slug, { err: "cannot_demote" }, "#members");
+    // Группа не должна остаться совсем без администратора.
+    const remaining = (await repo.adminIds(chat.chatId)).filter((id) => id !== targetId);
+    if (
+      remaining.length === 0 &&
+      chat.createdBy === null &&
+      (await telegramAdminIds(chat)).length === 0
+    ) {
+      back(slug, { err: "last_admin" }, "#members");
+    }
+  }
+
+  await repo.setMemberRole(chat.chatId, targetId, role);
+  back(slug, {}, "#members");
+}
+
+/** Убрать участника из группы. Его расписание остаётся — вернуться можно по ссылке. */
+export async function removeMemberAction(slug: string, formData: FormData): Promise<void> {
+  const { chat, user } = await requireAdmin(slug);
+  const targetId = Number(formData.get("user_id"));
+  if (!Number.isFinite(targetId) || targetId === user.userId) back(slug, {}, "#members");
+
+  const source = await adminSource(chat, targetId);
+  if (source === "creator" || source === "telegram") back(slug, { err: "cannot_remove" }, "#members");
+
+  await repo.removeMembership(chat.chatId, targetId);
+  back(slug, {}, "#members");
+}
+
+/** Закрыть баннер-уведомление. */
+export async function dismissNoticeAction(slug: string, noticeId: number): Promise<void> {
+  const { user } = await requireMember(slug);
+  await repo.markNoticeRead(noticeId, user.userId);
+  back(slug);
 }

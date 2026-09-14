@@ -8,6 +8,7 @@ import {
   heatmap,
   parityFromIsoWeek,
   parityFromSemesterStart,
+  slotsOfLength,
   topSlots,
   type DateRangeSlot,
   type Window,
@@ -336,5 +337,85 @@ describe("тепловая карта", () => {
     });
     expect(grid).toHaveLength(2);
     expect(grid[0].cells.map((cell) => cell.startMin)).toEqual([480, 510, 540, 570]);
+  });
+});
+
+describe("варианты встречи ровно заданной длины", () => {
+  it("режет свободное время на отрезки выбранной длины с шагом сетки", () => {
+    // Свободен 10:00–12:00 и 15:00–16:30, остальное занято.
+    const amir = person(1, { weekly: { 0: [[480, 600], [720, 900], [990, 1320]] } });
+    const { days } = slotsOfLength([amir], MONDAY, {
+      daysAhead: 1,
+      dayStart: 480,
+      dayEnd: 1320,
+      duration: 60,
+    });
+    expect(days[0].slots.map((slot) => slot.interval)).toEqual([
+      [600, 660],
+      [630, 690],
+      [660, 720],
+      [900, 960],
+      [930, 990],
+    ]);
+  });
+
+  it("не предлагает вариант, который выходит за конец рабочего дня", () => {
+    const amir = person(1, { weekly: {} });
+    const { days } = slotsOfLength([amir], MONDAY, {
+      daysAhead: 1,
+      dayStart: 1200,
+      dayEnd: 1320,
+      duration: 90,
+    });
+    expect(days[0].slots.map((slot) => slot.interval)).toEqual([
+      [1200, 1290],
+      [1230, 1320],
+    ]);
+  });
+
+  it("при кворуме состав свободных считается для каждого варианта отдельно", () => {
+    const amir = person(1, { weekly: { 0: [[660, 720]] } }); // занят 11:00–12:00
+    const asel = person(2, { weekly: { 0: [[600, 660]] } }); // занята 10:00–11:00
+    const { days, quorum, everyone } = slotsOfLength([amir, asel], MONDAY, {
+      daysAhead: 1,
+      dayStart: 600,
+      dayEnd: 720,
+      duration: 60,
+      quorum: 1,
+    });
+    expect(quorum).toBe(1);
+    expect(everyone).toBe(false);
+    const byStart = new Map(days[0].slots.map((slot) => [slot.interval[0], slot.freeIds]));
+    expect(byStart.get(600)).toEqual([1]);
+    // 10:30–11:30: Амир занят с 11:00, Асель — до 11:00, весь час не свободен никто.
+    expect(byStart.has(630)).toBe(false);
+    expect(byStart.get(660)).toEqual([2]);
+  });
+
+  it("без кворума нужны все, и разовая занятость на дату учитывается", () => {
+    const amir = person(1, { weekly: {} });
+    const asel = person(2, { weekly: {}, dated: { [TUESDAY]: [[480, 1320]] } });
+    const { days } = slotsOfLength([amir, asel], MONDAY, {
+      daysAhead: 2,
+      dayStart: 480,
+      dayEnd: 600,
+      duration: 120,
+    });
+    expect(days[0].slots.map((slot) => slot.freeIds)).toEqual([[1, 2]]);
+    expect(days[1].day).toBe(TUESDAY);
+    expect(days[1].slots).toEqual([]);
+  });
+
+  it("люди без заполненного расписания не участвуют и не блокируют варианты", () => {
+    const amir = person(1, { weekly: {} });
+    const ghost = person(2, { hasData: false });
+    const { days, participants } = slotsOfLength([amir, ghost], MONDAY, {
+      daysAhead: 1,
+      dayStart: 480,
+      dayEnd: 540,
+      duration: 30,
+    });
+    expect(participants.map((p) => p.userId)).toEqual([1]);
+    expect(days[0].slots).toHaveLength(2);
   });
 });

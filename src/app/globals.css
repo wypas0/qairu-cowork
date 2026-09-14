@@ -18,6 +18,11 @@
   --busy: #8a8378;
   --busy-text: #ffffff;
 
+  /* Редактор «Моё расписание»: тёмный фон — свободен, синий — занят. */
+  --slot-free: #2b3036;
+  --slot-free-border: #3a4048;
+  --slot-busy: #2f6fd6;
+
   /* Тепловая карта: от «никто не свободен» к «свободны все» */
   --heat-0: #eceae5;
   --heat-1: #dbe7dc;
@@ -45,6 +50,9 @@
     --danger: #e08379;
     --busy: #7b8794;
     --busy-text: #10151a;
+    --slot-free: #22262a;
+    --slot-free-border: #333940;
+    --slot-busy: #4a8fe8;
 
     /* Тот же порядок «свободно → занято», что и в светлой теме: h0 —
        самый светлый оттенок этой темы, h5 — самый тёмный. В исходной
@@ -320,7 +328,8 @@ p {
 }
 
 /* --- элементы формы --- */
-label {
+label,
+.label {
   display: block;
   font-size: 13px;
   color: var(--muted);
@@ -329,6 +338,8 @@ label {
 input[type="text"],
 input[type="number"],
 input[type="date"],
+input[type="time"],
+input[type="password"],
 select,
 textarea {
   width: 100%;
@@ -352,6 +363,8 @@ textarea {
   input[type="text"],
   input[type="number"],
   input[type="date"],
+  input[type="time"],
+  input[type="password"],
   select,
   textarea {
     font-size: 16px;
@@ -696,4 +709,230 @@ input[type="range"] {
   * {
     transition: none !important;
   }
+}
+
+input:disabled {
+  opacity: 0.5;
+}
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-size: 14px;
+  margin: 0 0 12px;
+  cursor: pointer;
+}
+.checkbox input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+/* --- редактор своего расписания --- */
+table.week.editor td.cell {
+  background: var(--slot-free);
+  box-shadow: inset 0 0 0 1px var(--slot-free-border);
+}
+table.week.editor td.cell.busy {
+  background: var(--slot-busy) !important;
+  box-shadow: none;
+}
+.legend i.swatch-free {
+  background: var(--slot-free);
+  box-shadow: inset 0 0 0 1px var(--slot-free-border);
+}
+.legend i.swatch-busy {
+  background: var(--slot-busy);
+}
+
+/* --- заголовок карточки с кнопкой справа --- */
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.card-head h2 {
+  margin: 0;
+}
+
+/* --- участники --- */
+.roster {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+.roster-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  flex-wrap: wrap;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.roster-row:last-child {
+  border-bottom: 0;
+}
+.roster-who {
+  display: flex;
+  align-items: center;
+  gap: 6px 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.roster-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--accent);
+}
+.dot.warn {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--muted);
+}
+.badge {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 3px;
+  font-size: 12px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* --- уведомления --- */
+.notice-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  flex-wrap: wrap;
+}
+.notice-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* --- выбор дня и варианты встречи --- */
+.daypicker {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.daychip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.daychip .count {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+.daychip.empty {
+  color: var(--muted);
+}
+.daychip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+.daychip.active .count {
+  color: inherit;
+}
+.daychip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.slotlist {
+  max-height: 420px;
+  overflow-y: auto;
+}
+.slotrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.slotinfo {
+  min-width: 0;
+}
+.slotrow .btn {
+  flex: none;
+}
+.slotrow.past {
+  opacity: 0.55;
+}
+
+/* --- ответы на встречу --- */
+.responses {
+  margin-top: 8px;
+}
+.responses summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+.responses ul {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.response-comment {
+  margin-left: 22px;
+}
+.change-form {
+  margin-top: 8px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.change-form input {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+.settings-summary {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+}
+
+/* --- аккаунт --- */
+.acct-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+}
+.acct-table th,
+.acct-table td {
+  text-align: left;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.acct-table th {
+  font-weight: 500;
+  color: var(--muted);
+  width: 40%;
+  padding-right: 12px;
 }

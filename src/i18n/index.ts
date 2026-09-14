@@ -34,6 +34,18 @@ export const WEEKDAY_NAMES: Record<Lang, string[]> = {
   en: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
 };
 
+/** Общепринятые сокращения — не первые буквы: «Чт», а не «Че». */
+export const WEEKDAY_SHORT: Record<Lang, string[]> = {
+  ru: ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"],
+  kk: ["Дс", "Сс", "Ср", "Бс", "Жм", "Сб", "Жс"],
+  en: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+};
+
+export function weekdayShort(lang: string, index: number): string {
+  const resolved: Lang = isLang(lang) ? lang : DEFAULT_LANG;
+  return WEEKDAY_SHORT[resolved][((index % 7) + 7) % 7];
+}
+
 export const MONTH_NAMES: Record<Lang, string[]> = {
   ru: [
     "января", "февраля", "марта", "апреля", "мая", "июня",

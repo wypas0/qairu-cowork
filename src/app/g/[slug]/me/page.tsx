@@ -1,16 +1,20 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
+import { ConfirmSubmit } from "@/components/ConfirmSubmit";
+import { DatedTimeFields } from "@/components/DatedTimeFields";
+import { ScrollToAnchor } from "@/components/ScrollToAnchor";
 import { ScheduleEditor } from "@/components/ScheduleEditor";
 import { TelegramAuth } from "@/components/TelegramAuth";
 import { Topbar } from "@/components/Topbar";
 import { slotTimes } from "@/core/grid";
 import { fmtMinutes } from "@/core/intervals";
-import { formatDM, formatDMY } from "@/core/timeutils";
+import { chatTz, compareDates, formatDM, formatDMY, todayIn } from "@/core/timeutils";
 import * as repo from "@/db/repo";
 import { WEEKDAY_NAMES, isLang, translator } from "@/i18n";
 import { currentUser } from "@/lib/auth";
 import { SLOT_STEP } from "@/lib/config";
+import { addDatedBusyAction, deleteDatedBusyAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -21,12 +25,23 @@ const IMPORT_PLACEHOLDER = [
   "Сб 18:00-22:00 работа",
 ].join("\n");
 
+const DATED_ERRORS: Record<string, string> = {
+  date: "w_dated_err_date",
+  range_order: "w_dated_err_order",
+  range_long: "w_dated_err_long",
+  time: "w_dated_err_time",
+  past: "w_dated_err_past",
+};
+
 export default async function MySchedulePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { slug } = await params;
+  const query = await searchParams;
   const chat = await repo.getChatBySlug(slug);
   if (!chat) notFound();
 
@@ -38,12 +53,11 @@ export default async function MySchedulePage({
   const lang = chat.lang;
   const t = translator(lang);
   const slots = await repo.getSlots(user.userId);
+  const dated = await repo.datedSlots(user.userId);
   const times = slotTimes(chat.dayStartMin, chat.dayEndMin, SLOT_STEP);
+  const today = todayIn(chatTz(chat));
 
   const initialBusy: string[] = [];
-  const dated = slots.filter(
-    (slot) => slot.specificDate !== null || slot.dateFrom !== null,
-  );
   for (const slot of slots) {
     if (slot.weekday === null || slot.specificDate !== null || slot.dateFrom !== null) continue;
     for (const start of times) {
@@ -53,9 +67,13 @@ export default async function MySchedulePage({
     }
   }
 
+  const errorKey = typeof query.err === "string" ? DATED_ERRORS[query.err] : undefined;
+  const added = query.added === "1";
+
   return (
     <>
       <TelegramAuth slug={slug} authed />
+      <ScrollToAnchor id={typeof query.at === "string" ? query.at : null} />
       <Topbar lang={lang}>
         <Link className="btn btn-sm" href={`/g/${slug}`}>
           {t("w_back")}
@@ -85,33 +103,106 @@ export default async function MySchedulePage({
             importParsed: t("w_import_parsed", { n: "{n}" }),
             importFailed: t("w_import_failed"),
             importPlaceholder: IMPORT_PLACEHOLDER,
+            legendFree: t("w_legend_free"),
+            legendBusy: t("w_legend_busy"),
           }}
         />
 
-        <section className="card">
+        {/* ============ разовая занятость ============ */}
+        <section className="card" id="dated">
           <h2>{t("w_dated")}</h2>
-          {dated.length > 0 ? (
-            <ul className="windows">
-              {dated.map((slot) => (
-                <li key={slot.id}>
-                  <span className="when">
-                    {slot.specificDate
-                      ? formatDMY(slot.specificDate)
-                      : `${formatDM(slot.dateFrom!)}–${formatDMY(slot.dateTo!)}`}
-                  </span>{" "}
-                  <span className="small muted">
-                    {fmtMinutes(slot.startMin)}–{fmtMinutes(slot.endMin)}
-                    {slot.label ? ` · ${slot.label}` : ""}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="muted small">—</p>
+          <p className="small muted">{t("w_dated_lead")}</p>
+
+          {errorKey && (
+            <div className="notice warn" role="alert">
+              {t(errorKey)}
+            </div>
           )}
-          <p className="small muted" style={{ marginTop: 8 }}>
-            {t("w_dated_hint")}
-          </p>
+          {added && !errorKey && (
+            <div className="notice" role="status">
+              {t("w_dated_added")}
+            </div>
+          )}
+
+          <div className="grid-2">
+            <div>
+              {dated.length > 0 ? (
+                <ul className="windows">
+                  {dated.map((slot) => {
+                    const last = slot.dateTo ?? slot.specificDate ?? today;
+                    const past = compareDates(last, today) < 0;
+                    const allDay = slot.startMin === 0 && slot.endMin >= 24 * 60;
+                    return (
+                      <li key={slot.id} className={`slotrow${past ? " past" : ""}`}>
+                        <div className="slotinfo">
+                          <span className="when">
+                            {slot.specificDate
+                              ? formatDMY(slot.specificDate)
+                              : `${formatDM(slot.dateFrom!)}–${formatDMY(slot.dateTo!)}`}
+                          </span>{" "}
+                          <span className="small muted">
+                            {allDay
+                              ? t("w_dated_all_day")
+                              : `${fmtMinutes(slot.startMin)}–${fmtMinutes(slot.endMin)}`}
+                            {slot.label ? ` · ${slot.label}` : ""}
+                            {past ? ` · ${t("w_dated_past")}` : ""}
+                          </span>
+                        </div>
+                        <form action={deleteDatedBusyAction.bind(null, slug, slot.id)}>
+                          <ConfirmSubmit
+                            className="btn btn-sm btn-quiet btn-danger"
+                            confirm={t("w_dated_delete_confirm")}
+                          >
+                            {t("w_dated_delete")}
+                          </ConfirmSubmit>
+                        </form>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <p className="muted small">{t("w_dated_empty")}</p>
+              )}
+            </div>
+
+            <form action={addDatedBusyAction.bind(null, slug)} className="dated-form">
+              <h3>{t("w_dated_add")}</h3>
+              <div className="row">
+                <div className="field">
+                  <label htmlFor="date_from">{t("w_dated_from")}</label>
+                  <input id="date_from" name="date_from" type="date" required min={today} />
+                </div>
+                <div className="field">
+                  <label htmlFor="date_to">{t("w_dated_to")}</label>
+                  <input id="date_to" name="date_to" type="date" min={today} />
+                </div>
+              </div>
+              <p className="small muted" style={{ marginTop: -6 }}>
+                {t("w_dated_to_hint")}
+              </p>
+              <DatedTimeFields
+                labels={{
+                  allDay: t("w_dated_all_day"),
+                  start: t("w_dated_start"),
+                  end: t("w_dated_end"),
+                  hint: t("w_dated_time_hint"),
+                }}
+              />
+              <div className="field">
+                <label htmlFor="label">{t("w_dated_label")}</label>
+                <input
+                  id="label"
+                  name="label"
+                  type="text"
+                  maxLength={60}
+                  placeholder={t("w_dated_label_ph")}
+                />
+              </div>
+              <button className="btn btn-primary" type="submit">
+                {t("w_dated_add_btn")}
+              </button>
+            </form>
+          </div>
         </section>
       </main>
     </>

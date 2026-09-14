@@ -252,6 +252,71 @@ export function topSlots(
   return slots;
 }
 
+/** Вариант встречи ровно заданной длины и кто свободен на всём её протяжении. */
+export type FixedSlot = {
+  interval: Interval;
+  freeIds: number[];
+};
+
+export type DaySlots = {
+  day: DateStr;
+  slots: FixedSlot[];
+};
+
+/**
+ * Варианты встречи ровно на `duration` минут, с шагом `step`.
+ *
+ * В отличие от окон (сплошной промежуток «от и до»), здесь каждое начало —
+ * отдельная кнопка «Назначить»: 10:00–11:00, 10:30–11:30, … Состав свободных
+ * считается честно для каждого варианта отдельно, поэтому при кворуме у
+ * 11:00–12:00 может не хватать другого человека, чем у 10:00–11:00.
+ *
+ * Начала выровнены по сетке `dayStart + k·step`, так варианты совпадают с
+ * клетками тепловой карты. Вариант, выходящий за конец дня, не предлагается.
+ */
+export function slotsOfLength(
+  people: readonly PersonSchedule[],
+  startDay: DateStr,
+  options: ComputeOptions & { duration: number; step?: number },
+): { days: DaySlots[]; participants: PersonSchedule[]; quorum: number; everyone: boolean } {
+  const {
+    daysAhead = 7,
+    dayStart = 8 * 60,
+    dayEnd = 22 * 60,
+    quorum = null,
+    parityOf = null,
+    bufferMin = 0,
+    duration,
+    step = 30,
+  } = options;
+
+  const withData = people.filter((person) => person.hasData);
+  const threshold =
+    quorum === null ? withData.length : Math.max(1, Math.min(quorum, withData.length));
+
+  const days: DaySlots[] = [];
+  for (let offset = 0; offset < daysAhead; offset += 1) {
+    const day = addDays(startDay, offset);
+    const slots: FixedSlot[] = [];
+    if (withData.length > 0 && duration > 0 && step > 0) {
+      const freeByUser = freeByUserFor(withData, day, dayStart, dayEnd, parityOf, bufferMin);
+      for (let start = dayStart; start + duration <= dayEnd; start += step) {
+        const interval: Interval = [start, start + duration];
+        const freeIds = whoIsFree(freeByUser, interval);
+        if (freeIds.length >= threshold) slots.push({ interval, freeIds });
+      }
+    }
+    days.push({ day, slots });
+  }
+
+  return {
+    days,
+    participants: withData,
+    quorum: threshold,
+    everyone: threshold >= withData.length,
+  };
+}
+
 /** Одна клетка сетки: сколько человек свободно на всём её протяжении. */
 export type HeatCell = {
   startMin: number;

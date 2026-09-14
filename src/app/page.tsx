@@ -74,17 +74,20 @@ export default async function LandingPage() {
                   placeholder={t("w_group_title_ph")}
                 />
               </div>
-              <div className="field">
-                <label htmlFor="name">{t("w_your_name")}</label>
-                <input
-                  id="name"
-                  name="name"
-                  type="text"
-                  required
-                  maxLength={60}
-                  placeholder={t("w_your_name_ph")}
-                />
-              </div>
+              {/* Вошедший создаёт группу от своего имени — второй раз представляться не нужно. */}
+              {!user && (
+                <div className="field">
+                  <label htmlFor="name">{t("w_your_name")}</label>
+                  <input
+                    id="name"
+                    name="name"
+                    type="text"
+                    required
+                    maxLength={60}
+                    placeholder={t("w_your_name_ph")}
+                  />
+                </div>
+              )}
             </div>
             <div className="row">
               <div className="field">

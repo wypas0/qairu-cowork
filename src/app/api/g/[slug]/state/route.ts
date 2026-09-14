@@ -20,11 +20,12 @@ export async function GET(request: NextRequest, context: { params: Promise<{ slu
 
   const search = request.nextUrl.searchParams;
   const rawQuorum = search.get("quorum");
-  const rawMin = search.get("min");
+  // `min` — прежнее имя параметра; оставлено, чтобы не сломать открытые вкладки.
+  const rawDuration = search.get("duration") ?? search.get("min");
 
   const state = await loadGroupState(chat, {
     quorum: rawQuorum && /^\d+$/.test(rawQuorum) ? Number(rawQuorum) : null,
-    minSlot: rawMin && /^\d+$/.test(rawMin) ? Number(rawMin) : null,
+    duration: rawDuration && /^\d+$/.test(rawDuration) ? Number(rawDuration) : null,
     withMeetings: false,
   });
 

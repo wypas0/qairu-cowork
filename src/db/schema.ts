@@ -53,6 +53,10 @@ export const chats = pgTable("chats", {
   travelBufferMin: integer("travel_buffer_min").notNull().default(0), // буфер на дорогу
   semesterStart: date("semester_start"), // отсчёт чётности недель
   reminderMin: integer("reminder_min").notNull().default(30), // напоминание до встречи
+  // Кто создал группу на сайте. Создателя нельзя разжаловать — иначе группа
+  // может остаться без единого администратора. У групп из Telegram — NULL:
+  // там администраторов назначает сам Telegram.
+  createdBy: bigint("created_by", { mode: "number" }),
   createdAt: createdAt(),
 });
 
@@ -66,9 +70,13 @@ export const memberships = pgTable(
       .notNull()
       .references(() => users.userId, { onDelete: "cascade" }),
     joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
+    role: varchar("role", { length: 16 }).notNull().default("member"), // member | admin
   },
   (table) => [primaryKey({ columns: [table.chatId, table.userId] })],
 );
+
+export const ROLE_ADMIN = "admin";
+export const ROLE_MEMBER = "member";
 
 /**
  * Занятость. Вид определяется тем, какие поля не NULL:
@@ -114,7 +122,50 @@ export const scheduleState = pgTable("schedule_state", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-/** Персональная ссылка/кука сайта. Аккаунтов и паролей нет — только токен. */
+/**
+ * Вход по логину и паролю — необязательный, поверх токена-ссылки.
+ *
+ * Логин хранится в нижнем регистре. Вместо него можно ввести свой @username
+ * из Telegram, но только если аккаунт подтверждён ботом или Mini App
+ * (users.is_web = false): иначе любой мог бы назваться чужим ником.
+ * Пароль — только хэш scrypt в формате `scrypt$N$r$p$соль$хэш`.
+ */
+export const credentials = pgTable("credentials", {
+  userId: bigint("user_id", { mode: "number" })
+    .primaryKey()
+    .references(() => users.userId, { onDelete: "cascade" }),
+  login: varchar("login", { length: 32 }).notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  createdAt: createdAt(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Уведомления на сайте — для тех, до кого не дотянется бот: людей без
+ * Telegram и тех, кто ещё не нажал /start. Показываются баннером в группе,
+ * пока человек не отреагирует или не закроет их.
+ */
+export const notices = pgTable(
+  "notices",
+  {
+    id: serial("id").primaryKey(),
+    chatId: bigint("chat_id", { mode: "number" })
+      .notNull()
+      .references(() => chats.chatId, { onDelete: "cascade" }),
+    userId: bigint("user_id", { mode: "number" })
+      .notNull()
+      .references(() => users.userId, { onDelete: "cascade" }),
+    kind: varchar("kind", { length: 24 }).notNull(), // fill_schedule | meeting | meeting_change
+    meetingId: integer("meeting_id").references(() => meetings.id, { onDelete: "cascade" }),
+    fromUserId: bigint("from_user_id", { mode: "number" }),
+    text: text("text").notNull().default(""),
+    createdAt: createdAt(),
+    readAt: timestamp("read_at", { withTimezone: true }),
+  },
+  (table) => [index("ix_notices_user_chat").on(table.userId, table.chatId)],
+);
+
+/** Персональная ссылка/кука сайта. Выдаётся и после входа по паролю. */
 export const webSessions = pgTable(
   "web_sessions",
   {
@@ -197,6 +248,7 @@ export type Chat = typeof chats.$inferSelect;
 export type BusySlot = typeof busySlots.$inferSelect;
 export type Meeting = typeof meetings.$inferSelect;
 export type MeetingResponse = typeof meetingResponses.$inferSelect;
+export type Notice = typeof notices.$inferSelect;
 
 /** Как показывать человека в списках: имя, иначе @username, иначе id. */
 export function displayName(user: Pick<User, "fullName" | "username" | "userId">): string {

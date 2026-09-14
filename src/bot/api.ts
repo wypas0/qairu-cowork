@@ -168,6 +168,13 @@ export function getChatMember(payload: {
   return tryCall<{ status: string }>("getChatMember", payload);
 }
 
+/** Все администраторы чата одним вызовом. null — чата нет или бота там нет. */
+export function getChatAdministrators(payload: {
+  chat_id: number;
+}): Promise<{ status: string; user: TgUser }[] | null> {
+  return tryCall<{ status: string; user: TgUser }[]>("getChatAdministrators", payload);
+}
+
 export function getMe(token?: string): Promise<TgUser> {
   return call<TgUser>("getMe", {}, token ?? botToken());
 }

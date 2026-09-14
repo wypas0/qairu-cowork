@@ -161,12 +161,15 @@ describe("второй участник и кворум", () => {
     expect(relaxed.payload.everyone).toBe(false);
 
     // Занятость еженедельная, поэтому понедельник владельца занят целиком
-    // в любую неделю — в том числе в те 7 дней вперёд от сегодня, что
-    // считает computeAvailability. Там обязано найтись окно с честной
+    // в любую неделю — в том числе в те 7 дней вперёд от сегодня, на которые
+    // считаются варианты встречи. Там обязан найтись вариант с честной
     // пометкой, что Амира не хватает.
-    const mondayWindows = relaxed.payload.windows.find((day) => weekdayOf(day.date) === 0);
-    expect(mondayWindows, "при кворуме 1 окно в понедельник обязано найтись").toBeDefined();
-    expect(mondayWindows!.items[0].missing).toContain("Амир");
+    const monday = relaxed.payload.slotDays.find((day) => weekdayOf(day.date) === 0);
+    expect(monday, "понедельник обязан быть среди ближайших 7 дней").toBeDefined();
+    expect(monday!.items.length, "при кворуме 1 вариант в понедельник обязан найтись").toBeGreaterThan(0);
+    expect(monday!.items[0].missing).toContain("Амир");
+    // Без кворума в понедельник вариантов нет: Амир занят весь день.
+    expect(all.payload.slotDays.find((day) => weekdayOf(day.date) === 0)!.items).toHaveLength(0);
   });
 
   it("тепловая карта всегда начинается с понедельника, независимо от текущего дня недели", async () => {

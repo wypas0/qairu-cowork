@@ -18,6 +18,8 @@ export type EditorLabels = {
   importParsed: string;
   importFailed: string;
   importPlaceholder: string;
+  legendFree: string;
+  legendBusy: string;
 };
 
 type ParsedSlot = {
@@ -246,7 +248,7 @@ export function ScheduleEditor({
           onKeyDown={onKeyDown}
           style={{ touchAction: "none" }}
         >
-          <table className="week">
+          <table className="week editor">
             <thead>
               <tr>
                 <th className="timecol" />
@@ -287,6 +289,13 @@ export function ScheduleEditor({
               ))}
             </tbody>
           </table>
+        </div>
+
+        <div className="legend">
+          <i className="swatch-free" />
+          <span>{labels.legendFree}</span>
+          <i className="swatch-busy" />
+          <span>{labels.legendBusy}</span>
         </div>
 
         <div className="row" style={{ marginTop: 14 }}>

@@ -116,3 +116,28 @@ export async function setTokenCookie(token: string): Promise<void> {
   const store = await cookies();
   store.set(COOKIE_NAME, token, tokenCookieOptions());
 }
+
+/** Токен текущего посетителя из куки — нужен, чтобы при смене пароля не выкинуть его самого. */
+export async function currentToken(): Promise<string> {
+  const store = await cookies();
+  return store.get(COOKIE_NAME)?.value ?? "";
+}
+
+/** Выход: сессия удаляется на сервере, а не только кука в браузере. */
+export async function clearSession(): Promise<void> {
+  const store = await cookies();
+  const token = store.get(COOKIE_NAME)?.value ?? "";
+  if (token) await repo.deleteWebSession(token);
+  store.delete(COOKIE_NAME);
+}
+
+/**
+ * Адрес возврата после входа. Только путь внутри сайта: `//evil.example`
+ * и абсолютные ссылки отбрасываются — иначе форма входа стала бы открытым
+ * редиректом для фишинга.
+ */
+export function safeNext(value: string | null | undefined, fallback = "/"): string {
+  const raw = (value ?? "").trim();
+  if (!raw.startsWith("/") || raw.startsWith("//") || raw.startsWith("/\\")) return fallback;
+  return raw;
+}

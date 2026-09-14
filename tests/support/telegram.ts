@@ -19,6 +19,10 @@ export type TelegramStub = {
   reset: () => void;
   /** Статус, который вернёт getChatMember. */
   memberStatus: string;
+  /** id администраторов, которых вернёт getChatAdministrators. */
+  adminIds: number[];
+  /** id пользователей, которым бот «не может написать первым» (403). */
+  blockedIds: number[];
   nextMessageId: number;
 };
 
@@ -35,6 +39,8 @@ export function installTelegramStub(): TelegramStub {
       stub.calls.length = 0;
     },
     memberStatus: "creator",
+    adminIds: [],
+    blockedIds: [],
     nextMessageId: 1000,
   };
 
@@ -56,12 +62,24 @@ export function installTelegramStub(): TelegramStub {
     }
     stub.calls.push({ method, payload });
 
+    if (method === "sendMessage" && stub.blockedIds.includes(Number(payload.chat_id))) {
+      return new Response(
+        JSON.stringify({ ok: false, error_code: 403, description: "Forbidden: bot can't initiate conversation with a user" }),
+        { status: 403, headers: { "Content-Type": "application/json" } },
+      );
+    }
+
     const result = (() => {
       switch (method) {
         case "getMe":
           return { id: BOT_ID, is_bot: true, username: BOT_USERNAME, first_name: "QairuCowork" };
         case "getChatMember":
           return { status: stub.memberStatus };
+        case "getChatAdministrators":
+          return stub.adminIds.map((id) => ({
+            status: "administrator",
+            user: { id, is_bot: false, first_name: `admin${id}` },
+          }));
         case "sendMessage":
           return {
             message_id: stub.nextMessageId++,

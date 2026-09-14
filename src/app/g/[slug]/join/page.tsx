@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { TelegramAuth } from "@/components/TelegramAuth";
@@ -62,6 +63,15 @@ export default async function JoinPage({ params }: { params: Promise<{ slug: str
               {t("w_join_btn")}
             </button>
           </form>
+
+          {!user && (
+            <p className="small muted" style={{ marginTop: 14 }}>
+              {t("w_join_have_account")}{" "}
+              <Link href={`/login?next=${encodeURIComponent(`/g/${slug}/join`)}`}>
+                {t("w_login_btn")}
+              </Link>
+            </p>
+          )}
         </div>
       </main>
     </>

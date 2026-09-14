@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { logoutAction } from "@/app/login/actions";
 import { joinByLinkAction, leaveGroupAction } from "@/app/profile/actions";
 
 export type ProfileGroup = { chatId: number; slug: string; title: string };
@@ -28,6 +29,9 @@ export type ProfileLabels = {
   joinOtherPh: string;
   joinOtherBtn: string;
   anon: string;
+  account: string;
+  login: string;
+  logout: string;
 };
 
 /**
@@ -108,7 +112,12 @@ export function ProfilePanel({
             </div>
 
             {!userName ? (
-              <p className="muted small">{labels.anon}</p>
+              <>
+                <p className="muted small">{labels.anon}</p>
+                <Link className="btn btn-primary" href="/login" onClick={() => setOpen(false)}>
+                  {labels.login}
+                </Link>
+              </>
             ) : (
               <>
                 <section className="profile-section">
@@ -172,6 +181,17 @@ export function ProfilePanel({
                     <input type="text" name="link" placeholder={labels.joinOtherPh} required />
                     <button className="btn btn-sm" type="submit" style={{ flex: "0 0 auto" }}>
                       {labels.joinOtherBtn}
+                    </button>
+                  </form>
+                </section>
+
+                <section className="profile-section votes">
+                  <Link className="btn btn-sm" href="/account" onClick={() => setOpen(false)}>
+                    {labels.account}
+                  </Link>
+                  <form action={logoutAction}>
+                    <button className="btn btn-sm btn-quiet" type="submit">
+                      {labels.logout}
                     </button>
                   </form>
                 </section>

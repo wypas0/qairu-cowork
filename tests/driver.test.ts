@@ -8,24 +8,18 @@
  * у параметра нет типа, и драйвер падает на сериализации.
  */
 
-import { readFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
-
 import { PGlite } from "@electric-sql/pglite";
 import { PGLiteSocketServer } from "@electric-sql/pglite-socket";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import { applyMigrations } from "./support/db";
 
 const PORT = 5546;
 let server: PGLiteSocketServer;
 
 beforeAll(async () => {
   const db = new PGlite();
-  const sqlPath = fileURLToPath(new URL("../drizzle/0000_init.sql", import.meta.url));
-  const migration = await readFile(sqlPath, "utf8");
-  for (const statement of migration.split("--> statement-breakpoint")) {
-    const trimmed = statement.trim();
-    if (trimmed) await db.exec(trimmed);
-  }
+  await applyMigrations(db);
 
   server = new PGLiteSocketServer({ db, port: PORT, host: "127.0.0.1" });
   await server.start();

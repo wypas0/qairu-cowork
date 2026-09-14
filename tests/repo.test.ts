@@ -7,29 +7,13 @@
  * неверный `make_interval` в условии напоминаний.
  */
 
-import { readFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
-
-import { PGlite } from "@electric-sql/pglite";
-import { drizzle } from "drizzle-orm/pglite";
 import { beforeAll, describe, expect, it } from "vitest";
 
-import * as schema from "@/db/schema";
-
-const globalForDb = globalThis as unknown as { __qairuDb?: unknown };
+import { startTestDb } from "./support/db";
 
 beforeAll(async () => {
-  const client = new PGlite();
-  const db = drizzle(client, { schema });
   // Подменяем синглтон до первого импорта repo: getDb() читает именно его.
-  globalForDb.__qairuDb = db;
-
-  const sqlPath = fileURLToPath(new URL("../drizzle/0000_init.sql", import.meta.url));
-  const migration = await readFile(sqlPath, "utf8");
-  for (const statement of migration.split("--> statement-breakpoint")) {
-    const trimmed = statement.trim();
-    if (trimmed) await client.exec(trimmed);
-  }
+  await startTestDb();
 });
 
 async function repo() {

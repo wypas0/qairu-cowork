@@ -10,6 +10,7 @@ import { type DateStr, chatTz, todayIn, zonedWallToUtc } from "@/core/timeutils"
 import * as repo from "@/db/repo";
 import type { User } from "@/db/schema";
 import { formatDay, t } from "@/i18n";
+import { isGroupAdmin } from "@/lib/admin";
 import {
   FORCE_REPLY,
   answerCallbackQuery,
@@ -17,6 +18,7 @@ import {
   editMessageText,
   isGroup,
   keyboard,
+  isPrivate,
   sendDocument,
   sendMessage,
   type InlineKeyboardMarkup,
@@ -314,7 +316,7 @@ async function finishMeeting(draft: MeetingDraft, goal: string): Promise<void> {
 // Карточка встречи и голосование
 // --------------------------------------------------------------------------
 
-async function renderCard(
+export async function renderCard(
   meetingId: number,
   lang: string,
 ): Promise<{ text: string; markup: InlineKeyboardMarkup }> {
@@ -406,8 +408,14 @@ export async function onVote(query: TgCallbackQuery): Promise<void> {
     return;
   }
 
+  if (meeting.status !== "open") {
+    await answerCallbackQuery({ callback_query_id: query.id, text: t(lang, "meeting_cancel_done") });
+    return;
+  }
+
   await syncUser(query.from);
   await repo.setResponse({ meetingId, userId: query.from.id, answer });
+  await repo.markMeetingNoticesRead(meetingId, query.from.id);
 
   await answerCallbackQuery({
     callback_query_id: query.id,
@@ -424,17 +432,35 @@ export async function onVote(query: TgCallbackQuery): Promise<void> {
     link_preview_options: { is_disabled: true },
   });
 
+  // Голос из личной копии карточки: общая карточка в чате тоже должна его показать.
+  const fromPrivate = isPrivate(message.chat);
+  if (fromPrivate && meeting.chatMessageId) {
+    await editMessageText({
+      chat_id: meeting.chatId,
+      message_id: meeting.chatMessageId,
+      text: card.text,
+      parse_mode: "HTML",
+      reply_markup: card.markup,
+      link_preview_options: { is_disabled: true },
+    });
+  }
+
   if (answer === "change") {
     const name = escapeHtml(
       [query.from.first_name, query.from.last_name].filter(Boolean).join(" ") || "",
     );
+    // Подсказку «что изменить» задаём там же, где нажали кнопку: в личке
+    // упоминание не нужно, а в группе с сайта (без Telegram-чата) писать
+    // в meeting.chatId вообще некуда.
     const prompt = await sendMessage({
-      chat_id: meeting.chatId,
-      text: `<a href="tg://user?id=${query.from.id}">${name}</a>, ${t(lang, "change_ask")}`,
+      chat_id: message.chat.id,
+      text: fromPrivate
+        ? t(lang, "change_ask")
+        : `<a href="tg://user?id=${query.from.id}">${name}</a>, ${t(lang, "change_ask")}`,
       parse_mode: "HTML",
       reply_markup: FORCE_REPLY,
     });
-    await repo.setBotState(changeKey(meeting.chatId, prompt.message_id), {
+    await repo.setBotState(changeKey(message.chat.id, prompt.message_id), {
       meetingId,
       userId: query.from.id,
     });
@@ -457,7 +483,7 @@ export async function onCardButton(query: TgCallbackQuery): Promise<void> {
   const lang = chat?.lang ?? "ru";
 
   if (action === "cancel") {
-    if (query.from.id !== meeting.initiatorId) {
+    if (query.from.id !== meeting.initiatorId && !(chat && (await isGroupAdmin(chat, query.from.id)))) {
       await answerCallbackQuery({
         callback_query_id: query.id,
         text: t(lang, "cancel_only_initiator"),
@@ -466,6 +492,7 @@ export async function onCardButton(query: TgCallbackQuery): Promise<void> {
       return;
     }
     await repo.updateMeeting(meetingId, { status: "cancelled" });
+    await repo.closeMeetingNotices(meetingId);
     await answerCallbackQuery({
       callback_query_id: query.id,
       text: t(lang, "meeting_cancel_done"),
@@ -486,7 +513,7 @@ export async function onCardButton(query: TgCallbackQuery): Promise<void> {
   if (!meeting.whenStart) return;
 
   await sendDocument({
-    chat_id: meeting.chatId,
+    chat_id: message.chat.id,
     filename: `qairu-meeting-${meetingId}.ics`,
     mime: "text/calendar",
     content: buildIcs({
@@ -535,6 +562,16 @@ export async function onChangeReply(message: TgMessage): Promise<boolean> {
       reply_markup: card.markup,
       link_preview_options: { is_disabled: true },
     });
+  } else if (chat) {
+    // Общей карточки нет (группа с сайта) — иначе организатор предложения не увидит.
+    // Импорт ленивый: lib/notify сам импортирует этот модуль ради renderCard.
+    const { notifyChangeProposal } = await import("@/lib/notify");
+    const voter = (await repo.getUser(from.id)) ?? {
+      userId: from.id,
+      fullName: from.first_name ?? "",
+      username: from.username ?? null,
+    };
+    await notifyChangeProposal(chat, meeting, voter, (message.text ?? "").trim().slice(0, 300));
   }
 
   await sendMessage({ chat_id: message.chat.id, text: t(lang, "change_saved") });

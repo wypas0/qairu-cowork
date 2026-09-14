@@ -36,6 +36,8 @@ beforeAll(async () => {
 beforeEach(() => {
   stub.reset();
   stub.memberStatus = "creator";
+  stub.adminIds = [];
+  stub.blockedIds = [];
 });
 
 function text(chat: typeof GROUP_CHAT | typeof PRIVATE_AMIR, from: typeof AMIR, body: string) {
@@ -435,12 +437,12 @@ describe("/meeting", () => {
     expect(answers[0].comment).toBe("лучше в 16:00");
   });
 
-  it("отменить встречу может только организатор", async () => {
+  it("отменить встречу может только организатор или администратор", async () => {
     const repo = await import("@/db/repo");
     const meeting = (await repo.chatMeetings(GROUP_ID))[0];
 
     await handleUpdate(callback(GROUP_CHAT, ASEL, `card:cancel:${meeting.id}`));
-    expect(String(stub.last("answerCallbackQuery")?.payload.text)).toContain("только тот, кто её создал");
+    expect(String(stub.last("answerCallbackQuery")?.payload.text)).toContain("организатор или администратор");
     expect((await repo.getMeeting(meeting.id))?.status).toBe("open");
 
     await handleUpdate(callback(GROUP_CHAT, AMIR, `card:cancel:${meeting.id}`));
