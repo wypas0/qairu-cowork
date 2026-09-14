@@ -7,13 +7,13 @@ import { logoutAction } from "@/app/login/actions";
 import { joinByLinkAction, leaveGroupAction } from "@/app/profile/actions";
 
 export type ProfileGroup = { chatId: number; slug: string; title: string };
-export type ProfileMeeting = {
-  id: number;
-  chatSlug: string;
-  chatTitle: string;
-  place: string;
-  whenText: string;
-  goal: string;
+
+export type ProfileUser = {
+  name: string;
+  /** @username из Telegram — только у подтверждённых Telegram-аккаунтов. */
+  telegram: string | null;
+  /** Логин для входа по паролю, если задан. */
+  login: string | null;
 };
 
 export type ProfileLabels = {
@@ -21,37 +21,34 @@ export type ProfileLabels = {
   close: string;
   myGroups: string;
   noGroups: string;
-  leave: string;
+  leaveGroup: string; // подпись кнопки для скринридера, содержит «{title}»
   leaveConfirm: string; // содержит литеральный «{title}»
-  meetings: string;
-  noMeetings: string;
-  joinOther: string;
-  joinOtherPh: string;
-  joinOtherBtn: string;
+  joinPh: string;
+  joinBtn: string;
+  createGroup: string;
   anon: string;
   account: string;
   login: string;
   logout: string;
+  loginLabel: string; // «логин: {login}»
 };
 
 /**
- * Кнопка в левом верхнем углу шапки и панель профиля: свои группы (выйти),
- * ближайшие встречи по всем группам, вход в ещё одну группу по ссылке.
+ * Кнопка в левом верхнем углу шапки и панель профиля.
+ *
+ * Сверху — кто ты, дальше — все твои группы, под ними вход в ещё одну группу
+ * и создание новой, внизу — логин и пароль и выход.
  *
  * На узких экранах панель — шторка снизу (верх скруглён, низ заподлицо с
  * краем экрана); на широких — выезжает слева, заподлицо с левым краем.
- * Радиус углов панели поэтому зависит от того, у какого края экрана она
- * стоит, а не подобран произвольно.
  */
 export function ProfilePanel({
-  userName,
+  user,
   groups,
-  meetings,
   labels,
 }: {
-  userName: string | null;
+  user: ProfileUser | null;
   groups: ProfileGroup[];
-  meetings: ProfileMeeting[];
   labels: ProfileLabels;
 }) {
   const [open, setOpen] = useState(false);
@@ -69,6 +66,13 @@ export function ProfilePanel({
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [open]);
+
+  const close = () => setOpen(false);
+  const subtitle = user
+    ? [user.telegram ? `@${user.telegram}` : null, user.login ? labels.loginLabel.replace("{login}", user.login) : null]
+        .filter(Boolean)
+        .join(" · ")
+    : "";
 
   return (
     <>
@@ -92,7 +96,7 @@ export function ProfilePanel({
       </button>
 
       {open && (
-        <div className="profile-overlay" onClick={() => setOpen(false)}>
+        <div className="profile-overlay" onClick={close}>
           <div
             className="profile-panel"
             role="dialog"
@@ -100,38 +104,46 @@ export function ProfilePanel({
             aria-label={labels.profile}
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="profile-head">
-              <h2>{userName ? `${labels.profile} · ${userName}` : labels.profile}</h2>
-              <button
-                type="button"
-                className="btn btn-sm btn-quiet"
-                onClick={() => setOpen(false)}
-              >
-                {labels.close}
+            {/* ============ кто ты ============ */}
+            <div className="pp-head">
+              <span className="pp-avatar" aria-hidden="true">
+                {(user?.name.trim()[0] ?? "?").toUpperCase()}
+              </span>
+              <div className="pp-who">
+                <b>{user ? user.name : labels.profile}</b>
+                {subtitle && <span className="small muted">{subtitle}</span>}
+              </div>
+              <button type="button" className="pp-close" aria-label={labels.close} onClick={close}>
+                ×
               </button>
             </div>
 
-            {!userName ? (
+            {!user && (
               <>
                 <p className="muted small">{labels.anon}</p>
-                <Link className="btn btn-primary" href="/login" onClick={() => setOpen(false)}>
+                <Link className="btn btn-primary pp-wide" href="/login" onClick={close}>
                   {labels.login}
                 </Link>
               </>
-            ) : (
-              <>
-                <section className="profile-section">
-                  <h3>{labels.myGroups}</h3>
-                  {groups.length === 0 && <p className="muted small">{labels.noGroups}</p>}
-                  <ul className="profile-groups">
+            )}
+
+            {/* ============ группы ============ */}
+            {user && (
+              <section className="pp-section">
+                <h3 className="pp-title">
+                  {labels.myGroups} <span className="muted">{groups.length}</span>
+                </h3>
+                {groups.length === 0 ? (
+                  <p className="muted small">{labels.noGroups}</p>
+                ) : (
+                  <ul className="pp-groups">
                     {groups.map((group) => (
-                      <li className="profile-group-row" key={group.chatId}>
-                        <Link
-                          className="chip ok"
-                          href={`/g/${group.slug}`}
-                          onClick={() => setOpen(false)}
-                        >
-                          {group.title}
+                      <li key={group.chatId}>
+                        <Link className="pp-group" href={`/g/${group.slug}`} onClick={close}>
+                          <span className="pp-group-mark" aria-hidden="true">
+                            {(group.title.trim()[0] ?? "#").toUpperCase()}
+                          </span>
+                          <span className="pp-group-title">{group.title}</span>
                         </Link>
                         <form
                           action={leaveGroupAction.bind(null, group.slug)}
@@ -141,61 +153,61 @@ export function ProfilePanel({
                             }
                           }}
                         >
-                          <button className="btn btn-sm btn-quiet btn-danger" type="submit">
-                            {labels.leave}
+                          <button
+                            className="pp-leave"
+                            type="submit"
+                            aria-label={labels.leaveGroup.replace("{title}", group.title)}
+                            title={labels.leaveGroup.replace("{title}", group.title)}
+                          >
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                              <path
+                                d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l5-5-5-5M15 12H4"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
                           </button>
                         </form>
                       </li>
                     ))}
                   </ul>
-                </section>
+                )}
+              </section>
+            )}
 
-                <section className="profile-section">
-                  <h3>{labels.meetings}</h3>
-                  {meetings.length === 0 && <p className="muted small">{labels.noMeetings}</p>}
-                  {meetings.length > 0 && (
-                    <ul className="windows">
-                      {meetings.map((meeting) => (
-                        <li key={meeting.id}>
-                          <Link
-                            href={`/g/${meeting.chatSlug}`}
-                            onClick={() => setOpen(false)}
-                            style={{ textDecoration: "none" }}
-                          >
-                            <span className="when">{meeting.goal || meeting.whenText || "—"}</span>{" "}
-                            <span className="small muted">
-                              {meeting.chatTitle}
-                              {meeting.place ? ` · ${meeting.place}` : ""}
-                              {meeting.whenText ? ` · ${meeting.whenText}` : ""}
-                            </span>
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </section>
+            {/* ============ добавить группу ============ */}
+            <section className="pp-section">
+              <form action={joinByLinkAction} className="pp-join">
+                <input
+                  type="text"
+                  name="link"
+                  placeholder={labels.joinPh}
+                  aria-label={labels.joinPh}
+                  required
+                />
+                <button className="btn btn-sm" type="submit">
+                  {labels.joinBtn}
+                </button>
+              </form>
+              <Link className="btn btn-sm btn-quiet pp-wide" href="/#create" onClick={close}>
+                + {labels.createGroup}
+              </Link>
+            </section>
 
-                <section className="profile-section">
-                  <h3>{labels.joinOther}</h3>
-                  <form action={joinByLinkAction} className="row">
-                    <input type="text" name="link" placeholder={labels.joinOtherPh} required />
-                    <button className="btn btn-sm" type="submit" style={{ flex: "0 0 auto" }}>
-                      {labels.joinOtherBtn}
-                    </button>
-                  </form>
-                </section>
-
-                <section className="profile-section votes">
-                  <Link className="btn btn-sm" href="/account" onClick={() => setOpen(false)}>
-                    {labels.account}
-                  </Link>
-                  <form action={logoutAction}>
-                    <button className="btn btn-sm btn-quiet" type="submit">
-                      {labels.logout}
-                    </button>
-                  </form>
-                </section>
-              </>
+            {/* ============ аккаунт ============ */}
+            {user && (
+              <div className="pp-foot">
+                <Link className="btn btn-sm btn-quiet" href="/account" onClick={close}>
+                  {labels.account}
+                </Link>
+                <form action={logoutAction}>
+                  <button className="btn btn-sm btn-quiet btn-danger" type="submit">
+                    {labels.logout}
+                  </button>
+                </form>
+              </div>
             )}
           </div>
         </div>

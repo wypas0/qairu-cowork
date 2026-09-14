@@ -59,7 +59,7 @@ export default async function LandingPage() {
           </div>
         )}
 
-        <div className="card">
+        <div className="card" id="create" style={{ scrollMarginTop: 72 }}>
           <h2>{t("w_create")}</h2>
           <form action={createGroup}>
             <div className="row">

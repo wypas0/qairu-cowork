@@ -4,7 +4,7 @@ import { displayName } from "@/db/schema";
 import * as repo from "@/db/repo";
 import { translator } from "@/i18n";
 import { currentUser } from "@/lib/auth";
-import { ProfilePanel, type ProfileGroup, type ProfileMeeting } from "./ProfilePanel";
+import { ProfilePanel, type ProfileGroup, type ProfileUser } from "./ProfilePanel";
 
 export async function Topbar({
   children,
@@ -17,49 +17,42 @@ export async function Topbar({
   const lang = langOverride ?? user?.lang ?? "ru";
   const t = translator(lang);
 
+  let profile: ProfileUser | null = null;
   let groups: ProfileGroup[] = [];
-  let meetings: ProfileMeeting[] = [];
   if (user) {
+    const credentials = await repo.getCredentials(user.userId);
+    profile = {
+      name: displayName(user),
+      telegram: !user.isWeb && user.username ? user.username : null,
+      login: credentials?.login ?? null,
+    };
     const chats = await repo.userChats(user.userId);
     groups = chats
       .filter((chat) => chat.slug)
-      .map((chat) => ({ chatId: chat.chatId, slug: chat.slug!, title: chat.title }));
-
-    const rows = await repo.userMeetings(user.userId);
-    meetings = rows
-      .filter((row) => row.chat.slug)
-      .map((row) => ({
-        id: row.meeting.id,
-        chatSlug: row.chat.slug!,
-        chatTitle: row.chat.title,
-        place: row.meeting.place,
-        whenText: row.meeting.whenText,
-        goal: row.meeting.goal,
-      }));
+      .map((chat) => ({ chatId: chat.chatId, slug: chat.slug!, title: chat.title }))
+      .sort((a, b) => a.title.localeCompare(b.title, lang));
   }
 
   return (
     <header className="topbar">
       <ProfilePanel
-        userName={user ? displayName(user) : null}
+        user={profile}
         groups={groups}
-        meetings={meetings}
         labels={{
           profile: t("w_profile"),
           close: t("w_close"),
           myGroups: t("w_my_groups"),
           noGroups: t("w_no_groups"),
-          leave: t("w_leave"),
+          leaveGroup: t("w_pp_leave_group", { title: "{title}" }),
           leaveConfirm: t("w_leave_confirm"),
-          meetings: t("w_meetings"),
-          noMeetings: t("w_no_meetings"),
-          joinOther: t("w_join_other"),
-          joinOtherPh: t("w_join_other_ph"),
-          joinOtherBtn: t("w_join_other_btn"),
+          joinPh: t("w_pp_join_ph"),
+          joinBtn: t("w_pp_join_btn"),
+          createGroup: t("w_pp_create"),
           anon: t("w_profile_anon"),
           account: t("w_acct_title"),
           login: t("w_login_btn"),
           logout: t("w_logout"),
+          loginLabel: t("w_pp_login_label", { login: "{login}" }),
         }}
       />
       <Link className="brand" href="/">

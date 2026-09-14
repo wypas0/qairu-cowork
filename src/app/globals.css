@@ -233,6 +233,7 @@ a {
     padding: 20px 20px 20px max(20px, env(safe-area-inset-left));
   }
 }
+/* Заголовок с кнопкой «Закрыть» — у всплывающего окна клетки тепловой карты. */
 .profile-head {
   display: flex;
   align-items: center;
@@ -240,35 +241,161 @@ a {
   gap: 10px;
   margin-bottom: 10px;
 }
-.profile-head h2 {
-  margin: 0;
-  font-size: 17px;
-}
-.profile-section {
-  margin-top: 18px;
-}
-.profile-section:first-of-type {
-  margin-top: 4px;
-}
-.profile-groups {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+
+/* Содержимое панели столбиком: блок «аккаунт» прижат к низу шторки. */
+.profile-panel {
   display: flex;
   flex-direction: column;
-  gap: 6px;
 }
-.profile-group-row {
+.pp-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 10px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
 }
-.profile-group-row .chip {
+.pp-avatar {
+  width: 38px;
+  height: 38px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 16px;
+}
+.pp-who {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
+  flex: 1;
+}
+.pp-who b,
+.pp-who span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.pp-close {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+.pp-close:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.pp-section {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+.pp-title {
+  display: flex;
+  gap: 6px;
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.pp-groups {
+  list-style: none;
+  margin: 0 -8px;
+  padding: 0;
+}
+.pp-groups li {
+  display: flex;
+  align-items: center;
+  border-radius: 4px;
+}
+.pp-groups li:hover {
+  background: var(--surface-2);
+}
+.pp-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  padding: 7px 8px;
+  color: var(--text);
+  text-decoration: none;
+}
+.pp-group-mark {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.pp-group-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pp-leave {
+  width: 32px;
+  height: 32px;
+  margin-right: 4px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0.6;
+}
+.pp-groups li:hover .pp-leave,
+.pp-leave:focus-visible {
+  opacity: 1;
+}
+.pp-leave:hover {
+  color: var(--danger);
+}
+.pp-join {
+  display: flex;
+  gap: 6px;
+}
+.pp-join input {
+  flex: 1;
+  min-width: 0;
+}
+.pp-join .btn {
+  flex: none;
+}
+.pp-wide {
+  width: 100%;
+  margin-top: 8px;
+}
+.pp-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 14px;
+}
+@media (hover: none) {
+  .pp-leave {
+    opacity: 1;
+  }
 }
 
 /* --- типографика --- */

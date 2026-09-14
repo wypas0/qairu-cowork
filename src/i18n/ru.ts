@@ -233,7 +233,7 @@ export const RU: Strings = {
   w_your_name_ph: "Ваше имя",
   w_tz: "Часовой пояс",
   w_lang: "Язык",
-  w_my_groups: "Твои группы",
+  w_my_groups: "Мои группы",
   w_open: "Открыть",
   w_join_title: "Присоединиться к группе «{title}»",
   w_join_lead: "Представься — одногруппники должны понимать, чьё это расписание.",
@@ -456,4 +456,11 @@ export const RU: Strings = {
   w_tglogin_retry: "Попробовать снова",
   w_tglogin_merge_hint: "Ты уже на сайте без Telegram: после подтверждения группы, расписание и ответы на встречи перейдут в Telegram-аккаунт.",
   w_tglogin_back: "Назад ко входу",
+
+  // --- панель профиля ---
+  w_pp_join_ph: "Ссылка или код группы",
+  w_pp_leave_group: "Выйти из группы «{title}»",
+  w_pp_join_btn: "Войти",
+  w_pp_create: "Создать группу",
+  w_pp_login_label: "логин {login}",
 };

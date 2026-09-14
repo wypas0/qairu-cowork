@@ -225,7 +225,7 @@ export const KK: Strings = {
   w_your_name_ph: "Атыңыз",
   w_tz: "Уақыт белдеуі",
   w_lang: "Тіл",
-  w_my_groups: "Сенің топтарың",
+  w_my_groups: "Менің топтарым",
   w_open: "Ашу",
   w_join_title: "«{title}» тобына қосылу",
   w_join_lead: "Атыңды жаз — топтастарың бұл кімнің кестесі екенін білуі керек.",
@@ -447,4 +447,11 @@ export const KK: Strings = {
   w_tglogin_retry: "Қайталап көру",
   w_tglogin_merge_hint: "Сен сайтта Telegram-сыз отырсың: растағаннан кейін топтарың, кестең және кездесулерге жауаптарың Telegram-аккаунтқа ауысады.",
   w_tglogin_back: "Кіру бетіне оралу",
+
+  // --- панель профиля ---
+  w_pp_join_ph: "Топ сілтемесі не коды",
+  w_pp_leave_group: "«{title}» тобынан шығу",
+  w_pp_join_btn: "Кіру",
+  w_pp_create: "Топ құру",
+  w_pp_login_label: "логин {login}",
 };
