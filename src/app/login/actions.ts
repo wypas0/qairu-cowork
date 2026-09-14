@@ -1,13 +1,15 @@
 "use server";
 
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
 import * as repo from "@/db/repo";
 import { checkCurrentPassword, registerLoginAttempt, resetLoginAttempts } from "@/lib/account";
 import { clearSession, currentToken, currentUser, safeNext, setTokenCookie } from "@/lib/auth";
+import { hasBot } from "@/lib/config";
 import { hashPassword, normalizeLogin, validateCredentials, verifyPassword } from "@/lib/password";
+import { LOGIN_COOKIE, LOGIN_REQUEST_TTL_MS, createLoginRequest } from "@/lib/tglogin";
 
 // Проверяем пароль и для несуществующего логина: по времени ответа нельзя
 // понять, существует ли такой аккаунт.
@@ -45,6 +47,39 @@ export async function loginAction(formData: FormData): Promise<void> {
   await setTokenCookie(token);
   revalidatePath("/", "layout");
   redirect(next);
+}
+
+/** Не больше стольких запросов входа через Telegram с одного адреса за 15 минут. */
+const MAX_TG_LOGIN_STARTS = 20;
+
+/**
+ * «Войти через Telegram»: создать одноразовый запрос, секрет положить в куку
+ * этого браузера и перейти на страницу ожидания со ссылкой на бота.
+ */
+export async function startTelegramLoginAction(formData: FormData): Promise<void> {
+  const next = safeNext(String(formData.get("next") ?? ""));
+  if (!hasBot()) redirect(loginUrl({ err: "no_bot", next }));
+
+  const ip = await clientIp();
+  if ((await repo.bumpCounter(`tgloginip:${ip}`, 15 * 60 * 1000)) > MAX_TG_LOGIN_STARTS) {
+    redirect(loginUrl({ err: "throttled", next }));
+  }
+
+  const requestHeaders = await headers();
+  const { code, secret } = await createLoginRequest({
+    next,
+    mergeFrom: await currentUser(),
+    userAgent: requestHeaders.get("user-agent") ?? "",
+  });
+  const store = await cookies();
+  store.set(LOGIN_COOKIE, `${code}.${secret}`, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: Math.ceil(LOGIN_REQUEST_TTL_MS / 1000) + 60,
+  });
+  redirect("/login/telegram");
 }
 
 export async function logoutAction(): Promise<void> {

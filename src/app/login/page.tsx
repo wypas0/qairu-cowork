@@ -5,7 +5,8 @@ import { Topbar } from "@/components/Topbar";
 import { displayName } from "@/db/schema";
 import { normalizeLang, translator } from "@/i18n";
 import { currentUser, safeNext } from "@/lib/auth";
-import { loginAction, logoutAction } from "./actions";
+import { hasBot } from "@/lib/config";
+import { loginAction, logoutAction, startTelegramLoginAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,7 @@ const ERRORS: Record<string, string> = {
   empty: "w_login_err_empty",
   invalid: "w_login_err_invalid",
   throttled: "w_login_err_throttled",
+  no_bot: "w_tglogin_no_bot",
 };
 
 export default async function LoginPage({
@@ -47,13 +49,30 @@ export default async function LoginPage({
             </div>
           )}
 
-          <p className="small muted">{t("w_login_lead")}</p>
-
           {errorKey && (
             <div className="notice warn" role="alert">
               {t(errorKey)}
             </div>
           )}
+
+          {hasBot() && (
+            <>
+              <form action={startTelegramLoginAction}>
+                <input type="hidden" name="next" value={next} />
+                <button className="btn btn-primary tg-btn" type="submit" style={{ width: "100%" }}>
+                  {t("w_tglogin_btn")}
+                </button>
+              </form>
+              <p className="small muted" style={{ marginTop: 8 }}>
+                {t("w_tglogin_lead")}
+              </p>
+              <div className="divider small muted">
+                <span>{t("w_tglogin_or")}</span>
+              </div>
+            </>
+          )}
+
+          <p className="small muted">{t("w_login_lead")}</p>
 
           <form action={loginAction}>
             <input type="hidden" name="next" value={next} />

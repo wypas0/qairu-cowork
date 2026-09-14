@@ -16,6 +16,7 @@ import * as common from "./handlers/common";
 import * as meeting from "./handlers/meeting";
 import * as registration from "./handlers/registration";
 import * as schedule from "./handlers/schedule";
+import * as weblogin from "./handlers/weblogin";
 
 export const PRIVATE_COMMANDS = [
   { command: "start", description: "Начать / Бастау / Start" },
@@ -185,4 +186,5 @@ async function handleCallback(query: NonNullable<TgUpdate["callback_query"]>): P
   if (data.startsWith("mtg:")) return meeting.onTimeButton(query);
   if (data.startsWith("vote:")) return meeting.onVote(query);
   if (data.startsWith("card:")) return meeting.onCardButton(query);
+  if (weblogin.isWebLoginCallback(data)) return weblogin.onWebLoginButton(query);
 }

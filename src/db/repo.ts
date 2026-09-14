@@ -1003,6 +1003,147 @@ export async function deleteBotState(key: string, exec?: Exec): Promise<void> {
 }
 
 /**
+ * Забрать запись и удалить её одной инструкцией. Из нескольких одновременных
+ * вызовов данные получит ровно один — остальные увидят null. Нужно для
+ * одноразовых запросов входа: два параллельных опроса не должны выдать две сессии.
+ */
+export async function takeBotState<T>(key: string, exec?: Exec): Promise<T | null> {
+  const [row] = await ex(exec)
+    .delete(botState)
+    .where(eq(botState.key, key))
+    .returning({ data: botState.data });
+  return (row?.data as T) ?? null;
+}
+
+/** Удалить записи с префиксом, не обновлявшиеся с `before` — уборка протухших запросов. */
+export async function deleteStaleBotState(prefix: string, before: Date, exec?: Exec): Promise<void> {
+  await ex(exec)
+    .delete(botState)
+    .where(
+      and(
+        sql`${botState.key} like ${`${prefix.replace(/[%_\\]/g, "\\$&")}%`}`,
+        sql`${botState.updatedAt} < ${before.toISOString()}::timestamptz`,
+      ),
+    );
+}
+
+// --------------------------------------------------------------------------
+// Перенос аккаунта с сайта в Telegram
+// --------------------------------------------------------------------------
+
+/**
+ * Перенести всё, что накопил аккаунт с сайта, в Telegram-аккаунт того же человека.
+ *
+ * Вызывается, когда человек, вошедший на сайт без Telegram (по ссылке-приглашению),
+ * подтверждает вход через бота. Одна транзакция — либо перенесено всё, либо ничего.
+ *
+ * При конфликте побеждает Telegram-аккаунт: его расписание, ответ на встречу и
+ * пароль остаются, сайтовые копии отбрасываются. Роль в группе — наибольшая из
+ * двух: админство с сайта не теряется.
+ */
+export async function mergeWebUserIntoTelegram(
+  webUserId: number,
+  telegramUserId: number,
+): Promise<boolean> {
+  return transaction(async (tx) => {
+    if (webUserId === telegramUserId) return false;
+    const web = await getUser(webUserId, tx);
+    const tg = await getUser(telegramUserId, tx);
+    if (!web || !tg || !web.isWeb || tg.isWeb) return false;
+
+    // Группы и роли.
+    const webMemberships = await tx
+      .select()
+      .from(memberships)
+      .where(eq(memberships.userId, webUserId));
+    for (const membership of webMemberships) {
+      await tx
+        .insert(memberships)
+        .values({
+          chatId: membership.chatId,
+          userId: telegramUserId,
+          role: membership.role,
+          joinedAt: membership.joinedAt,
+        })
+        .onConflictDoUpdate({
+          target: [memberships.chatId, memberships.userId],
+          set: {
+            role: sql`case when excluded.role = ${ROLE_ADMIN} or ${memberships.role} = ${ROLE_ADMIN}
+                           then ${ROLE_ADMIN} else ${memberships.role} end`,
+          },
+        });
+    }
+    await tx.delete(memberships).where(eq(memberships.userId, webUserId));
+    await tx.update(chats).set({ createdBy: telegramUserId }).where(eq(chats.createdBy, webUserId));
+
+    // Расписание: переносим, только если в Telegram его ещё нет.
+    const [tgSlot] = await tx
+      .select({ id: busySlots.id })
+      .from(busySlots)
+      .where(eq(busySlots.userId, telegramUserId))
+      .limit(1);
+    const tgHasSchedule = Boolean(tgSlot) || (await isFilled(telegramUserId, tx));
+    if (!tgHasSchedule) {
+      await tx.update(busySlots).set({ userId: telegramUserId }).where(eq(busySlots.userId, webUserId));
+      const [webState] = await tx
+        .select()
+        .from(scheduleState)
+        .where(eq(scheduleState.userId, webUserId))
+        .limit(1);
+      if (webState) await markFilled(telegramUserId, webState.filled, tx);
+    }
+
+    // Ответы на встречи: сайтовый ответ переносится туда, где Telegram-ответа нет.
+    const tgAnswered = await tx
+      .select({ meetingId: meetingResponses.meetingId })
+      .from(meetingResponses)
+      .where(eq(meetingResponses.userId, telegramUserId));
+    const answeredIds = tgAnswered.map((row) => row.meetingId);
+    await tx
+      .update(meetingResponses)
+      .set({ userId: telegramUserId })
+      .where(
+        and(
+          eq(meetingResponses.userId, webUserId),
+          answeredIds.length
+            ? sql`${meetingResponses.meetingId} not in (${sql.join(answeredIds.map((id) => sql`${id}`), sql`, `)})`
+            : sql`true`,
+        ),
+      );
+    await tx.delete(meetingResponses).where(eq(meetingResponses.userId, webUserId));
+
+    // Встречи: организатор и список приглашённых.
+    await tx
+      .update(meetings)
+      .set({ initiatorId: telegramUserId })
+      .where(eq(meetings.initiatorId, webUserId));
+    const withInvite = await tx
+      .select({ id: meetings.id, invitees: meetings.invitees })
+      .from(meetings)
+      .where(sql`${meetings.invitees} like ${`%${webUserId}%`}`);
+    for (const meeting of withInvite) {
+      const ids = inviteeIds(meeting);
+      if (!ids.includes(webUserId)) continue;
+      const replaced = [...new Set(ids.map((id) => (id === webUserId ? telegramUserId : id)))];
+      await tx.update(meetings).set({ invitees: replaced.join(",") }).where(eq(meetings.id, meeting.id));
+    }
+
+    // Уведомления, пароль, сессии.
+    await tx.update(notices).set({ userId: telegramUserId }).where(eq(notices.userId, webUserId));
+    await tx.update(notices).set({ fromUserId: telegramUserId }).where(eq(notices.fromUserId, webUserId));
+    if (!(await getCredentials(telegramUserId, tx))) {
+      await tx.update(credentials).set({ userId: telegramUserId }).where(eq(credentials.userId, webUserId));
+    }
+    // Другие устройства сайтового аккаунта — тот же человек: они продолжают работать уже как Telegram-аккаунт.
+    await tx.update(webSessions).set({ userId: telegramUserId }).where(eq(webSessions.userId, webUserId));
+
+    // Всё, что не перенесено (дубли расписания, пароль, если он уже был), уйдёт каскадом.
+    await tx.delete(users).where(eq(users.userId, webUserId));
+    return true;
+  });
+}
+
+/**
  * Счётчик попыток в окне поверх bot_state.
  *
  * Возвращает, сколько попыток уже было в текущем окне, включая эту. Нужен для
