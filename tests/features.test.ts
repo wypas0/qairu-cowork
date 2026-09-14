@@ -23,7 +23,16 @@ beforeEach(() => {
   stub.reset();
   stub.adminIds = [];
   stub.blockedIds = [];
+  stub.adminsError = null;
 });
+
+/** Сдвинуть отметку кэша админов в прошлое, чтобы следующий вызов пошёл в Telegram. */
+async function expireAdminCache(chatId: number) {
+  const { repo } = await mods();
+  const key = `tgadmins:${chatId}`;
+  const cached = await repo.getBotState<{ ids: number[]; at: number }>(key);
+  if (cached) await repo.setBotState(key, { ...cached, at: 0 });
+}
 
 async function mods() {
   return {
@@ -513,5 +522,122 @@ describe("голосование в Telegram из личной копии кар
       },
     });
     expect((await repo.getMeeting(meeting.id))?.status).toBe("cancelled");
+  });
+});
+
+describe("исправления после ревью", () => {
+  it("отключить или сменить вход по паролю можно только с верным текущим паролем", async () => {
+    const { repo } = await mods();
+    const { hashPassword } = await import("@/lib/password");
+    const account = await import("@/lib/account");
+    const user = await repo.createWebUser({ fullName: "Владелец", lang: "ru" });
+
+    // Пароля ещё нет — подтверждать нечего.
+    expect(await account.checkCurrentPassword(user.userId, "")).toBe("no_credentials");
+
+    await repo.setCredentials({ userId: user.userId, login: "owner1", passwordHash: await hashPassword("rightpass") });
+    expect(await account.checkCurrentPassword(user.userId, "")).toBe("wrong");
+    expect(await account.checkCurrentPassword(user.userId, "guess")).toBe("wrong");
+    expect(await account.checkCurrentPassword(user.userId, "rightpass")).toBe("ok");
+  });
+
+  it("подбор текущего пароля в аккаунте упирается в лимит", async () => {
+    const { repo } = await mods();
+    const { hashPassword } = await import("@/lib/password");
+    const account = await import("@/lib/account");
+    const user = await repo.createWebUser({ fullName: "Цель", lang: "ru" });
+    await repo.setCredentials({ userId: user.userId, login: "target1", passwordHash: await hashPassword("rightpass") });
+
+    for (let i = 0; i < account.MAX_CURRENT_PASSWORD; i += 1) {
+      expect(await account.checkCurrentPassword(user.userId, `guess${i}`)).toBe("wrong");
+    }
+    expect(await account.checkCurrentPassword(user.userId, "rightpass")).toBe("throttled");
+  });
+
+  it("параллельные попытки входа не проскакивают мимо лимита", async () => {
+    const account = await import("@/lib/account");
+    const results = await Promise.all(
+      Array.from({ length: 30 }, () => account.registerLoginAttempt("burst-login", "10.0.0.1")),
+    );
+    expect(results.filter(Boolean)).toHaveLength(account.MAX_PER_LOGIN);
+  });
+
+  it("счётчик считает каждое параллельное увеличение ровно один раз", async () => {
+    const { repo } = await mods();
+    const values = await Promise.all(Array.from({ length: 25 }, () => repo.bumpCounter("burst-counter", 60_000)));
+    expect([...values].sort((a, b) => a - b)).toEqual(Array.from({ length: 25 }, (_, i) => i + 1));
+    expect(await repo.peekCounter("burst-counter", 60_000)).toBe(25);
+  });
+
+  it("успешный вход сбрасывает счётчик логина", async () => {
+    const { repo } = await mods();
+    const account = await import("@/lib/account");
+    await account.registerLoginAttempt("reset-login", "10.0.0.2");
+    await account.resetLoginAttempts("reset-login");
+    expect(await repo.peekCounter("login:reset-login", account.LOGIN_WINDOW_MS)).toBe(0);
+  });
+
+  it("бота выгнали из чата — админы Telegram теряют права на сайте", async () => {
+    const { repo, admin } = await mods();
+    const chat = await repo.upsertChat(-100777000666, "Бота выгнали");
+    const boss = await telegramMember(chat.chatId, "Бывший админ");
+
+    stub.adminIds = [boss.userId];
+    expect(await admin.isGroupAdmin(chat, boss.userId)).toBe(true);
+
+    await expireAdminCache(chat.chatId);
+    stub.adminsError = { code: 403, description: "Forbidden: bot was kicked from the supergroup chat" };
+    expect(await admin.isGroupAdmin(chat, boss.userId)).toBe(false);
+
+    // Пустой ответ тоже кэшируется: следующая проверка в Telegram не ходит.
+    const calls = stub.of("getChatAdministrators").length;
+    await admin.isGroupAdmin(chat, boss.userId);
+    expect(stub.of("getChatAdministrators")).toHaveLength(calls);
+  });
+
+  it("сбой сети не отнимает права и не заставляет ходить в Telegram на каждой странице", async () => {
+    const { repo, admin } = await mods();
+    const chat = await repo.upsertChat(-100777000777, "Сеть сбоит");
+    const boss = await telegramMember(chat.chatId, "Админ");
+
+    stub.adminIds = [boss.userId];
+    expect(await admin.isGroupAdmin(chat, boss.userId)).toBe(true);
+
+    await expireAdminCache(chat.chatId);
+    stub.adminsError = "network";
+    expect(await admin.isGroupAdmin(chat, boss.userId)).toBe(true);
+    const calls = stub.of("getChatAdministrators").length;
+    await admin.isGroupAdmin(chat, boss.userId);
+    expect(stub.of("getChatAdministrators")).toHaveLength(calls);
+  });
+
+  it("отмена из личной копии карточки перерисовывает и общую карточку в чате", async () => {
+    const { repo } = await mods();
+    const { handleUpdate } = await import("@/bot/router");
+    const chat = await repo.upsertChat(-100777000888, "Отмена из лички");
+    const author = await telegramMember(chat.chatId, "Автор");
+    const meeting = await repo.createMeeting({
+      chatId: chat.chatId,
+      initiatorId: author.userId,
+      place: "",
+      whenText: "",
+      goal: "Отменим из лички",
+      invitees: [author.userId],
+    });
+    await repo.updateMeeting(meeting.id, { chatMessageId: 777 });
+
+    await handleUpdate({
+      update_id: 3,
+      callback_query: {
+        id: "cb3",
+        from: { id: author.userId, is_bot: false, first_name: "Автор" },
+        data: `card:cancel:${meeting.id}`,
+        message: { message_id: 44, chat: { id: author.userId, type: "private" }, date: 0 },
+      },
+    });
+
+    const edits = stub.of("editMessageText").map((call) => [call.payload.chat_id, call.payload.message_id]);
+    expect(edits).toContainEqual([author.userId, 44]);
+    expect(edits).toContainEqual([chat.chatId, 777]);
   });
 });

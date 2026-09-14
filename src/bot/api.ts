@@ -168,11 +168,17 @@ export function getChatMember(payload: {
   return tryCall<{ status: string }>("getChatMember", payload);
 }
 
-/** Все администраторы чата одним вызовом. null — чата нет или бота там нет. */
+/**
+ * Все администраторы чата одним вызовом.
+ *
+ * Бросает ошибку, а не глотает её, как tryCall: вызывающему важно отличить
+ * «Telegram ответил, что бота в чате нет» (TelegramError 400/403 — список
+ * админов пуст) от «сеть недоступна» (любая другая ошибка — список неизвестен).
+ */
 export function getChatAdministrators(payload: {
   chat_id: number;
-}): Promise<{ status: string; user: TgUser }[] | null> {
-  return tryCall<{ status: string; user: TgUser }[]>("getChatAdministrators", payload);
+}): Promise<{ status: string; user: TgUser }[]> {
+  return call<{ status: string; user: TgUser }[]>("getChatAdministrators", payload);
 }
 
 export function getMe(token?: string): Promise<TgUser> {

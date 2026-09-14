@@ -1003,20 +1003,43 @@ export async function deleteBotState(key: string, exec?: Exec): Promise<void> {
 }
 
 /**
- * Счётчик попыток в скользящем окне поверх bot_state.
+ * Счётчик попыток в окне поверх bot_state.
  *
  * Возвращает, сколько попыток уже было в текущем окне, включая эту. Нужен для
  * ограничения перебора паролей и частоты напоминаний — отдельная таблица ради
  * этого не нужна.
+ *
+ * Увеличение — одна инструкция INSERT … ON CONFLICT DO UPDATE: строка
+ * блокируется на время обновления, поэтому параллельные запросы не могут
+ * прочитать один и тот же счётчик и затереть прибавки друг друга. Прежняя
+ * версия «прочитать → прибавить → записать» пропускала пачку одновременных
+ * попыток входа мимо лимита.
  */
 export async function bumpCounter(key: string, windowMs: number, exec?: Exec): Promise<number> {
-  const db = ex(exec);
   const now = Date.now();
-  const current = await getBotState<{ count: number; since: number }>(key, db);
-  const fresh = !current || now - current.since > windowMs;
-  const next = fresh ? { count: 1, since: now } : { count: current.count + 1, since: current.since };
-  await setBotState(key, next, db);
-  return next.count;
+  const fresh = { count: 1, since: now };
+  // Числа уходят в SQL строками с явным приведением: у «голого» параметра
+  // внутри sql-фрагмента нет типа, и postgres.js на нём спотыкается.
+  const [row] = await ex(exec)
+    .insert(botState)
+    .values({ key, data: fresh, updatedAt: new Date(now) })
+    .onConflictDoUpdate({
+      target: botState.key,
+      set: {
+        data: sql`case
+          when coalesce((${botState.data}->>'since')::bigint, 0) < ${String(now - windowMs)}::bigint
+            then ${JSON.stringify(fresh)}::jsonb
+          else jsonb_set(
+            ${botState.data},
+            '{count}',
+            to_jsonb(coalesce((${botState.data}->>'count')::int, 0) + 1)
+          )
+        end`,
+        updatedAt: new Date(now),
+      },
+    })
+    .returning({ data: botState.data });
+  return Number((row?.data as { count?: number } | undefined)?.count ?? 1);
 }
 
 export async function peekCounter(key: string, windowMs: number, exec?: Exec): Promise<number> {

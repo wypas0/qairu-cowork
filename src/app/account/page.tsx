@@ -153,17 +153,30 @@ export default async function AccountPage({
             </button>
           </form>
 
-          <div className="votes" style={{ marginTop: 20 }}>
-            {credentials && (
-              <form action={deleteCredentialsAction}>
+          {credentials && (
+            <form action={deleteCredentialsAction} className="remove-credentials">
+              <h2 style={{ marginTop: 24 }}>{t("w_acct_remove")}</h2>
+              <p className="small muted">{t("w_acct_remove_lead")}</p>
+              <div className="change-form">
+                <input
+                  name="current"
+                  type="password"
+                  required
+                  autoComplete="current-password"
+                  placeholder={t("w_acct_current")}
+                  aria-label={t("w_acct_current")}
+                />
                 <ConfirmSubmit
                   className="btn btn-sm btn-quiet btn-danger"
                   confirm={t("w_acct_remove_confirm")}
                 >
                   {t("w_acct_remove")}
                 </ConfirmSubmit>
-              </form>
-            )}
+              </div>
+            </form>
+          )}
+
+          <div className="votes" style={{ marginTop: 20 }}>
             <form action={logoutAction}>
               <button className="btn btn-sm" type="submit">
                 {t("w_logout")}

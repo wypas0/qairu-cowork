@@ -506,6 +506,20 @@ export async function onCardButton(query: TgCallbackQuery): Promise<void> {
       reply_markup: card.markup,
       link_preview_options: { is_disabled: true },
     });
+    // Отменили из личной копии карточки — общая карточка в чате тоже должна
+    // показать отмену, иначе в ней остаются кнопки голосования.
+    const isGroupCard =
+      message.chat.id === meeting.chatId && message.message_id === meeting.chatMessageId;
+    if (meeting.chatMessageId && !isGroupCard) {
+      await editMessageText({
+        chat_id: meeting.chatId,
+        message_id: meeting.chatMessageId,
+        text: card.text,
+        parse_mode: "HTML",
+        reply_markup: card.markup,
+        link_preview_options: { is_disabled: true },
+      });
+    }
     return;
   }
 

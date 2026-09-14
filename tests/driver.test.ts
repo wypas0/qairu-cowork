@@ -35,6 +35,14 @@ async function repo() {
 }
 
 describe("настоящий драйвер postgres.js", () => {
+  it("атомарный счётчик попыток работает на настоящем драйвере и сбрасывается по окну", async () => {
+    const r = await repo();
+    const values = await Promise.all(Array.from({ length: 10 }, () => r.bumpCounter("driver-counter", 60_000)));
+    expect([...values].sort((a, b) => a - b)).toEqual(Array.from({ length: 10 }, (_, i) => i + 1));
+    // Окно истекло — счёт начинается заново.
+    expect(await r.bumpCounter("driver-counter", -1)).toBe(1);
+  });
+
   it("выборка напоминаний не падает на сериализации момента времени", async () => {
     const r = await repo();
     await r.upsertUser({ userId: 9001, username: "amir", fullName: "Амир" });

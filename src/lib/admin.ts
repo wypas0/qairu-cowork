@@ -11,7 +11,7 @@
 
 import "server-only";
 
-import { getChatAdministrators } from "@/bot/api";
+import { TelegramError, getChatAdministrators } from "@/bot/api";
 import * as repo from "@/db/repo";
 import { type Chat, ROLE_ADMIN } from "@/db/schema";
 import { hasBot } from "./config";
@@ -26,11 +26,22 @@ export function isTelegramChat(chat: Pick<Chat, "origin" | "chatId">): boolean {
   return chat.origin === "telegram" && chat.chatId < 0 && chat.chatId > -(10 ** 15);
 }
 
+/** Ответы Telegram, после которых список админов достоверно пуст: бота нет в чате. */
+function botLostAccess(error: unknown): boolean {
+  return error instanceof TelegramError && (error.code === 400 || error.code === 403);
+}
+
 /**
  * Администраторы Telegram-чата (кроме ботов), с кэшем в bot_state.
  *
- * Если Telegram не ответил, отдаём последний известный список, а не пустой:
- * сбой сети не должен на время отнимать у людей права.
+ * - Telegram ответил списком — кэшируем его на TG_ADMINS_TTL_MS.
+ * - Telegram ответил, что бота в чате нет (выгнали, чат удалён) — прав через
+ *   Telegram больше ни у кого нет: кэшируем пустой список. Раньше в этом
+ *   случае навсегда отдавался старый кэш, и снятый в Telegram админ оставался
+ *   админом на сайте.
+ * - Сеть недоступна или Telegram временно сбоит — отдаём последний известный
+ *   список (сбой не должен на время отнимать права), но отметку времени
+ *   обновляем, чтобы не долбить Telegram на каждой загрузке страницы.
  */
 export async function telegramAdminIds(chat: Chat): Promise<number[]> {
   if (!isTelegramChat(chat) || !hasBot()) return [];
@@ -38,9 +49,15 @@ export async function telegramAdminIds(chat: Chat): Promise<number[]> {
   const cached = await repo.getBotState<CachedAdmins>(key);
   if (cached && Date.now() - cached.at < TG_ADMINS_TTL_MS) return cached.ids;
 
-  const admins = await getChatAdministrators({ chat_id: chat.chatId });
-  if (!Array.isArray(admins)) return cached?.ids ?? [];
-  const ids = admins.filter((admin) => !admin.user.is_bot).map((admin) => admin.user.id);
+  let ids: number[];
+  try {
+    const admins = await getChatAdministrators({ chat_id: chat.chatId });
+    ids = Array.isArray(admins)
+      ? admins.filter((admin) => !admin.user.is_bot).map((admin) => admin.user.id)
+      : [];
+  } catch (error) {
+    ids = botLostAccess(error) ? [] : (cached?.ids ?? []);
+  }
   await repo.setBotState(key, { ids, at: Date.now() } satisfies CachedAdmins);
   return ids;
 }

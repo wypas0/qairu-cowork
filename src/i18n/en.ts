@@ -409,6 +409,7 @@ export const EN: Strings = {
   w_acct_removed: "Password sign-in turned off.",
   w_acct_remove: "Turn off password sign-in",
   w_acct_remove_confirm: "Turn off password sign-in? You'll only be able to sign in via a link or Telegram.",
+  w_acct_remove_lead: "Your current password is required. Afterwards you can only sign in via a link or Telegram, and other devices will be signed out.",
   w_acct_logout_warning: "No password set: after signing out you can only return to this account via your personal link.",
   w_acct_err_login_format: "Login: 3–32 characters, Latin letters, digits, dot, hyphen, underscore.",
   w_acct_err_login_taken: "This login is already taken.",

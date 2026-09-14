@@ -88,6 +88,11 @@ export function Board({
   const [loading, setLoading] = useState(false);
   const [activeCell, setActiveCell] = useState<CellDetail | null>(null);
   const requestId = useRef(0);
+  // Для каких кворума и длительности посчитаны данные, что сейчас на экране.
+  // Сравнивать выбор нужно с ними, а не с начальными значениями: иначе
+  // 60 → 90 → 60 не перезапрашивало данные, и под «1 ч» оставались
+  // 90-минутные варианты.
+  const loaded = useRef({ quorum: initial.quorum, duration: initial.duration });
 
   useEffect(() => {
     if (!activeCell) return;
@@ -113,7 +118,10 @@ export function Board({
         if (!response.ok) return;
         const data = (await response.json()) as BoardPayload;
         // Ответы могут прийти не в том порядке, в каком уехали запросы.
-        if (id === requestId.current) setPayload(data);
+        if (id === requestId.current) {
+          loaded.current = { quorum: nextQuorum, duration: nextDuration };
+          setPayload(data);
+        }
       } catch {
         // При сетевой ошибке просто оставляем прежнюю картинку.
       } finally {
@@ -125,10 +133,16 @@ export function Board({
 
   // Ползунок двигают непрерывно — ждём паузы, иначе на каждый пиксель уходит запрос.
   useEffect(() => {
-    if (quorum === initial.quorum && duration === initial.duration) return;
+    if (quorum === loaded.current.quorum && duration === loaded.current.duration) {
+      // Вернулись к тому, что уже на экране: запрос, отправленный за
+      // промежуточным выбором, не должен затем подменить эти данные.
+      requestId.current += 1;
+      setLoading(false);
+      return;
+    }
     const timer = setTimeout(() => void refresh(quorum, duration), 180);
     return () => clearTimeout(timer);
-  }, [quorum, duration, initial.quorum, initial.duration, refresh]);
+  }, [quorum, duration, refresh]);
 
   const total = payload.total;
   const rows = payload.days[0]?.cells.length ?? 0;
