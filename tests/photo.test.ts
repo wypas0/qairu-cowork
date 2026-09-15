@@ -104,7 +104,9 @@ describe("запрос к API распознавания", () => {
     const body = JSON.parse(String(calls[0].init.body));
     expect(body.model).toBe("gpt-4o-mini");
     expect(body.response_format).toEqual({ type: "json_object" });
-    expect(body.messages[1].content[1]).toEqual({
+    // [0] — общая инструкция, [1] — подпись «File 1 of 1 (…):», [2] — сама картинка.
+    expect(body.messages[1].content[1]).toEqual({ type: "text", text: "File 1 of 1 (screenshot-1):" });
+    expect(body.messages[1].content[2]).toEqual({
       type: "image_url",
       image_url: { url: "data:image/jpeg;base64,AAAA", detail: "high" },
     });
@@ -148,11 +150,125 @@ describe("ограничения на скриншоты", () => {
     const { MAX_PHOTOS, PHOTO_MAX_BYTES } = await import("@/core/photoSchedule");
     const { parseAvatarDataUrl } = await import("@/core/avatar");
     expect(MAX_PHOTOS).toBe(2);
-    expect(PHOTO_MAX_BYTES).toBeLessThan(1024 * 1024);
+    expect(PHOTO_MAX_BYTES).toBe(1024 * 1024);
 
     const jpeg = (size: number) =>
       `data:image/jpeg;base64,${Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(size - 4)]).toString("base64")}`;
     expect(parseAvatarDataUrl(jpeg(900 * 1024), PHOTO_MAX_BYTES)).toMatchObject({ ok: true });
-    expect(parseAvatarDataUrl(jpeg(1024 * 1024), PHOTO_MAX_BYTES)).toEqual({ ok: false, error: "too_large" });
+    expect(parseAvatarDataUrl(jpeg(1024 * 1024 + 1), PHOTO_MAX_BYTES)).toEqual({ ok: false, error: "too_large" });
+  });
+});
+
+describe("два скриншота одной таблицы", () => {
+  it("пары со второго скриншота без подписей времени получают время по номеру пары", async () => {
+    const { parseVisionResult } = await import("@/core/photoSchedule");
+    // Первый скриншот: пары 1–3 с подписями времени. Второй прокручен ниже:
+    // пары 4–6, подписи времени не видны, модель указала только номер пары.
+    const answer = JSON.stringify({
+      screenshots: [
+        { index: 1, is_timetable: true },
+        { index: 2, is_timetable: true },
+      ],
+      periods: [
+        { number: 1, start: "08:00", end: "08:50" },
+        { number: 2, start: "09:00", end: "09:50" },
+        { number: 3, start: "10:00", end: "10:50" },
+        { number: 4, start: "11:10", end: "12:00" },
+        { number: 5, start: "12:10", end: "13:00" },
+        { number: 6, start: "13:10", end: "14:00" },
+      ],
+      classes: [
+        { weekday: 3, period: 1, start: "08:00", end: "08:50", title: "History of Kazakhstan", kind: "practice" },
+        { weekday: 3, period: 4, start: null, end: null, title: "Fundamentals of Calculus", kind: "lecture" },
+        { weekday: 3, period: 5, title: "Fundamentals of Calculus", kind: "lecture" },
+        { weekday: 3, period: 6, title: "Fundamentals of Calculus", kind: "lecture" },
+        // Пара видна на обоих скриншотах — должна остаться одна.
+        { weekday: 3, period: 1, title: "History of Kazakhstan", kind: "practice" },
+        // Номер пары, которого нет в таблице, и нет времени — пропускается.
+        { weekday: 4, period: 9, title: "Неизвестно когда" },
+      ],
+    });
+
+    const result = parseVisionResult(answer, 2);
+    expect(result.notTimetable).toEqual([]);
+    expect(result.slots.map((slot) => [slot.weekday, slot.text, slot.label])).toEqual([
+      [3, "08:00–08:50", "History of Kazakhstan"],
+      [3, "11:10–14:00", "Fundamentals of Calculus"],
+    ]);
+  });
+
+  it("если на скриншоте нет расписания, сообщается его номер", async () => {
+    const { parseVisionResult } = await import("@/core/photoSchedule");
+    const answer = JSON.stringify({
+      screenshots: [
+        { index: 1, is_timetable: true },
+        { index: 2, is_timetable: false },
+        { index: 7, is_timetable: false }, // номер вне диапазона — игнорируется
+      ],
+      periods: [],
+      classes: [{ weekday: 0, start: "08:00", end: "08:50", title: "A" }],
+    });
+    expect(parseVisionResult(answer, 2).notTimetable).toEqual([2]);
+
+    const nothing = JSON.stringify({ screenshots: [{ index: 1, is_timetable: false }], periods: [], classes: [] });
+    expect(parseVisionResult(nothing, 1)).toEqual({ notTimetable: [1], slots: [] });
+  });
+
+  it("каждый файл уходит в API со своей подписью, по порядку", async () => {
+    process.env.OPENAI_API_KEY = "sk-test";
+    const calls: { body: string }[] = [];
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      calls.push({ body: String(init?.body) });
+      return new Response(JSON.stringify({ choices: [{ message: { content: "{}" } }] }), { status: 200 });
+    }) as typeof fetch;
+    try {
+      const { askVision } = await import("@/lib/vision");
+      await askVision("prompt", ["data:image/jpeg;base64,AAAA", "data:image/jpeg;base64,BBBB"]);
+      const content = JSON.parse(calls[0].body).messages[1].content;
+      expect(content.map((part: { type: string; text?: string; image_url?: { url: string } }) =>
+        part.type === "text" ? part.text : part.image_url?.url,
+      )).toEqual([
+        "Extract the timetable. These 2 files are parts of one timetable.",
+        "File 1 of 2 (screenshot-1):",
+        "data:image/jpeg;base64,AAAA",
+        "File 2 of 2 (screenshot-2):",
+        "data:image/jpeg;base64,BBBB",
+      ]);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+});
+
+describe("разные форматы в одном запросе", () => {
+  it("PDF уходит как файл, текст из HTML — как текст, картинка — как картинка", async () => {
+    process.env.OPENAI_API_KEY = "sk-test";
+    const calls: string[] = [];
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      calls.push(String(init?.body));
+      return new Response(JSON.stringify({ choices: [{ message: { content: "{}" } }] }), { status: 200 });
+    }) as typeof fetch;
+    try {
+      const { askVision } = await import("@/lib/vision");
+      await askVision("prompt", [
+        { kind: "pdf", name: "week.pdf", dataUrl: "data:application/pdf;base64,JVBERi0=" },
+        { kind: "text", name: "portal.html", format: "html", text: "Monday | 08:00 | Matan" },
+      ]);
+      const content = JSON.parse(calls[0]).messages[1].content;
+      expect(content[1]).toEqual({ type: "text", text: "File 1 of 2 (week.pdf):" });
+      expect(content[2]).toEqual({ type: "file", file: { filename: "week.pdf", file_data: "data:application/pdf;base64,JVBERi0=" } });
+      expect(content[3]).toEqual({ type: "text", text: "File 2 of 2 (portal.html):" });
+      expect(content[4]).toEqual({ type: "text", text: "Text extracted from HTML:\nMonday | 08:00 | Matan" });
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+
+  it("ответ в формате files (а не screenshots) тоже понимается", async () => {
+    const { parseVisionResult } = await import("@/core/photoSchedule");
+    const answer = JSON.stringify({ files: [{ index: 1, is_timetable: false }], periods: [], classes: [] });
+    expect(parseVisionResult(answer, 1).notTimetable).toEqual([1]);
   });
 });

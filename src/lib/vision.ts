@@ -12,6 +12,8 @@
 
 import "server-only";
 
+import type { PreparedFile } from "./scheduleFile";
+
 const DEFAULT_BASE_URL = "https://api.openai.com/v1";
 const DEFAULT_MODEL = "gpt-4o-mini";
 const TIMEOUT_MS = 50_000;
@@ -33,11 +35,22 @@ export class VisionError extends Error {
   }
 }
 
+/** Части сообщения для одного файла: подпись с номером и само содержимое. */
+function fileParts(file: PreparedFile, index: number, total: number): unknown[] {
+  const label = { type: "text", text: `File ${index + 1} of ${total} (${file.name}):` };
+  if (file.kind === "image") return [label, { type: "image_url", image_url: { url: file.dataUrl, detail: "high" } }];
+  if (file.kind === "pdf") return [label, { type: "file", file: { filename: file.name, file_data: file.dataUrl } }];
+  return [label, { type: "text", text: `Text extracted from ${file.format.toUpperCase()}:\n${file.text}` }];
+}
+
 /**
- * Отправить подсказку и картинки, вернуть текст ответа модели.
- * `images` — data URL уже проверенных JPEG/PNG/WebP.
+ * Отправить подсказку и файлы, вернуть текст ответа модели.
+ * Строка — data URL картинки (прежний вызов), объект — подготовленный файл.
  */
-export async function askVision(prompt: string, images: readonly string[]): Promise<string> {
+export async function askVision(prompt: string, inputs: readonly (string | PreparedFile)[]): Promise<string> {
+  const files: PreparedFile[] = inputs.map((input, index) =>
+    typeof input === "string" ? { kind: "image", name: `screenshot-${index + 1}`, dataUrl: input } : input,
+  );
   const key = visionApiKey();
   if (!key) throw new VisionError("not_configured", "VISION_API_KEY не задан");
 
@@ -62,8 +75,16 @@ export async function askVision(prompt: string, images: readonly string[]): Prom
           {
             role: "user",
             content: [
-              { type: "text", text: "Extract the timetable from these screenshots." },
-              ...images.map((url) => ({ type: "image_url", image_url: { url, detail: "high" } })),
+              {
+                type: "text",
+                text:
+                  files.length > 1
+                    ? `Extract the timetable. These ${files.length} files are parts of one timetable.`
+                    : "Extract the timetable from this file.",
+              },
+              // Каждый файл подписан номером: модель ссылается на него в ответе,
+              // а сервер может сказать, какой именно из них не расписание.
+              ...files.flatMap((file, index) => fileParts(file, index, files.length)),
             ],
           },
         ],

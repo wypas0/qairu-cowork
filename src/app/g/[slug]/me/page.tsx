@@ -118,6 +118,14 @@ export default async function MySchedulePage({
             photoBusy: t("w_photo_busy"),
             photoNotConfigured: t("w_photo_not_configured"),
             photoTooMany: t("w_photo_too_many", { n: "{n}" }),
+            photoNotTimetable: t("w_photo_not_timetable"),
+            photoNotTimetableOne: t("w_photo_not_timetable_one", { n: "{n}" }),
+            photoNoClasses: t("w_photo_no_classes"),
+            photoTooLargeOne: t("w_photo_too_large_one", { n: "{n}" }),
+            photoFormat: t("w_photo_format"),
+            photoFormatOne: t("w_photo_format_one", { n: "{n}" }),
+            photoEmpty: t("w_photo_empty"),
+            photoEmptyOne: t("w_photo_empty_one", { n: "{n}" }),
           }}
         />
 

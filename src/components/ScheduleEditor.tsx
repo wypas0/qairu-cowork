@@ -30,28 +30,38 @@ export type EditorLabels = {
   photoBusy: string;
   photoNotConfigured: string;
   photoTooMany: string; // «{n}»
+  photoNotTimetable: string;
+  photoNotTimetableOne: string; // «{n}» — номер файла
+  photoNoClasses: string;
+  photoTooLargeOne: string; // «{n}»
+  photoFormat: string;
+  photoFormatOne: string; // «{n}»
+  photoEmpty: string;
+  photoEmptyOne: string; // «{n}»
 };
 
-/** Не больше 2 скриншотов за раз, каждый меньше мегабайта — те же лимиты проверяет сервер. */
+/** Не больше 2 файлов за раз, каждый до 1 МБ — те же лимиты проверяет сервер. */
 const MAX_PHOTOS = 2;
-const PHOTO_MAX_BYTES = 1024 * 1024 - 1;
-/** Исходный файл больше этого даже не открываем — это не скриншот. */
+const FILE_MAX_BYTES = 1024 * 1024;
+/** Исходную картинку больше этого даже не открываем. */
 const SOURCE_MAX_BYTES = 20 * 1024 * 1024;
+const IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
+/** Что предлагать в окне выбора файла. Проверка всё равно на сервере. */
+const ACCEPT =
+  "image/png,image/jpeg,image/webp,application/pdf,.pdf,.html,.htm,.txt,.csv,.tsv,.ics,.md,.json,.xml,.docx,.xlsx";
 
-class PhotoTooLarge extends Error {}
-
-/** Размер data URL в байтах без декодирования. */
-function dataUrlBytes(dataUrl: string): number {
-  const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
-  return Math.floor((base64.length * 3) / 4) - (base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0);
+class FileTooLarge extends Error {
+  constructor(readonly index: number) {
+    super("too_large");
+  }
 }
 
 /**
- * Перекодировать скриншот в JPEG меньше мегабайта. Сначала пробуем 1800 px
- * и хорошее качество, если не влезло — уменьшаем размер и качество.
+ * Перекодировать скриншот в JPEG до 1 МБ. Сначала 1800 px и хорошее качество,
+ * если не влезло — уменьшаем размер и качество.
  */
-async function shrinkPhoto(file: File): Promise<string> {
-  if (file.size > SOURCE_MAX_BYTES) throw new PhotoTooLarge();
+async function shrinkImage(file: File, index: number): Promise<Blob> {
+  if (file.size > SOURCE_MAX_BYTES) throw new FileTooLarge(index);
   const url = URL.createObjectURL(file);
   try {
     const image = await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -77,13 +87,22 @@ async function shrinkPhoto(file: File): Promise<string> {
       context.fillStyle = "#ffffff";
       context.fillRect(0, 0, canvas.width, canvas.height);
       context.drawImage(image, 0, 0, canvas.width, canvas.height);
-      const dataUrl = canvas.toDataURL("image/jpeg", quality);
-      if (dataUrlBytes(dataUrl) <= PHOTO_MAX_BYTES) return dataUrl;
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
+      if (blob && blob.size <= FILE_MAX_BYTES) return blob;
     }
-    throw new PhotoTooLarge();
+    throw new FileTooLarge(index);
   } finally {
     URL.revokeObjectURL(url);
   }
+}
+
+/** Картинки сжимаются, остальные файлы уходят как есть, но не больше 1 МБ. */
+async function prepareUpload(file: File, index: number): Promise<{ blob: Blob; name: string }> {
+  if (IMAGE_TYPES.has(file.type)) {
+    return { blob: await shrinkImage(file, index), name: file.name.replace(/\.[^.]+$/, "") + ".jpg" };
+  }
+  if (file.size > FILE_MAX_BYTES) throw new FileTooLarge(index);
+  return { blob: file, name: file.name };
 }
 
 type ParsedSlot = {
@@ -291,32 +310,56 @@ export function ScheduleEditor({
     setPhotoWorking(true);
     setFailed(null);
     try {
-      const images = await Promise.all(files.map(shrinkPhoto));
+      const form = new FormData();
+      for (const [index, file] of files.entries()) {
+        const upload = await prepareUpload(file, index + 1);
+        form.append("files", upload.blob, upload.name);
+      }
       const response = await fetch(`/api/g/${slug}/import-photo`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
-        body: JSON.stringify({ images }),
+        body: form,
       });
       const data = (await response.json().catch(() => ({}))) as {
         ok?: boolean;
         slots?: ParsedSlot[];
         error?: string;
+        file?: number;
+        screenshots?: number[];
+        total?: number;
       };
       if (!response.ok || !data.ok || !data.slots) {
         setPreview(null);
+        const many = (data.total ?? files.length) > 1;
+        const withNumber = (single: string, numbered: string, index?: number) =>
+          many && index ? numbered.replace("{n}", String(index)) : single;
         const messages: Record<string, string> = {
-          too_large: labels.photoTooLarge,
+          too_large: withNumber(labels.photoTooLarge, labels.photoTooLargeOne, data.file),
+          format: withNumber(labels.photoFormat, labels.photoFormatOne, data.file),
+          empty: withNumber(labels.photoEmpty, labels.photoEmptyOne, data.file),
           limit: labels.photoLimit,
           busy: labels.photoBusy,
           not_configured: labels.photoNotConfigured,
+          not_timetable:
+            data.screenshots?.length === 1
+              ? withNumber(labels.photoNotTimetable, labels.photoNotTimetableOne, data.screenshots[0])
+              : labels.photoNotTimetable,
+          no_classes: labels.photoNoClasses,
         };
         setFailed(messages[data.error ?? ""] ?? labels.photoFailed);
         return;
       }
       applyParsed(data.slots, []);
     } catch (error) {
-      setFailed(error instanceof PhotoTooLarge ? labels.photoTooLarge : labels.photoFailed);
+      if (error instanceof FileTooLarge) {
+        setFailed(
+          files.length > 1
+            ? labels.photoTooLargeOne.replace("{n}", String(error.index))
+            : labels.photoTooLarge,
+        );
+      } else {
+        setFailed(labels.photoFailed);
+      }
     } finally {
       setPhotoWorking(false);
       if (photoRef.current) photoRef.current.value = "";
@@ -445,7 +488,7 @@ export function ScheduleEditor({
             <input
               ref={photoRef}
               type="file"
-              accept="image/png,image/jpeg,image/webp"
+              accept={ACCEPT}
               multiple
               hidden
               onChange={(event) => void runPhotoImport([...(event.target.files ?? [])])}
