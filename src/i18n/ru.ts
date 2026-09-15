@@ -458,6 +458,15 @@ export const RU: Strings = {
   w_tglogin_back: "Назад ко входу",
 
   // --- панель профиля ---
+  w_pp_name_cleared: "Настоящее имя убрано",
+  w_pp_name_ph: "Например, Амир Ковальчук",
+  w_pp_theme: "Тема",
+  w_pp_theme_system: "Как в системе",
+  w_pp_theme_light: "Светлая",
+  w_pp_theme_dark: "Тёмная",
+  w_pp_name: "Настоящее имя",
+  w_pp_name_saved: "Сохранено",
+  w_pp_name_hint: "Показывается рядом с ником Telegram — одногруппникам проще понять, кто это.",
   w_pp_back: "Назад",
   w_pp_account: "Аккаунт",
   w_pp_open_account: "Открыть аккаунт",

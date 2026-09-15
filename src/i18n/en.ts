@@ -447,6 +447,15 @@ export const EN: Strings = {
   w_tglogin_back: "Back to sign-in",
 
   // --- панель профиля ---
+  w_pp_name_cleared: "Real name removed",
+  w_pp_name_ph: "e.g. Amir Kovalchuk",
+  w_pp_theme: "Theme",
+  w_pp_theme_system: "System",
+  w_pp_theme_light: "Light",
+  w_pp_theme_dark: "Dark",
+  w_pp_name: "Real name",
+  w_pp_name_saved: "Saved",
+  w_pp_name_hint: "Shown next to your Telegram name so groupmates know who you are.",
   w_pp_back: "Back",
   w_pp_account: "Account",
   w_pp_open_account: "Open account",

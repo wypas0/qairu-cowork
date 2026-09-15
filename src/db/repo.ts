@@ -95,6 +95,25 @@ export async function renameUser(userId: number, fullName: string, exec?: Exec):
     .where(eq(users.userId, userId));
 }
 
+/** Настоящее имя из профиля; пустая строка убирает его. Имя из Telegram не трогается. */
+export async function setRealName(userId: number, value: string, exec?: Exec): Promise<string | null> {
+  const clean = normalizeRealName(value) || null;
+  await ex(exec).update(users).set({ realName: clean }).where(eq(users.userId, userId));
+  return clean;
+}
+
+export const REAL_NAME_MAX = 60;
+
+/** Пробелы схлопнуты, управляющие символы убраны, длина ограничена. Пустая строка — имени нет. */
+export function normalizeRealName(value: string): string {
+  return value
+    .replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u206f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, REAL_NAME_MAX)
+    .trim();
+}
+
 export async function upsertChat(chatId: number, title: string, exec?: Exec): Promise<Chat> {
   const set: Record<string, unknown> = {};
   if (title) set.title = title.slice(0, 256);
@@ -220,6 +239,7 @@ export async function chatMembers(chatId: number, exec?: Exec): Promise<User[]> 
       fullName: users.fullName,
       lang: users.lang,
       isWeb: users.isWeb,
+      realName: users.realName,
       createdAt: users.createdAt,
     })
     .from(users)
@@ -1179,6 +1199,10 @@ export async function mergeWebUserIntoTelegram(
     await tx.update(notices).set({ fromUserId: telegramUserId }).where(eq(notices.fromUserId, webUserId));
     if (!(await getCredentials(telegramUserId, tx))) {
       await tx.update(credentials).set({ userId: telegramUserId }).where(eq(credentials.userId, webUserId));
+    }
+    // Настоящее имя с сайта сохраняется, если в Telegram-аккаунте его ещё не писали.
+    if (web.realName && !tg.realName) {
+      await tx.update(users).set({ realName: web.realName }).where(eq(users.userId, telegramUserId));
     }
     if (!(await avatarVersion(telegramUserId, tx))) {
       await tx.update(avatars).set({ userId: telegramUserId }).where(eq(avatars.userId, webUserId));

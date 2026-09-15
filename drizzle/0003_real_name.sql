@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "real_name" varchar(60);

@@ -1,7 +1,8 @@
 import type { Metadata, Viewport } from "next";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 
 import { normalizeLang, t } from "@/i18n";
+import { THEME_COOKIE, normalizeTheme } from "@/lib/theme";
 import "./globals.css";
 
 const FAVICON =
@@ -23,13 +24,14 @@ export const viewport: Viewport = {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const requestHeaders = await headers();
   const lang = normalizeLang((requestHeaders.get("accept-language") ?? "").split(",")[0]);
+  const theme = normalizeTheme((await cookies()).get(THEME_COOKIE)?.value);
 
   return (
     // suppressHydrationWarning: скрипт Telegram Mini App подставляет свои
     // CSS-переменные (--tg-viewport-height и т.п.) прямо в style этого узла,
     // иногда раньше, чем React успевает гидрироваться — это ожидаемо и не
     // баг гидратации.
-    <html lang={lang} suppressHydrationWarning>
+    <html lang={lang} data-theme={theme === "system" ? undefined : theme} suppressHydrationWarning>
       <body>
         {children}
         <footer className="foot">

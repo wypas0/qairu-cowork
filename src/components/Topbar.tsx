@@ -1,9 +1,11 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 
 import { displayName } from "@/db/schema";
 import * as repo from "@/db/repo";
 import { translator } from "@/i18n";
 import { currentUser } from "@/lib/auth";
+import { THEME_COOKIE, normalizeTheme } from "@/lib/theme";
 import { ProfilePanel, type ProfileGroup, type ProfileUser } from "./ProfilePanel";
 
 export async function Topbar({
@@ -24,6 +26,7 @@ export async function Topbar({
     const avatar = await repo.avatarVersion(user.userId);
     profile = {
       name: displayName(user),
+      realName: user.realName,
       telegram: !user.isWeb && user.username ? user.username : null,
       login: credentials?.login ?? null,
       avatarUrl: avatar ? `/api/avatar/${user.userId}?v=${avatar}` : null,
@@ -35,11 +38,14 @@ export async function Topbar({
       .sort((a, b) => a.title.localeCompare(b.title, lang));
   }
 
+  const theme = normalizeTheme((await cookies()).get(THEME_COOKIE)?.value);
+
   return (
     <header className="topbar">
       <ProfilePanel
         user={profile}
         groups={groups}
+        theme={theme}
         labels={{
           profile: t("w_profile"),
           close: t("w_close"),
@@ -65,6 +71,16 @@ export async function Topbar({
           credentialsSet: t("w_pp_login_label", { login: "{login}" }),
           credentialsUnset: t("w_pp_credentials_unset"),
           logout: t("w_pp_logout"),
+          realName: t("w_pp_name"),
+          realNamePh: t("w_pp_name_ph"),
+          realNameHint: t("w_pp_name_hint"),
+          realNameSave: t("w_save"),
+          realNameSaved: t("w_pp_name_saved"),
+          realNameCleared: t("w_pp_name_cleared"),
+          theme: t("w_pp_theme"),
+          themeSystem: t("w_pp_theme_system"),
+          themeLight: t("w_pp_theme_light"),
+          themeDark: t("w_pp_theme_dark"),
         }}
       />
       <Link className="brand" href="/">

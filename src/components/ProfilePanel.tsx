@@ -2,15 +2,24 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 
 import { logoutAction } from "@/app/login/actions";
-import { joinByLinkAction, leaveGroupAction } from "@/app/profile/actions";
+import {
+  type RealNameState,
+  joinByLinkAction,
+  leaveGroupAction,
+  saveRealNameAction,
+} from "@/app/profile/actions";
+import type { Theme } from "@/lib/theme";
+import { ThemeSwitch } from "./ThemeSwitch";
 
 export type ProfileGroup = { chatId: number; slug: string; title: string };
 
 export type ProfileUser = {
   name: string;
+  /** Настоящее имя из профиля — показывается рядом с именем и ником Telegram. */
+  realName: string | null;
   /** @username из Telegram — только у подтверждённых Telegram-аккаунтов. */
   telegram: string | null;
   /** Логин для входа по паролю, если задан. */
@@ -44,6 +53,16 @@ export type ProfileLabels = {
   credentialsSet: string; // «логин {login}»
   credentialsUnset: string;
   logout: string;
+  realName: string;
+  realNamePh: string;
+  realNameHint: string;
+  realNameSave: string;
+  realNameSaved: string;
+  realNameCleared: string;
+  theme: string;
+  themeSystem: string;
+  themeLight: string;
+  themeDark: string;
 };
 
 /** Сторона квадрата, до которого браузер ужимает фото перед загрузкой. */
@@ -111,15 +130,23 @@ function Avatar({ name, url, className }: { name: string; url: string | null; cl
 export function ProfilePanel({
   user,
   groups,
+  theme,
   labels,
 }: {
   user: ProfileUser | null;
   groups: ProfileGroup[];
+  theme: Theme;
   labels: ProfileLabels;
 }) {
+  const [nameState, saveName, savingName] = useActionState<RealNameState, FormData>(
+    saveRealNameAction,
+    { status: "idle" },
+  );
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<"main" | "account">("main");
+  // Тема живёт здесь, а не в самом переключателе: он есть на обоих экранах панели.
+  const [currentTheme, setCurrentTheme] = useState<Theme>(theme);
   const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl ?? null);
   const [busy, setBusy] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
@@ -193,11 +220,32 @@ export function ProfilePanel({
     }
   }
 
+  // Строка под именем: @ник Telegram рядом с настоящим именем, затем логин.
   const subtitle = user
-    ? [user.telegram ? `@${user.telegram}` : null, user.login ? labels.loginLabel.replace("{login}", user.login) : null]
+    ? [
+        user.telegram ? `@${user.telegram}` : null,
+        user.realName,
+        user.login ? labels.loginLabel.replace("{login}", user.login) : null,
+      ]
         .filter(Boolean)
         .join(" · ")
     : "";
+
+  const themeSwitch = (
+    <section className="pp-section">
+      <h3 className="pp-title">{labels.theme}</h3>
+      <ThemeSwitch
+        value={currentTheme}
+        onChange={setCurrentTheme}
+        labels={{
+          title: labels.theme,
+          system: labels.themeSystem,
+          light: labels.themeLight,
+          dark: labels.themeDark,
+        }}
+      />
+    </section>
+  );
 
   return (
     <>
@@ -296,6 +344,35 @@ export function ProfilePanel({
                     </p>
                   )}
                 </section>
+
+                <section className="pp-section">
+                  <h3 className="pp-title">
+                    <label htmlFor="pp-real-name">{labels.realName}</label>
+                  </h3>
+                  <form action={saveName} className="pp-name-form">
+                    <input
+                      id="pp-real-name"
+                      name="real_name"
+                      type="text"
+                      maxLength={60}
+                      autoComplete="name"
+                      defaultValue={user.realName ?? ""}
+                      placeholder={labels.realNamePh}
+                    />
+                    <button className="btn btn-sm" type="submit" disabled={savingName}>
+                      {labels.realNameSave}
+                    </button>
+                  </form>
+                  <p className="small muted" style={{ margin: "6px 0 0" }} role="status">
+                    {nameState.status === "saved"
+                      ? labels.realNameSaved
+                      : nameState.status === "cleared"
+                        ? labels.realNameCleared
+                        : labels.realNameHint}
+                  </p>
+                </section>
+
+                {themeSwitch}
 
                 <nav className="pp-menu" aria-label={labels.account}>
                   <Link className="pp-menu-item" href="/account" onClick={close}>
@@ -403,6 +480,8 @@ export function ProfilePanel({
                     )}
                   </section>
                 )}
+
+                {themeSwitch}
 
                 <section className="pp-section">
                   <form action={joinByLinkAction} className="pp-join">

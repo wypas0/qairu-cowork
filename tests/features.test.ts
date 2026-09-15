@@ -716,3 +716,53 @@ describe("фото профиля", () => {
     expect((await repo.getAvatar(tg.userId))?.mime).toBe("image/png");
   });
 });
+
+describe("настоящее имя и тема", () => {
+  it("настоящее имя хранится отдельно и не меняет имя из Telegram", async () => {
+    const { repo } = await mods();
+    const user = await repo.upsertUser({ userId: ++tgId, fullName: "Amir", username: "amir_real" });
+
+    expect(await repo.setRealName(user.userId, "  Амир   Ковальчук ​ ")).toBe("Амир Ковальчук");
+    let stored = await repo.getUser(user.userId);
+    expect(stored).toMatchObject({ fullName: "Amir", realName: "Амир Ковальчук" });
+
+    // Бот обновляет имя из Telegram — настоящее имя остаётся.
+    await repo.upsertUser({ userId: user.userId, fullName: "Amir K.", username: "amir_real" });
+    stored = await repo.getUser(user.userId);
+    expect(stored).toMatchObject({ fullName: "Amir K.", realName: "Амир Ковальчук" });
+
+    // Пустое поле убирает настоящее имя.
+    expect(await repo.setRealName(user.userId, "   ")).toBeNull();
+    expect((await repo.getUser(user.userId))?.realName).toBeNull();
+  });
+
+  it("настоящее имя обрезается до 60 символов и видно в списке участников", async () => {
+    const { repo } = await mods();
+    const user = await repo.createWebUser({ fullName: "Ник", lang: "ru" });
+    const saved = await repo.setRealName(user.userId, "Я".repeat(100));
+    expect(saved).toHaveLength(repo.REAL_NAME_MAX);
+
+    const chat = await repo.createWebChat({ title: "Имена", tz: "Asia/Almaty", lang: "ru" });
+    await repo.addMembership(chat.chatId, user.userId);
+    expect((await repo.chatMembers(chat.chatId))[0].realName).toBe(saved);
+  });
+
+  it("при переносе аккаунта в Telegram настоящее имя с сайта сохраняется", async () => {
+    const { repo } = await mods();
+    const web = await repo.createWebUser({ fullName: "Веб", lang: "ru" });
+    await repo.setRealName(web.userId, "Асель Нурланова");
+    const tg = await repo.upsertUser({ userId: ++tgId, fullName: "asel" });
+
+    expect(await repo.mergeWebUserIntoTelegram(web.userId, tg.userId)).toBe(true);
+    expect(await repo.getUser(tg.userId)).toMatchObject({ fullName: "asel", realName: "Асель Нурланова" });
+  });
+
+  it("тема из куки: только light и dark, всё остальное — как в системе", async () => {
+    const { normalizeTheme } = await import("@/lib/theme");
+    expect(normalizeTheme("light")).toBe("light");
+    expect(normalizeTheme("dark")).toBe("dark");
+    expect(normalizeTheme("system")).toBe("system");
+    expect(normalizeTheme("<script>")).toBe("system");
+    expect(normalizeTheme(undefined)).toBe("system");
+  });
+});

@@ -198,6 +198,9 @@ export default async function GroupPage({
                   <div className="roster-who">
                     <span className={`dot ${filled ? "ok" : "warn"}`} aria-hidden="true" />
                     <b>{displayName(member)}</b>
+                    {member.realName && member.realName !== displayName(member) && (
+                      <span className="small muted">{member.realName}</span>
+                    )}
                     {self && <span className="small muted">({t("w_you")})</span>}
                     {source && <span className="badge">{roleLabel(source)}</span>}
                     <span className="small muted">

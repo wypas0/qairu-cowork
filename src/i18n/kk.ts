@@ -449,6 +449,15 @@ export const KK: Strings = {
   w_tglogin_back: "Кіру бетіне оралу",
 
   // --- панель профиля ---
+  w_pp_name_cleared: "Шын аты алып тасталды",
+  w_pp_name_ph: "Мысалы, Әмір Ковальчук",
+  w_pp_theme: "Тақырып",
+  w_pp_theme_system: "Жүйедегідей",
+  w_pp_theme_light: "Ашық",
+  w_pp_theme_dark: "Қараңғы",
+  w_pp_name: "Шын атың",
+  w_pp_name_saved: "Сақталды",
+  w_pp_name_hint: "Telegram-дағы атыңның жанында көрсетіледі — топтастарыңа кім екенің түсінікті болады.",
   w_pp_back: "Артқа",
   w_pp_account: "Аккаунт",
   w_pp_open_account: "Аккаунтты ашу",

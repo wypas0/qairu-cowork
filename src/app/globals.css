@@ -69,6 +69,45 @@
   }
 }
 
+/* Тёмная тема, выбранная вручную в панели профиля, — те же токены, что и
+   у системной тёмной темы выше. */
+:root[data-theme="dark"] {
+  --bg: #16181a;
+  --surface: #1e2124;
+  --surface-2: #262a2e;
+  --border: #333940;
+  --text: #e8e6e3;
+  --muted: #9a9791;
+  --accent: #63b98a;
+  --accent-soft: #1f2f27;
+  --accent-text: #10231a;
+  --danger: #e08379;
+  --busy: #7b8794;
+  --busy-text: #10151a;
+  --slot-free: #22262a;
+  --slot-free-border: #333940;
+  --slot-busy: #4a8fe8;
+
+  /* Тот же порядок «свободно → занято», что и в светлой теме: h0 —
+     самый светлый оттенок этой темы, h5 — самый тёмный. В исходной
+     палитре было наоборот (h5 — самый яркий, «акцентный»), из-за чего
+     в тёмной теме подсказка «темнее — меньше свободных» читалась
+     задом наперёд. */
+  --heat-0: #63b98a;
+  --heat-1: #418059;
+  --heat-2: #336247;
+  --heat-3: #2a4a37;
+  --heat-4: #24352c;
+  --heat-5: #22262a;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
 /* Токены отдаются Tailwind, чтобы работали утилиты вроде bg-surface и text-muted. */
 @theme inline {
   --color-bg: var(--bg);
@@ -1211,4 +1250,48 @@ table.week.editor td.cell.busy {
   to {
     transform: rotate(360deg);
   }
+}
+
+/* --- настоящее имя и тема в панели профиля --- */
+.pp-name-form {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+  margin-top: 4px;
+}
+.pp-name-form input {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+}
+.pp-name-form .btn {
+  flex: none;
+}
+.pp-theme {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface-2);
+}
+.pp-theme button {
+  padding: 6px 4px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.pp-theme button[aria-checked="true"] {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+.pp-theme button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }

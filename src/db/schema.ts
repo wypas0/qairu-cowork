@@ -35,6 +35,9 @@ export const users = pgTable("users", {
   // Пользователь, заведённый на сайте без Telegram. Его user_id — синтетический
   // (см. newWebId): Telegram такие никогда не выдаёт, коллизий быть не может.
   isWeb: boolean("is_web").notNull().default(false),
+  // Настоящее имя, которое человек написал в профиле. Отдельно от full_name:
+  // то — имя из Telegram, его бот обновляет сам; это показывается рядом с ним.
+  realName: varchar("real_name", { length: 60 }),
   createdAt: createdAt(),
 });
 
