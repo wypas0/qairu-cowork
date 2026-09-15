@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useActionState, useEffect, useRef, useState } from "react";
 
-import { logoutAction } from "@/app/login/actions";
+import { logoutAction, startTelegramLoginAction } from "@/app/login/actions";
 import {
   type RealNameState,
   joinByLinkAction,
@@ -22,6 +22,8 @@ export type ProfileUser = {
   realName: string | null;
   /** @username из Telegram — только у подтверждённых Telegram-аккаунтов. */
   telegram: string | null;
+  /** Аккаунт подтверждён Telegram (ботом, Mini App или входом через бота). */
+  telegramLinked: boolean;
   /** Логин для входа по паролю, если задан. */
   login: string | null;
   /** Адрес фото профиля с версией, если фото загружено. */
@@ -59,6 +61,10 @@ export type ProfileLabels = {
   realNameSave: string;
   realNameSaved: string;
   realNameCleared: string;
+  connectTelegram: string;
+  connectTelegramHint: string;
+  telegramConnected: string;
+  telegramConnectedNoUsername: string;
   theme: string;
   themeSystem: string;
   themeLight: string;
@@ -131,13 +137,17 @@ export function ProfilePanel({
   user,
   groups,
   theme,
+  botEnabled,
   labels,
 }: {
   user: ProfileUser | null;
   groups: ProfileGroup[];
   theme: Theme;
+  /** Бот настроен — подключить Telegram можно. */
+  botEnabled: boolean;
   labels: ProfileLabels;
 }) {
+  const pathname = usePathname();
   const [nameState, saveName, savingName] = useActionState<RealNameState, FormData>(
     saveRealNameAction,
     { status: "idle" },
@@ -375,6 +385,36 @@ export function ProfilePanel({
                 {themeSwitch}
 
                 <nav className="pp-menu" aria-label={labels.account}>
+                  {user.telegramLinked ? (
+                    <div className="pp-menu-item pp-static">
+                      <span>
+                        Telegram
+                        <span className="small muted pp-menu-sub">
+                          {user.telegram
+                            ? labels.telegramConnected.replace("{username}", user.telegram)
+                            : labels.telegramConnectedNoUsername}
+                        </span>
+                      </span>
+                      <span className="pp-ok" aria-hidden="true">
+                        ✓
+                      </span>
+                    </div>
+                  ) : (
+                    botEnabled && (
+                      <form action={startTelegramLoginAction}>
+                        <input type="hidden" name="purpose" value="link" />
+                        {/* Вернуться туда же, откуда открыли панель. */}
+                        <input type="hidden" name="next" value={pathname || "/"} />
+                        <button type="submit" className="pp-menu-item">
+                          <span>
+                            {labels.connectTelegram}
+                            <span className="small muted pp-menu-sub">{labels.connectTelegramHint}</span>
+                          </span>
+                          <span aria-hidden="true">›</span>
+                        </button>
+                      </form>
+                    )
+                  )}
                   <Link className="pp-menu-item" href="/account" onClick={close}>
                     <span>
                       {labels.credentials}

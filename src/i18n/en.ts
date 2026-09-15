@@ -491,4 +491,15 @@ export const EN: Strings = {
   w_photo_busy: "The recognition service is busy, try again in a minute.",
   w_photo_not_configured: "Photo recognition is not configured.",
   w_photo_too_many: "Up to {n} files at a time.",
+
+  // --- подключение Telegram из профиля ---
+  weblogin_link_confirm: "🔗 <b>Connect Telegram to your QairuCowork website account</b>\n\nConnect as <b>{name}</b>{username}?\n\nRequest from: {device}\n\nAfter connecting, your groups, schedule and meeting answers from the website move to this Telegram account, and you can sign in through the bot. If you didn't just press «Connect Telegram» on the website, tap «Not me».",
+  weblogin_link_done: "✅ Telegram connected! Go back to the website — it will update by itself.",
+  w_pp_tg_connect: "Connect Telegram",
+  w_pp_tg_connect_hint: "bot notifications and sign-in without a password",
+  w_pp_tg_connected: "connected · @{username}",
+  w_pp_tg_connected_plain: "connected",
+  w_tglink_title: "Connect Telegram",
+  w_tglink_lead: "Your groups, schedule and meeting answers move to your Telegram account. If it already has its own schedule, that one is kept.",
+  w_tglink_done: "Telegram connected, going back…",
 };

@@ -30,6 +30,9 @@ export const LOGIN_CODE_RE = /^[A-Za-z0-9_-]{16,40}$/;
 
 export type LoginStatus = "pending" | "opened" | "confirmed" | "rejected";
 
+/** login — войти или зарегистрироваться; link — подключить Telegram к аккаунту на сайте. */
+export type LoginPurpose = "login" | "link";
+
 export type LoginRequest = {
   status: LoginStatus;
   secretHash: string;
@@ -39,6 +42,8 @@ export type LoginRequest = {
   mergeFrom: number | null;
   device: string;
   telegramUserId: number | null;
+  /** У запросов, созданных до появления поля, его нет — это вход. */
+  purpose?: LoginPurpose;
 };
 
 function key(code: string): string {
@@ -88,6 +93,7 @@ export async function createLoginRequest(args: {
   next: string;
   mergeFrom: User | null;
   userAgent: string;
+  purpose?: LoginPurpose;
 }): Promise<{ code: string; secret: string }> {
   // Заодно убираем брошенные запросы: их никто уже не заберёт.
   await repo.deleteStaleBotState("tglogin:", new Date(Date.now() - 24 * 60 * 60 * 1000));
@@ -102,9 +108,18 @@ export async function createLoginRequest(args: {
     mergeFrom: args.mergeFrom?.isWeb ? args.mergeFrom.userId : null,
     device: describeDevice(args.userAgent),
     telegramUserId: null,
+    // Подключать есть что, только если в браузере аккаунт с сайта; иначе это обычный вход.
+    purpose: args.purpose === "link" && args.mergeFrom?.isWeb ? "link" : "login",
   };
   await repo.setBotState(key(code), request);
   return { code, secret };
+}
+
+/** Цель запроса по коду из куки — страница ожидания подбирает под неё текст. */
+export async function loginRequestPurpose(code: string): Promise<LoginPurpose | null> {
+  if (!LOGIN_CODE_RE.test(code)) return null;
+  const request = await repo.getBotState<LoginRequest>(key(code));
+  return request ? (request.purpose ?? "login") : null;
 }
 
 export type OpenResult =

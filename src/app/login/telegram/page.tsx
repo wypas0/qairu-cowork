@@ -8,7 +8,7 @@ import { Topbar } from "@/components/Topbar";
 import { normalizeLang, translator } from "@/i18n";
 import { currentUser } from "@/lib/auth";
 import { hasBot } from "@/lib/config";
-import { LOGIN_COOKIE, LOGIN_LINK_PREFIX } from "@/lib/tglogin";
+import { LOGIN_COOKIE, LOGIN_LINK_PREFIX, loginRequestPurpose } from "@/lib/tglogin";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +23,7 @@ export default async function TelegramLoginPage() {
   const lang = user?.lang ?? normalizeLang((requestHeaders.get("accept-language") ?? "").split(",")[0]);
   const t = translator(lang);
 
+  const linking = (await loginRequestPurpose(code)) === "link";
   const username = await botUsername();
   const deepLink = `https://t.me/${username}?start=${LOGIN_LINK_PREFIX}${code}`;
 
@@ -31,7 +32,8 @@ export default async function TelegramLoginPage() {
       <Topbar lang={lang} />
       <main className="wrap">
         <div className="card" style={{ maxWidth: 440, margin: "32px auto" }}>
-          <h1 style={{ fontSize: 22 }}>{t("w_tglogin_title")}</h1>
+          <h1 style={{ fontSize: 22 }}>{t(linking ? "w_tglink_title" : "w_tglogin_title")}</h1>
+          {linking && <p className="small muted">{t("w_tglink_lead")}</p>}
           <ol className="tglogin-steps small">
             <li>{t("w_tglogin_step1")}</li>
             <li>{t("w_tglogin_step2")}</li>
@@ -51,7 +53,7 @@ export default async function TelegramLoginPage() {
           <TelegramLoginWaiter
             labels={{
               waiting: t("w_tglogin_waiting"),
-              done: t("w_tglogin_done"),
+              done: t(linking ? "w_tglink_done" : "w_tglogin_done"),
               rejected: t("w_tglogin_rejected"),
               expired: t("w_tglogin_expired"),
               invalid: t("w_tglogin_invalid"),
@@ -59,7 +61,7 @@ export default async function TelegramLoginPage() {
             }}
           />
 
-          {user?.isWeb && <p className="small muted">{t("w_tglogin_merge_hint")}</p>}
+          {user?.isWeb && !linking && <p className="small muted">{t("w_tglogin_merge_hint")}</p>}
 
           <Link className="small" href="/login">
             {t("w_tglogin_back")}

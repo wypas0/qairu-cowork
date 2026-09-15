@@ -5,6 +5,7 @@ import { displayName } from "@/db/schema";
 import * as repo from "@/db/repo";
 import { translator } from "@/i18n";
 import { currentUser } from "@/lib/auth";
+import { hasBot } from "@/lib/config";
 import { THEME_COOKIE, normalizeTheme } from "@/lib/theme";
 import { ProfilePanel, type ProfileGroup, type ProfileUser } from "./ProfilePanel";
 
@@ -28,6 +29,7 @@ export async function Topbar({
       name: displayName(user),
       realName: user.realName,
       telegram: !user.isWeb && user.username ? user.username : null,
+      telegramLinked: !user.isWeb,
       login: credentials?.login ?? null,
       avatarUrl: avatar ? `/api/avatar/${user.userId}?v=${avatar}` : null,
     };
@@ -46,6 +48,7 @@ export async function Topbar({
         user={profile}
         groups={groups}
         theme={theme}
+        botEnabled={hasBot()}
         labels={{
           profile: t("w_profile"),
           close: t("w_close"),
@@ -77,6 +80,10 @@ export async function Topbar({
           realNameSave: t("w_save"),
           realNameSaved: t("w_pp_name_saved"),
           realNameCleared: t("w_pp_name_cleared"),
+          connectTelegram: t("w_pp_tg_connect"),
+          connectTelegramHint: t("w_pp_tg_connect_hint"),
+          telegramConnected: t("w_pp_tg_connected", { username: "{username}" }),
+          telegramConnectedNoUsername: t("w_pp_tg_connected_plain"),
           theme: t("w_pp_theme"),
           themeSystem: t("w_pp_theme_system"),
           themeLight: t("w_pp_theme_light"),

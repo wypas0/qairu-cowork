@@ -1295,3 +1295,15 @@ table.week.editor td.cell.busy {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
+
+/* --- Telegram в экране аккаунта --- */
+.pp-static {
+  cursor: default;
+}
+.pp-static:hover {
+  background: transparent;
+}
+.pp-ok {
+  color: var(--accent);
+  font-weight: 700;
+}

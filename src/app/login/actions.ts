@@ -70,6 +70,7 @@ export async function startTelegramLoginAction(formData: FormData): Promise<void
     next,
     mergeFrom: await currentUser(),
     userAgent: requestHeaders.get("user-agent") ?? "",
+    purpose: formData.get("purpose") === "link" ? "link" : "login",
   });
   const store = await cookies();
   store.set(LOGIN_COOKIE, `${code}.${secret}`, {

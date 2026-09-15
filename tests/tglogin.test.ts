@@ -67,11 +67,14 @@ async function press(from: ReturnType<typeof tgUser>, data: string) {
 }
 
 /** Создать запрос так, как это делает кнопка на /login. */
-async function newRequest(options: { mergeFrom?: import("@/db/schema").User | null; next?: string } = {}) {
+async function newRequest(
+  options: { mergeFrom?: import("@/db/schema").User | null; next?: string; purpose?: "login" | "link" } = {},
+) {
   const { login } = await mods();
   const created = await login.createLoginRequest({
     next: options.next ?? "/",
     mergeFrom: options.mergeFrom ?? null,
+    purpose: options.purpose,
     userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36",
   });
   return { ...created, cookie: `${created.code}.${created.secret}` };
@@ -259,6 +262,31 @@ describe("перенос аккаунта с сайта в Telegram", () => {
     const done = await login.completeLoginRequest(request.cookie, null);
     expect(done).toMatchObject({ status: "ok", merged: false });
     expect(await repo.getUser(web.userId)).not.toBeNull();
+  });
+
+  it("кнопка «Подключить Telegram» в профиле: свой текст в боте и перенос аккаунта", async () => {
+    const { login, repo } = await mods();
+    const { web, chat } = await webAccountWithEverything();
+    const person = tgUser("Подключаю", "link_tg");
+
+    const request = await newRequest({ mergeFrom: web, purpose: "link", next: "/g/abc" });
+    expect(await login.loginRequestPurpose(request.code)).toBe("link");
+    await start(person, request.code);
+    expect(stub.lastText("sendMessage")).toContain("Подключить Telegram");
+    await press(person, `tgl:ok:${request.code}`);
+    expect(stub.lastText("editMessageText")).toContain("Telegram подключён");
+
+    const done = await login.completeLoginRequest(request.cookie, web);
+    expect(done).toEqual({ status: "ok", userId: person.id, next: "/g/abc", merged: true });
+    expect(await repo.getUser(web.userId)).toBeNull();
+    expect(await repo.memberRole(chat.chatId, person.id)).toBe("admin");
+  });
+
+  it("без аккаунта с сайта «подключение» остаётся обычным входом", async () => {
+    const { login } = await mods();
+    const request = await newRequest({ purpose: "link" });
+    expect(await login.loginRequestPurpose(request.code)).toBe("login");
+    expect(await login.loginRequestPurpose("NoSuchCodeNoSuchCode")).toBeNull();
   });
 
   it("Telegram-аккаунт не «переносится» в другой Telegram-аккаунт", async () => {

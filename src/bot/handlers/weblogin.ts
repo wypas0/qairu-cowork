@@ -4,7 +4,7 @@ import "server-only";
 
 import { escapeHtml } from "@/core/textutils";
 import { t } from "@/i18n";
-import { decideLoginRequest, openLoginRequest } from "@/lib/tglogin";
+import { decideLoginRequest, loginRequestPurpose, openLoginRequest } from "@/lib/tglogin";
 import {
   answerCallbackQuery,
   editMessageText,
@@ -39,7 +39,7 @@ export async function startWebLogin(message: TgMessage, code: string): Promise<v
   const name = escapeHtml([from.first_name, from.last_name].filter(Boolean).join(" ") || String(from.id));
   await sendMessage({
     chat_id: message.chat.id,
-    text: t(lang, "weblogin_confirm", {
+    text: t(lang, opened.request.purpose === "link" ? "weblogin_link_confirm" : "weblogin_confirm", {
       name,
       username: from.username ? ` (@${escapeHtml(from.username)})` : "",
       device: escapeHtml(opened.request.device),
@@ -60,6 +60,8 @@ export async function onWebLoginButton(query: TgCallbackQuery): Promise<void> {
   const user = await syncUser(query.from);
   const lang = user.lang;
 
+  // Цель читаем до решения: после подтверждения запрос могут сразу забрать с сайта.
+  const linking = (await loginRequestPurpose(code)) === "link";
   const result = await decideLoginRequest(code, query.from.id, action === "ok");
 
   if (result === "not_yours") {
@@ -76,7 +78,7 @@ export async function onWebLoginButton(query: TgCallbackQuery): Promise<void> {
 
   const text =
     result === "confirmed"
-      ? t(lang, "weblogin_done")
+      ? t(lang, linking ?"weblogin_link_done" : "weblogin_done")
       : result === "rejected"
         ? t(lang, "weblogin_rejected")
         : t(lang, `weblogin_${result}`);
