@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 
+import { TelegramSignIn } from "@/components/TelegramSignIn";
 import { Topbar } from "@/components/Topbar";
 import { displayName } from "@/db/schema";
 import { normalizeLang, translator } from "@/i18n";
 import { currentUser, safeNext } from "@/lib/auth";
-import { hasBot } from "@/lib/config";
-import { loginAction, logoutAction, startTelegramLoginAction } from "./actions";
+import { loginAction, logoutAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -55,57 +55,48 @@ export default async function LoginPage({
             </div>
           )}
 
-          {hasBot() && (
-            <>
-              <form action={startTelegramLoginAction}>
-                <input type="hidden" name="next" value={next} />
-                <button className="btn btn-primary tg-btn" type="submit" style={{ width: "100%" }}>
-                  {t("w_tglogin_btn")}
-                </button>
-              </form>
-              <p className="small muted" style={{ marginTop: 8 }}>
-                {t("w_tglogin_lead")}
-              </p>
-              <div className="divider small muted">
-                <span>{t("w_tglogin_or")}</span>
+          <TelegramSignIn lang={lang} next={next} />
+          <p className="small muted" style={{ marginTop: 8 }}>
+            {t("w_tglogin_lead")}
+          </p>
+
+          {/* Пароль — только для тех, кто уже задал его себе в профиле; зарегистрироваться им нельзя. */}
+          <details className="login-password" open={Boolean(errorKey && errorKey !== "w_tglogin_no_bot")}>
+            <summary className="small">{t("w_login_password_toggle")}</summary>
+            <p className="small muted">{t("w_login_lead")}</p>
+
+            <form action={loginAction}>
+              <input type="hidden" name="next" value={next} />
+              <div className="field">
+                <label htmlFor="login">{t("w_login_field")}</label>
+                <input
+                  id="login"
+                  name="login"
+                  type="text"
+                  required
+                  maxLength={64}
+                  autoComplete="username"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  placeholder={t("w_login_field_ph")}
+                />
               </div>
-            </>
-          )}
-
-          <p className="small muted">{t("w_login_lead")}</p>
-
-          <form action={loginAction}>
-            <input type="hidden" name="next" value={next} />
-            <div className="field">
-              <label htmlFor="login">{t("w_login_field")}</label>
-              <input
-                id="login"
-                name="login"
-                type="text"
-                required
-                maxLength={64}
-                autoComplete="username"
-                autoCapitalize="none"
-                spellCheck={false}
-                placeholder={t("w_login_field_ph")}
-                autoFocus
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="password">{t("w_password")}</label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                required
-                maxLength={128}
-                autoComplete="current-password"
-              />
-            </div>
-            <button className="btn btn-primary" type="submit" style={{ width: "100%" }}>
-              {t("w_login_btn")}
-            </button>
-          </form>
+              <div className="field">
+                <label htmlFor="password">{t("w_password")}</label>
+                <input
+                  id="password"
+                  name="password"
+                  type="password"
+                  required
+                  maxLength={128}
+                  autoComplete="current-password"
+                />
+              </div>
+              <button className="btn" type="submit" style={{ width: "100%" }}>
+                {t("w_login_btn")}
+              </button>
+            </form>
+          </details>
 
           <p className="small muted" style={{ marginTop: 14 }}>
             {t("w_login_no_account")}

@@ -1,208 +1,103 @@
 import type { Strings } from "./types";
 
 export const EN: Strings = {
-  start_private:
-    "👋 Hi, {name}!\n\n" +
-    "I'm <b>QairuCowork</b> — I find common free time slots for students in the same chat.\n\n" +
-    "How it works:\n" +
-    "1️⃣ You tell me your class schedule once\n" +
-    "2️⃣ Your groupmates do the same\n" +
-    "3️⃣ /availability in the chat shows when everyone is free\n\n" +
-    "Start with /schedule, or just send your schedule as plain text.",
-  start_linked:
-    "✅ You joined <b>{chat}</b>.\n\nNow fill in your schedule — /schedule or send it as text.",
-  help:
-    "<b>QairuCowork commands</b>\n\n" +
-    "<b>In private chat:</b>\n" +
-    "/schedule — fill in your schedule step by step\n" +
-    "/import — send schedule as text or CSV\n" +
-    "/myschedule — show my schedule\n" +
-    "/busy — one-off busy slot on a specific date\n" +
-    "/clear — wipe my schedule\n\n" +
-    "<b>In a group:</b>\n" +
-    "/setup — connect the chat (admin)\n" +
-    "/join — join the chat\n" +
-    "/members — who has filled in a schedule\n" +
-    "/remind — ping those who haven't (admin)\n" +
-    "/availability — common free windows\n" +
-    "/availability @user @user — windows with these people only\n" +
-    "/availability 90 — windows of at least 90 minutes\n" +
-    "/availability 80% — windows where 80% of people are free\n" +
-    "/availability q5 — where at least 5 people are free\n" +
-    "/meeting @user — create a meeting with a poll\n" +
-    "/settings — working hours and timezone (admin)\n" +
-    "/lang — interface language",
+  // --- общее ---
+  start_private: "👋 Hi, {name}!\n\n<b>QairuCowork</b> helps your group find a time when everyone is free.\n\n<b>How it works</b>\n1. Everyone marks their classes on the website — you can simply upload a screenshot of your timetable.\n2. The site shows the common free slots.\n3. Schedule a meeting — I send the invitations and collect the answers.\n\nI only message you when it matters: reminders to fill in your schedule, meeting invitations and who has replied. Tap the button below — you sign in with Telegram, no passwords.",
+  start_linked: "✅ You're in <b>{chat}</b>.\n\nNow mark your classes — it takes a minute. Tap the button below and the site opens right inside Telegram.",
+  help_private: "<b>What I do</b>\n\n📬 I send notifications:\n• reminders to fill in your schedule\n• meeting invitations — answer right from the buttons\n• replies from participants when you organise a meeting\n• a reminder before the meeting starts\n\n🌐 Everything else is on the website: schedule, free slots, meetings, group settings.\n\n<b>Commands</b>\n/start — open the website\n/lang — language\n/help — this help\n\nAdd me to your group chat to get the group commands.",
+  help_group: "<b>QairuCowork in your group chat</b>\n\n/setup — connect this chat (admin)\n/join — add yourself as a participant\n/members — who has filled in their schedule\n/free — common free slots for the week\n   <code>/free 90</code> — slots of 90+ minutes\n   <code>/free 80%</code> — where 80% of participants are free\n   <code>/free @nick @nick</code> — only with these people\n/meeting — schedule a meeting with a poll\n/remind — nudge those who haven't filled in (admin)\n/link — open the group on the website\n/lang — bot language in this chat (admin)\n\nSchedules and group settings live on the website.",
+  moved_to_site: "🌐 This is now done on the website — it's easier there: a weekly grid, timetable screenshot upload and common free slots.\n\nTap the button below — the site opens inside Telegram, no sign-in needed.",
+  moved_to_site_group: "🌐 This command has moved to the website: the group's schedules, settings and participants are there now.",
+  moved_to_site_alert: "This button is outdated — schedules are now filled in on the website. Send /start to the bot.",
+  btn_open_site: "🌐 Open QairuCowork",
+  btn_open_group_site: "🌐 Open the group",
+  btn_open_bot: "🤖 Message the bot",
   cancelled: "Cancelled.",
-  nothing_to_cancel: "Nothing to cancel right now.",
-  only_admin: "⛔ Only a chat administrator can use this command.",
-  only_group: "This command works in group chats only.",
-  only_private: "This command works in a private chat with the bot only.",
-  error_generic: "Something went wrong. Try again or send /help.",
+  only_admin: "⛔ Only a chat admin can do this.",
+  only_group: "This command works in a group chat. Add me there and send /setup.",
+  error_generic: "Something went wrong. Please try again a bit later.",
 
+  // --- язык ---
   choose_lang: "Choose the interface language:",
   lang_set: "✅ Interface language: English",
 
-  setup_done:
-    "✅ Chat <b>{chat}</b> is connected.\n\n" +
-    "Everyone who wants to take part taps the button below — it opens a private chat " +
-    "with me where you fill in your schedule.\n\n" +
-    "<i>I can't see the group member list — that's a Telegram limitation. " +
-    "So I only count windows among people who registered.</i>",
+  // --- подключение чата и участники ---
+  setup_done: "✅ <b>{chat}</b> is connected to QairuCowork.\n\n<b>Next steps</b>\n1. Everyone taps «Fill in schedule» and marks their classes — it takes a minute.\n2. /free shows when everyone is free, and /meeting sets up a meeting.\n\n<i>Telegram doesn't show bots the member list, so I only count people who tapped the button or sent /join.</i>",
   btn_fill_schedule: "📅 Fill in schedule",
   btn_who_filled: "👥 Who has filled in",
-  join_ok: "✅ {name}, you're on the list. Now fill in your schedule in my private chat.",
-  join_already: "{name}, you're already on this chat's list.",
-  chat_not_setup: "This chat isn't connected yet. An admin needs to run /setup.",
-  btn_open_bot: "🤖 Open the bot",
+  join_ok: "✅ {name}, you're a participant now. Tap «Fill in schedule» so your classes count towards the free slots.",
+  join_already: "{name}, you're already a participant in this chat.",
+  chat_not_setup: "This chat isn't connected yet — an admin needs to send /setup.",
+  members_title: "<b>👥 Participants</b>\n",
+  members_filled: "\n✅ Filled in ({count}):\n{names}\n",
+  members_missing: "\n⏳ Not yet ({count}):\n{names}",
+  members_empty: "No participants yet. Tap «Fill in schedule» or send /join.",
+  remind_text: "⏰ {names}, please fill in your schedule — without it I can't find free slots for the whole group. It takes a minute.",
+  remind_nobody: "Everyone has already filled in their schedule 👍",
 
-  schedule_intro:
-    "Send your class schedule in one message. Almost any format works:\n\n" +
-    "<code>Mon 9:00-10:30 Calculus, 13:00-14:30 History\n" +
-    "Tue 8:00-9:30\n" +
-    "Wed no classes\n" +
-    "Thu 10-11.30; 12:00-13:30 Physics</code>\n\n" +
-    "Day names can be Russian, Kazakh or English. " +
-    "Or use /wizard to fill day by day with buttons.",
-  parse_preview: "Here's how I read your schedule:\n\n{schedule}\n\nIs that right?",
-  parse_errors: "\n\n⚠️ Couldn't parse these lines:\n<code>{lines}</code>",
-  parse_failed:
-    "I couldn't parse a single line. The format should look like this:\n\n" +
-    "<code>Mon 9:00-10:30\nTue 13:00-14:30</code>\n\nTry again or use /wizard.",
-  btn_confirm: "✅ Correct",
-  btn_retry: "✏️ Re-enter",
-  schedule_saved: "✅ Schedule saved. /availability now works in the chat.",
-  schedule_empty: "You don't have a schedule yet. Send it as text or use /wizard.",
-  my_schedule: "<b>Your schedule</b>\n\n{schedule}",
-  day_free: "free",
-  clear_confirm: "Delete the whole schedule?",
-  btn_yes_delete: "🗑 Yes, delete",
-  btn_no: "Cancel",
-  cleared: "Schedule deleted.",
-
-  wizard_pick_day: "Pick a day to fill in:",
-  wizard_ask_day:
-    "Classes on <b>{day}</b>? Send them in one line, e.g.:\n<code>9:00-10:30, 13:00-14:30</code>\n\nIf there are none, write <code>no</code>.",
-  wizard_day_saved: "✅ {day}: {slots}",
-  wizard_done: "Done. Schedule saved.",
-  btn_done: "✅ Finish",
-
-  busy_ask:
-    "Send a one-off busy slot. These formats work:\n\n" +
-    "<code>12.09 14:00-16:00 exam</code>\n" +
-    "<code>12.09 all day</code>\n" +
-    "<code>15.09-20.09 exams</code>\n" +
-    "<code>15.09-20.09 9:00-14:00 internship</code>",
-  busy_saved: "✅ Noted: {date}, {time}",
-  busy_bad: "I didn't get the date or time. Format: <code>12.09 14:00-16:00 title</code>",
-  busy_range_saved: "✅ Noted: {date_from} — {date_to}, {time}",
-  busy_cleared: "Removed {count} one-off entries. Your weekly schedule is untouched.",
-
-  members_title: "<b>Chat members</b>\n",
-  members_filled: "✅ Schedule filled in ({count}):\n{names}",
-  members_missing: "\n⏳ Not filled in yet ({count}):\n{names}",
-  members_empty: "Nobody has joined yet. Tap the button below or send /join.",
-  remind_text:
-    "⏰ {names} — please fill in your schedule, we can't compute common windows without you.",
-  remind_nobody: "Everyone has filled in their schedule 👍",
-
-  avail_title: "<b>🗓 Common free windows</b>\n<i>{who}</i>\n",
-  avail_all: "all chat members ({count})",
+  // --- общие окна (/free) ---
+  avail_title: "<b>🗓 Common free slots</b>\n<i>{who}</i>\n",
+  avail_all: "all chat participants ({count})",
   avail_selected: "{count} people: {names}",
-  avail_none:
-    "No common windows longer than {min} min in the next week 😕\nTry /availability 30 or a different set of people.",
-  avail_no_members: "No registered members in this chat yet. Start with /setup and /join.",
-  avail_need_schedule: "Nobody has a schedule yet. Fill it in via the bot's private chat.",
-  avail_missing_note: "\n⚠️ Not counted (no schedule): {names}",
-  avail_hint: "\n<i>Working window: {start}–{end}, minimum {min} min. Change it with /settings</i>",
-  avail_user_not_found:
-    "I don't know the user {name}. They need to /join and fill in a schedule.",
-  avail_quorum_title:
-    "<b>🗓 Windows where at least {quorum} of {total} are free</b>\n<i>{who}</i>\n",
-  avail_quorum_line: "  <i>{count}/{total} — missing: {missing}</i>",
+  avail_none: "No slots of {min}+ minutes when everyone is free in the coming week 😕\nTry <code>/free 30</code> or <code>/free 80%</code>.",
+  avail_no_members: "There are no participants in this chat yet. Send /join or tap «Fill in schedule».",
+  avail_need_schedule: "Nobody has filled in a schedule yet, so there's nothing to compare. Send /join and fill yours in.",
+  avail_missing_note: "\n⚠️ Not counted — no schedule: {names}",
+  avail_hint: "\n<i>Searching {start}–{end}, slots from {min} min. Hours can be changed in the group settings on the website.</i>",
+  avail_user_not_found: "I don't know {name} — they need to send /join and fill in their schedule.",
+  avail_quorum_title: "<b>🗓 Slots where at least {quorum} of {total} are free</b>\n<i>{who}</i>\n",
+  avail_quorum_line: "  <i>free {count}/{total}, busy: {missing}</i>",
   avail_quorum_all: "  <i>everyone is free</i>",
-  avail_quorum_none: "No windows with at least {quorum} people free in the next week.",
+  avail_quorum_none: "No slots in the coming week where at least {quorum} people are free.",
   avail_parity_note: "\n<i>Week: {parity}</i>",
-  avail_clipped:
-    "…list trimmed to fit one message. Narrow it down: /availability 90 or name specific people.",
-
-  meeting_step1: "📌 <b>New meeting</b> — step 1 of 3\n\nWhere are we meeting?",
-  meeting_step2: "📌 Step 2 of 3 — when?\n\nPick a common window or enter the time manually.",
-  meeting_step2_manual:
-    "📌 Step 2 of 3 — write the meeting time, e.g.:\n<code>Wednesday 15:00-16:30</code>",
-  meeting_step3: "📌 Step 3 of 3 — what's the goal of the meeting?",
-  btn_manual_time: "✏️ Enter manually",
-  meeting_not_yours: "Someone else is creating this meeting.",
-  meeting_card:
-    "📌 <b>Meeting</b>\n\n" +
-    "📍 Place: {place}\n" +
-    "🕒 Time: {when}\n" +
-    "🎯 Goal: {goal}\n\n" +
-    "👥 {invitees}\n",
-  meeting_votes:
-    "\n✅ Yes ({yes}): {yes_names}\n❌ No ({no}): {no_names}\n✏️ Suggested changes ({change}): {change_names}",
-  btn_yes: "✅ Yes",
-  btn_no_answer: "❌ No",
-  btn_change: "✏️ Suggest changes",
-  vote_registered: "Vote recorded: {answer}",
-  vote_not_invited: "You're not on the invite list for this meeting.",
-  change_ask: "What would you change? Reply to this message.",
-  change_saved: "Your suggestion was added to the meeting card.",
-  changes_block: "\n\n<b>💬 Suggestions:</b>\n{items}",
-  meeting_timeout: "Meeting creation timed out.",
-  meeting_no_windows: "The selected people have no common windows — enter the time manually.",
-  meeting_reminder: "⏰ Meeting in {minutes} min!\n📍 {place}\n🎯 {goal}\n\n{names}",
-  meeting_no_time: "I couldn't read that as a date — no reminder, but the meeting is created.",
-  cancel_only_initiator: "Only the organiser or a group admin can cancel the meeting.",
-  meeting_cancel_done: "Meeting cancelled.",
-  meeting_cancelled_card: "🚫 <b>Meeting cancelled</b>\n\n<s>📍 {place}\n🕒 {when}\n🎯 {goal}</s>",
-  btn_ics: "📅 Add to calendar",
-  btn_cancel_meeting: "🚫 Cancel",
-  ics_caption: "Open the file to add the meeting to your calendar.",
-  ics_default_summary: "Meeting",
-  leave_ok: "{name} left the participant list. The schedule is kept — rejoin any time with /join.",
-
+  avail_clipped: "…the list didn't fit into one message. Narrow it down: <code>/free 90</code> or mention people.",
   parity_odd: "week A (odd)",
   parity_even: "week B (even)",
-  parity_none: "every week",
-  kind_class: "class",
-  kind_work: "work",
-  kind_sport: "sport",
-  kind_exam: "exam",
-  kind_other: "busy",
 
-  settings_title:
-    "<b>⚙️ Chat settings</b>\n\n" +
-    "Working window: <b>{start}–{end}</b>\n" +
-    "Minimum window length: <b>{min} min</b>\n" +
-    "Travel buffer: <b>{buffer} min</b>\n" +
-    "Semester start (week parity): <b>{semester}</b>\n" +
-    "Meeting reminder: <b>{reminder} min before</b>\n" +
-    "Timezone: <b>{tz}</b>\n" +
-    "Language: <b>{lang}</b>\n\n" +
-    "To change:\n" +
-    "<code>/settings hours 8:00 22:00</code>\n" +
-    "<code>/settings min 45</code>\n" +
-    "<code>/settings buffer 20</code>\n" +
-    "<code>/settings semester 01.09.2026</code>\n" +
-    "<code>/settings reminder 30</code>\n" +
-    "<code>/settings tz Asia/Almaty</code>",
-  settings_saved: "✅ Settings updated.",
-  settings_bad: "I didn't get that parameter. See the examples in /settings.",
-  settings_not_set: "not set",
-  answer_yes: "yes",
-  answer_no: "no",
-  answer_change: "suggested changes",
+  // --- встреча ---
+  meeting_step1: "📌 <b>New meeting</b> · step 1 of 3\n\nWhere are we meeting? Reply to this message.",
+  meeting_step2: "📌 Step 2 of 3 · when?\n\nPick one of the common free slots or type the time yourself.",
+  meeting_step2_manual: "📌 Step 2 of 3 · reply with the time, for example:\n<code>wednesday 15:00-16:30</code>",
+  meeting_step3: "📌 Step 3 of 3 · what's the goal of the meeting? Keep it short.",
+  btn_manual_time: "✏️ Type the time",
+  meeting_not_yours: "Someone else is creating this meeting.",
+  meeting_card: "📌 <b>Meeting</b>\n\n🎯 {goal}\n🕒 {when}\n📍 {place}\n\n👥 Invited: {invitees}\n",
+  meeting_votes: "\n✅ Coming ({yes}): {yes_names}\n❌ Can't make it ({no}): {no_names}\n✏️ Suggest changes ({change}): {change_names}",
+  btn_yes: "✅ I'll come",
+  btn_no_answer: "❌ Can't make it",
+  btn_change: "✏️ Suggest a change",
+  vote_registered: "Answer saved: {answer}",
+  answer_yes: "coming",
+  answer_no: "can't make it",
+  answer_change: "suggested a change",
+  vote_not_invited: "You're not among the people invited to this meeting.",
+  change_ask: "What would you like to change? Reply to this message.",
+  change_saved: "✏️ Your suggestion is on the meeting card — the organiser will see it.",
+  changes_block: "\n\n<b>💬 Suggestions</b>\n{items}",
+  meeting_timeout: "Meeting creation was cancelled after 15 minutes without a reply. Start again with /meeting.",
+  meeting_no_windows: "The invited people have no common free slots this week — please type the time manually.",
+  meeting_reminder: "⏰ <b>Meeting in {minutes} min</b>\n\n🕒 {when}\n📍 {place}\n🎯 {goal}\n\n{names}",
+  meeting_reminder_dm: "⏰ <b>Meeting in {minutes} min</b> · group «{chat}»\n\n🕒 {when}\n📍 {place}\n🎯 {goal}",
+  cancel_only_initiator: "Only the organiser or a group admin can cancel this meeting.",
+  meeting_cancel_done: "The meeting is cancelled.",
+  meeting_cancelled_card: "🚫 <b>Meeting cancelled</b>\n\n<s>🎯 {goal}\n🕒 {when}\n📍 {place}</s>",
+  btn_ics: "📅 Add to calendar",
+  btn_cancel_meeting: "🚫 Cancel meeting",
+  ics_caption: "Open the file to add the meeting to your calendar.",
+  ics_default_summary: "Meeting",
 
-  web_link:
-    "🌐 <b>Web version</b>\n\n" +
-    "Same thing with a visual week grid — you can see who is busy when, " +
-    "and free windows are highlighted.\n\n" +
-    "This link is personal, don't forward it: it edits your schedule.",
-  btn_open_web: "🌐 Open the web version",
-  web_not_configured: "The web version isn't connected: the bot admin hasn't set WEB_BASE_URL.",
-  web_link_sent: "I sent you the link in a private message.",
-  web_link_dm_first: "Message me privately first — otherwise Telegram won't let me send you the link.",
+  // --- сайт из бота ---
+  web_link: "🌐 <b>{chat}</b> on the website\n\nThe weekly grid, free slots and group meetings are there. The site opens inside Telegram — no sign-in needed.",
+  web_link_any: "🌐 Open QairuCowork — the site runs inside Telegram, no sign-in needed.",
+  web_not_configured: "The website isn't connected yet: the bot admin needs to set NEXT_PUBLIC_SITE_URL.",
+  web_link_sent: "Sent you the link in a private message 📬",
+  web_link_dm_first: "I can't message you first — Telegram doesn't allow it. Tap the button below, start the bot and send /link again.",
 
+  // --- обратная связь организатору ---
+  notify_answer_yes: "✅ {name} is coming to «{goal}». {yes} of {total} have said yes.",
+  notify_answer_no: "❌ {name} can't make it to «{goal}». {yes} of {total} have said yes.",
+
+  // --- строки сайта ---
   w_tagline: "Finds free time everyone in a student group shares.",
   w_footer:
     "QairuCowork — shared free windows for student groups. Works in Telegram and in the browser.",
@@ -210,9 +105,9 @@ export const EN: Strings = {
   w_hero_lead:
     "Everyone marks their classes once. The site then shows when the whole group is free — and when almost all of it is.",
   w_step1_t: "Create a group",
-  w_step1_d: "No accounts, no passwords. You get a link and send it to your groupmates.",
+  w_step1_d: "Sign in with Telegram and get an invite link — share it with your groupmates.",
   w_step2_t: "Everyone marks classes",
-  w_step2_d: "Drag on the grid, tap on a phone, or just paste the timetable as text.",
+  w_step2_d: "Drag on the grid, tap on a phone, or upload a screenshot of your timetable.",
   w_step3_t: "Read the windows",
   w_step3_d:
     "Colour shows where everyone is free and where eight out of ten are. Meetings start right there.",
@@ -226,7 +121,7 @@ export const EN: Strings = {
   w_my_groups: "My groups",
   w_open: "Open",
   w_join_title: "Join “{title}”",
-  w_join_lead: "Introduce yourself — your groupmates need to know whose schedule this is.",
+  w_join_lead: "Sign in with Telegram — your name comes from there, and the bot will send you reminders and meeting invitations.",
   w_join_btn: "Join",
   w_already_in: "Already in ({count})",
   w_invite: "Invite link",
@@ -306,10 +201,10 @@ export const EN: Strings = {
   w_profile_anon: "Open an invite link to any group — your profile will show up here.",
 
   // --- администраторы, варианты встречи, уведомления, вход по паролю ---
-  notify_meeting_new: "📅 {name} invites you to a meeting in «{chat}». Reply with the buttons below.",
-  notify_meeting_ping: "⏳ {name} is waiting for your answer to the meeting «{goal}» ({when}).",
-  notify_change: "✏️ {name} suggests changing the meeting «{goal}»:\n{comment}",
-  notify_fill_dm: "⏰ {name} asks you to fill in your schedule in «{chat}» — shared free time can't be found without it.",
+  notify_meeting_new: "📬 <b>{name}</b> invites you to a meeting in «{chat}». Answer with the buttons below.",
+  notify_meeting_ping: "⏳ {name} is waiting for your answer about «{goal}» ({when}). Tap a button below — it takes a second.",
+  notify_change: "✏️ {name} suggests a change to «{goal}»:\n\n<i>{comment}</i>",
+  notify_fill_dm: "⏰ {name} asks you to fill in your schedule in «{chat}». Without it the free slots are calculated without you — mark your classes, it takes a minute.",
   w_windows_nodata: "Nobody has filled in a schedule yet — nothing to compute.",
   w_day: "Day",
   w_duration: "Meeting length",
@@ -387,7 +282,7 @@ export const EN: Strings = {
   w_login_err_invalid: "Wrong login or password.",
   w_login_err_throttled: "Too many attempts. Wait 15 minutes.",
   w_login_already: "You're already signed in as {name}.",
-  w_login_no_account: "No password yet? Open a group invite link or sign in through the bot, then set a login and password in your profile.",
+  w_login_no_account: "First time here? Just sign in with Telegram — your account is created automatically.",
   w_logout: "Sign out",
   w_join_have_account: "Already have an account?",
   w_acct_title: "Login and password",
@@ -506,4 +401,23 @@ export const EN: Strings = {
   // --- сетка по парам ---
   w_break_row: "Break {m} min",
   w_legend_meeting: "meeting",
+
+  // --- вход только через Telegram, подсказка на карте ---
+  w_tg_only_title: "Sign in with Telegram only",
+  w_tg_only_1: "Your account here is your Telegram account: your name comes from Telegram, no password needed.",
+  w_tg_only_2: "Inside Telegram the site opens from the bot's button and signs you in automatically. In a browser, tap «Sign in with Telegram» and confirm in the bot.",
+  w_tg_only_3: "The bot only sends what matters: reminders to fill in your schedule, meeting invitations and participants' replies.",
+  w_open_in_tg: "Open in Telegram",
+  w_signin_hint: "First time here? Your account is created on first sign-in, with your name from Telegram.",
+  w_create_login_lead: "Sign in with Telegram to create a group — that way the bot can send reminders and invitations to participants.",
+  w_join_as: "Join as {name}",
+  w_connect_title: "Connect Telegram",
+  w_connect_lead: "QairuCowork now works with Telegram sign-in only. Connect it to the account «{name}» — your groups, schedule and meeting answers will be kept.",
+  w_connect_btn: "Connect Telegram",
+  w_connect_why: "Without Telegram the bot can't send you reminders and meeting invitations.",
+  w_connect_other: "Not my account — sign out",
+  w_login_password_toggle: "Sign in with login and password",
+  w_free_names: "Free",
+  w_busy_names: "Busy",
+  w_nobody: "nobody",
 };

@@ -2,14 +2,14 @@ import type { NextRequest } from "next/server";
 
 import { parseAvatarDataUrl } from "@/core/avatar";
 import * as repo from "@/db/repo";
-import { currentUser } from "@/lib/auth";
+import { currentTelegramUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 /** Загрузить своё фото профиля. Тело: {"image": "data:image/webp;base64,..."}. */
 export async function POST(request: NextRequest) {
-  const user = await currentUser();
+  const user = await currentTelegramUser();
   if (!user) return Response.json({ detail: "unauthorized" }, { status: 401 });
 
   // Не читаем в память тело больше, чем может занять допустимое фото.
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
 
 /** Убрать своё фото профиля. */
 export async function DELETE() {
-  const user = await currentUser();
+  const user = await currentTelegramUser();
   if (!user) return Response.json({ detail: "unauthorized" }, { status: 401 });
   await repo.deleteAvatar(user.userId);
   return Response.json({ ok: true });

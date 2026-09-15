@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 
+import { TelegramSignIn } from "@/components/TelegramSignIn";
 import { Topbar } from "@/components/Topbar";
 import * as repo from "@/db/repo";
 import { LANG_NAMES, normalizeLang, translator } from "@/i18n";
-import { currentUser } from "@/lib/auth";
+import { pageUser } from "@/lib/gate";
 import { createGroup } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +21,7 @@ const TIMEZONES = [
 
 export default async function LandingPage() {
   const requestHeaders = await headers();
-  const user = await currentUser();
+  const user = await pageUser("/");
   const lang = user?.lang ?? normalizeLang((requestHeaders.get("accept-language") ?? "").split(",")[0]);
   const t = translator(lang);
   const groups = user ? await repo.userChats(user.userId) : [];
@@ -44,6 +45,24 @@ export default async function LandingPage() {
           ))}
         </div>
 
+        <section className="card tg-only" aria-labelledby="tg-only-title">
+          <h2 id="tg-only-title">{t("w_tg_only_title")}</h2>
+          <ul className="tg-only-list">
+            <li>
+              <span aria-hidden="true">👤</span>
+              <span>{t("w_tg_only_1")}</span>
+            </li>
+            <li>
+              <span aria-hidden="true">📲</span>
+              <span>{t("w_tg_only_2")}</span>
+            </li>
+            <li>
+              <span aria-hidden="true">🔔</span>
+              <span>{t("w_tg_only_3")}</span>
+            </li>
+          </ul>
+        </section>
+
         {groups.length > 0 && (
           <div className="card">
             <h2>{t("w_my_groups")}</h2>
@@ -61,8 +80,8 @@ export default async function LandingPage() {
 
         <div className="card" id="create" style={{ scrollMarginTop: 72 }}>
           <h2>{t("w_create")}</h2>
-          <form action={createGroup}>
-            <div className="row">
+          {user ? (
+            <form action={createGroup}>
               <div className="field">
                 <label htmlFor="title">{t("w_group_title")}</label>
                 <input
@@ -74,47 +93,41 @@ export default async function LandingPage() {
                   placeholder={t("w_group_title_ph")}
                 />
               </div>
-              {/* Вошедший создаёт группу от своего имени — второй раз представляться не нужно. */}
-              {!user && (
+              <div className="row">
                 <div className="field">
-                  <label htmlFor="name">{t("w_your_name")}</label>
-                  <input
-                    id="name"
-                    name="name"
-                    type="text"
-                    required
-                    maxLength={60}
-                    placeholder={t("w_your_name_ph")}
-                  />
+                  <label htmlFor="tz">{t("w_tz")}</label>
+                  <select id="tz" name="tz" defaultValue="Asia/Almaty">
+                    {TIMEZONES.map(([value, title]) => (
+                      <option key={value} value={value}>
+                        {title}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-              )}
-            </div>
-            <div className="row">
-              <div className="field">
-                <label htmlFor="tz">{t("w_tz")}</label>
-                <select id="tz" name="tz" defaultValue="Asia/Almaty">
-                  {TIMEZONES.map(([value, title]) => (
-                    <option key={value} value={value}>
-                      {title}
-                    </option>
-                  ))}
-                </select>
+                <div className="field">
+                  <label htmlFor="lang">{t("w_lang")}</label>
+                  <select id="lang" name="lang" defaultValue={lang}>
+                    {Object.entries(LANG_NAMES).map(([code, title]) => (
+                      <option key={code} value={code}>
+                        {title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
-              <div className="field">
-                <label htmlFor="lang">{t("w_lang")}</label>
-                <select id="lang" name="lang" defaultValue={lang}>
-                  {Object.entries(LANG_NAMES).map(([code, title]) => (
-                    <option key={code} value={code}>
-                      {title}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <button className="btn btn-primary" type="submit">
+                {t("w_create")}
+              </button>
+            </form>
+          ) : (
+            <div style={{ maxWidth: 420 }}>
+              <p className="small muted">{t("w_create_login_lead")}</p>
+              <TelegramSignIn lang={lang} next="/#create" />
+              <p className="small muted" style={{ marginTop: 10 }}>
+                {t("w_signin_hint")}
+              </p>
             </div>
-            <button className="btn btn-primary" type="submit">
-              {t("w_create")}
-            </button>
-          </form>
+          )}
         </div>
       </main>
     </>

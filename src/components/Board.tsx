@@ -17,6 +17,9 @@ export type BoardLabels = {
   legendNone: string;
   legendAll: string;
   legendMeeting: string;
+  freeNames: string;
+  busyNames: string;
+  nobody: string;
   windowsTitle: string;
   windowsEmpty: string;
   windowsNoData: string;
@@ -38,9 +41,13 @@ type CellDetail = {
   start: number;
   end: number;
   count: number;
+  free: string[];
   missing: string[];
   meetings: string[];
 };
+
+/** Где показать подсказку: над клеткой, а у верхнего края экрана — под ней. */
+type Hover = { detail: CellDetail; x: number; y: number; below: boolean };
 
 /** Чем меньше свободных, тем темнее клетка — h0 светлее всего (свободны все), h5 темнее всего (никого). */
 function heatClass(count: number, total: number): string {
@@ -85,6 +92,7 @@ export function Board({
   const [selectedDay, setSelectedDay] = useState(() => firstDayWithSlots(initial));
   const [loading, setLoading] = useState(false);
   const [activeCell, setActiveCell] = useState<CellDetail | null>(null);
+  const [hover, setHover] = useState<Hover | null>(null);
   const requestId = useRef(0);
   // Для каких кворума и длительности посчитаны данные, что сейчас на экране.
   // Сравнивать выбор нужно с ними, а не с начальными значениями: иначе
@@ -100,6 +108,14 @@ export function Board({
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [activeCell]);
+
+  // Подсказка привязана к месту на экране — при прокрутке она бы уехала от клетки.
+  useEffect(() => {
+    if (!hover) return;
+    const hide = () => setHover(null);
+    window.addEventListener("scroll", hide, { capture: true, passive: true });
+    return () => window.removeEventListener("scroll", hide, { capture: true });
+  }, [hover]);
 
   const refresh = useCallback(
     async (nextQuorum: number, nextDuration: number) => {
@@ -200,6 +216,7 @@ export function Board({
                       start: cell.start,
                       end: cell.end,
                       count: cell.count,
+                      free: cell.free,
                       missing: cell.missing,
                       meetings: here.map((meeting) => meeting.title),
                     };
@@ -207,11 +224,21 @@ export function Board({
                       <td
                         key={`${heatDay.date}-${cell.start}`}
                         className={`cell ${here.length > 0 ? "meeting" : heatClass(cell.count, total)}`}
-                        title={[...here.map((meeting) => `📌 ${meeting.title}`), `${cell.count}/${total}`].join("\n")}
+                        onPointerEnter={(event) => {
+                          // Подсказка — для мыши; на телефоне то же самое показывает окно по нажатию.
+                          if (event.pointerType !== "mouse") return;
+                          const rect = event.currentTarget.getBoundingClientRect();
+                          const below = rect.top < 140;
+                          setHover({ detail, x: rect.left + rect.width / 2, y: below ? rect.bottom : rect.top, below });
+                        }}
+                        onPointerLeave={() => setHover(null)}
                         tabIndex={0}
                         role="button"
                         aria-label={`${heatDay.label} ${hhmm(cell.start)}–${hhmm(cell.end)}: ${cell.count}/${total}${here.length > 0 ? ` · ${labels.legendMeeting}: ${here.map((meeting) => meeting.title).join(", ")}` : ""}`}
-                        onClick={() => setActiveCell(detail)}
+                        onClick={() => {
+                          setHover(null);
+                          setActiveCell(detail);
+                        }}
                         onKeyDown={(event) => {
                           if (event.key !== " " && event.key !== "Enter") return;
                           event.preventDefault();
@@ -343,6 +370,24 @@ export function Board({
         </div>
       </section>
 
+      {hover && !activeCell && (
+        <div
+          className={`cell-tooltip${hover.below ? " below" : ""}`}
+          role="tooltip"
+          style={{ left: hover.x, top: hover.y }}
+        >
+          <div className="cell-tooltip-head">
+            {hover.detail.dayLabel} · {hhmm(hover.detail.start)}–{hhmm(hover.detail.end)}
+          </div>
+          {hover.detail.meetings.map((title, index) => (
+            <div key={index} className="cell-popover-meeting">
+              📌 {title}
+            </div>
+          ))}
+          <WhoIsFree detail={hover.detail} total={total} labels={labels} />
+        </div>
+      )}
+
       {activeCell && (
         <div className="cell-popover-overlay" onClick={() => setActiveCell(null)}>
           <div
@@ -370,11 +415,7 @@ export function Board({
                 📌 {title}
               </p>
             ))}
-            <p className="small muted">
-              {activeCell.count}/{total}
-              {activeCell.missing.length > 0 &&
-                ` — ${labels.missingShort} ${activeCell.missing.join(", ")}`}
-            </p>
+            <WhoIsFree detail={activeCell} total={total} labels={labels} />
             <button
               type="button"
               className="btn btn-primary"
@@ -392,6 +433,25 @@ export function Board({
               {labels.pick}
             </button>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Кто свободен и кто занят в клетке — общее для подсказки и окна по нажатию. */
+function WhoIsFree({ detail, total, labels }: { detail: CellDetail; total: number; labels: BoardLabels }) {
+  return (
+    <div className="who-free small">
+      <div>
+        <span className="who-free-label ok">
+          {labels.freeNames} {detail.count}/{total}:
+        </span>{" "}
+        {detail.free.length > 0 ? detail.free.join(", ") : labels.nobody}
+      </div>
+      {detail.missing.length > 0 && (
+        <div>
+          <span className="who-free-label">{labels.busyNames}:</span> {detail.missing.join(", ")}
         </div>
       )}
     </div>

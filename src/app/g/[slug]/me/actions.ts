@@ -7,11 +7,13 @@ import { parseDatedBusy } from "@/core/dated";
 import { chatTz, todayIn } from "@/core/timeutils";
 import * as repo from "@/db/repo";
 import { currentUser } from "@/lib/auth";
+import { connectUrl } from "@/lib/gate";
 
 async function requireMember(slug: string) {
   const chat = await repo.getChatBySlug(slug);
   if (!chat) redirect("/");
   const user = await currentUser();
+  if (user?.isWeb) redirect(connectUrl(`/g/${slug}/me`));
   if (!user || !(await repo.isMember(chat.chatId, user.userId))) redirect(`/g/${slug}/join`);
   return { chat, user };
 }

@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 
 import { cleanIncomingSlots } from "@/core/grid";
 import * as repo from "@/db/repo";
-import { currentUser } from "@/lib/auth";
+import { currentTelegramUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -13,7 +13,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ sl
   const chat = await repo.getChatBySlug(slug);
   if (!chat) return Response.json({ detail: "not found" }, { status: 404 });
 
-  const user = await currentUser();
+  const user = await currentTelegramUser();
   if (!user || !(await repo.isMember(chat.chatId, user.userId))) {
     return Response.json({ detail: "not a member" }, { status: 403 });
   }

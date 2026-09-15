@@ -5,14 +5,13 @@ import { ConfirmSubmit } from "@/components/ConfirmSubmit";
 import { DatedTimeFields } from "@/components/DatedTimeFields";
 import { ScrollToAnchor } from "@/components/ScrollToAnchor";
 import { ScheduleEditor } from "@/components/ScheduleEditor";
-import { TelegramAuth } from "@/components/TelegramAuth";
 import { Topbar } from "@/components/Topbar";
 import { gridPeriods, periodOverlaps } from "@/core/grid";
 import { fmtMinutes } from "@/core/intervals";
 import { chatTz, compareDates, formatDM, formatDMY, todayIn } from "@/core/timeutils";
 import * as repo from "@/db/repo";
 import { WEEKDAY_NAMES, WEEKDAY_SHORT, isLang, translator } from "@/i18n";
-import { currentUser } from "@/lib/auth";
+import { pageUser } from "@/lib/gate";
 import { SLOT_STEP } from "@/lib/config";
 import { hasVision } from "@/lib/vision";
 import { addDatedBusyAction, deleteDatedBusyAction } from "./actions";
@@ -46,7 +45,7 @@ export default async function MySchedulePage({
   const chat = await repo.getChatBySlug(slug);
   if (!chat) notFound();
 
-  const user = await currentUser();
+  const user = await pageUser(`/g/${slug}/me`);
   if (!user || !(await repo.isMember(chat.chatId, user.userId))) {
     redirect(`/g/${slug}/join`);
   }
@@ -73,7 +72,6 @@ export default async function MySchedulePage({
 
   return (
     <>
-      <TelegramAuth slug={slug} authed />
       <ScrollToAnchor id={typeof query.at === "string" ? query.at : null} />
       <Topbar lang={lang}>
         <Link className="btn btn-sm" href={`/g/${slug}`}>

@@ -1,12 +1,11 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
-import { TelegramAuth } from "@/components/TelegramAuth";
+import { TelegramSignIn } from "@/components/TelegramSignIn";
 import { Topbar } from "@/components/Topbar";
 import * as repo from "@/db/repo";
 import { displayName } from "@/db/schema";
 import { translator } from "@/i18n";
-import { currentUser } from "@/lib/auth";
+import { pageUser } from "@/lib/gate";
 import { joinGroup } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +15,7 @@ export default async function JoinPage({ params }: { params: Promise<{ slug: str
   const chat = await repo.getChatBySlug(slug);
   if (!chat) notFound();
 
-  const user = await currentUser();
+  const user = await pageUser(`/g/${slug}/join`);
   if (user && (await repo.isMember(chat.chatId, user.userId))) redirect(`/g/${slug}`);
 
   const t = translator(chat.lang);
@@ -24,8 +23,6 @@ export default async function JoinPage({ params }: { params: Promise<{ slug: str
 
   return (
     <>
-      {/* В Mini App человек уже опознан подписью — форму показывать не придётся. */}
-      <TelegramAuth slug={slug} authed={false} />
       <Topbar lang={chat.lang} />
       <main className="wrap">
         <div className="card" style={{ maxWidth: 520, margin: "32px auto" }}>
@@ -45,32 +42,20 @@ export default async function JoinPage({ params }: { params: Promise<{ slug: str
             </>
           )}
 
-          <form action={joinGroup.bind(null, slug)}>
-            <div className="field">
-              <label htmlFor="name">{t("w_your_name")}</label>
-              <input
-                id="name"
-                name="name"
-                type="text"
-                required
-                maxLength={60}
-                autoFocus
-                defaultValue={user ? displayName(user) : ""}
-                placeholder={t("w_your_name_ph")}
-              />
-            </div>
-            <button className="btn btn-primary" type="submit">
-              {t("w_join_btn")}
-            </button>
-          </form>
-
-          {!user && (
-            <p className="small muted" style={{ marginTop: 14 }}>
-              {t("w_join_have_account")}{" "}
-              <Link href={`/login?next=${encodeURIComponent(`/g/${slug}/join`)}`}>
-                {t("w_login_btn")}
-              </Link>
-            </p>
+          {user ? (
+            <form action={joinGroup.bind(null, slug)}>
+              <button className="btn btn-primary" type="submit">
+                {t("w_join_as", { name: displayName(user) })}
+              </button>
+            </form>
+          ) : (
+            <>
+              {/* В Mini App вход и вступление произойдут сами (см. TelegramAuth). */}
+              <TelegramSignIn lang={chat.lang} next={`/g/${slug}/join`} />
+              <p className="small muted" style={{ marginTop: 10 }}>
+                {t("w_signin_hint")}
+              </p>
+            </>
           )}
         </div>
       </main>

@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 
 import * as repo from "@/db/repo";
-import { currentUser } from "@/lib/auth";
+import { currentTelegramUser } from "@/lib/auth";
 import { loadGroupState, toBoardPayload } from "@/lib/group";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +13,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ slu
   const chat = await repo.getChatBySlug(slug);
   if (!chat) return Response.json({ detail: "not found" }, { status: 404 });
 
-  const user = await currentUser();
+  const user = await currentTelegramUser();
   if (!user || !(await repo.isMember(chat.chatId, user.userId))) {
     return Response.json({ detail: "not a member" }, { status: 403 });
   }

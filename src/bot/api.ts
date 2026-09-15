@@ -15,6 +15,8 @@ export type InlineButton = {
   text: string;
   url?: string;
   callback_data?: string;
+  /** Открыть сайт как Mini App: Telegram передаст подписанный initData и вход произойдёт сам. Только в личке. */
+  web_app?: { url: string };
 };
 
 export type InlineKeyboardMarkup = { inline_keyboard: InlineButton[][] };
@@ -190,6 +192,13 @@ export function setMyCommands(payload: {
   scope?: { type: string };
 }): Promise<boolean> {
   return call<boolean>("setMyCommands", payload);
+}
+
+/** Кнопка меню рядом с полем ввода в личке с ботом: открывает сайт как Mini App. */
+export function setChatMenuButton(payload: {
+  menu_button: { type: "web_app"; text: string; web_app: { url: string } } | { type: "commands" };
+}): Promise<boolean> {
+  return call<boolean>("setChatMenuButton", payload);
 }
 
 /** Отправка файла требует multipart — единственный вызов, где JSON не годится. */

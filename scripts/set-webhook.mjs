@@ -33,31 +33,23 @@ function webhookSecret(token) {
   return createHash("sha256").update(`qairu-webhook:${token}`).digest("hex").slice(0, 48);
 }
 
+// Держать в согласии с src/bot/router.ts: у бота мало команд, основное — на сайте.
 const PRIVATE_COMMANDS = [
-  { command: "start", description: "Начать / Бастау / Start" },
-  { command: "schedule", description: "Заполнить расписание" },
-  { command: "wizard", description: "Мастер по дням" },
-  { command: "myschedule", description: "Моё расписание" },
-  { command: "busy", description: "Занятость на дату или период" },
-  { command: "availability", description: "Общие окна" },
-  { command: "clear", description: "Очистить расписание" },
+  { command: "start", description: "Открыть QairuCowork" },
   { command: "lang", description: "Язык / Тіл / Language" },
-  { command: "help", description: "Помощь" },
+  { command: "help", description: "Что умеет бот" },
 ];
 
 const GROUP_COMMANDS = [
-  { command: "setup", description: "Подключить чат" },
-  { command: "join", description: "Присоединиться" },
-  { command: "availability", description: "Общие свободные окна" },
-  { command: "meeting", description: "Создать встречу" },
-  { command: "free", description: "То же, что /availability" },
+  { command: "setup", description: "Подключить чат (админ)" },
+  { command: "join", description: "Добавить себя в участники" },
   { command: "members", description: "Кто заполнил расписание" },
-  { command: "link", description: "Ссылка на веб-версию" },
-  { command: "leave", description: "Выйти из списка участников" },
-  { command: "remind", description: "Напомнить незаполнившим" },
-  { command: "settings", description: "Настройки чата" },
+  { command: "free", description: "Общие свободные окна" },
+  { command: "meeting", description: "Назначить встречу" },
+  { command: "remind", description: "Напомнить незаполнившим (админ)" },
+  { command: "link", description: "Открыть группу на сайте" },
   { command: "lang", description: "Язык / Тіл / Language" },
-  { command: "help", description: "Помощь" },
+  { command: "help", description: "Что умеет бот" },
 ];
 
 async function call(token, method, payload) {
@@ -116,6 +108,13 @@ async function main() {
     commands: GROUP_COMMANDS,
     scope: { type: "all_group_chats" },
   });
+
+  // Кнопка «Открыть» рядом с полем ввода: сайт запускается как Mini App и входит сам.
+  if (base.startsWith("https://")) {
+    await call(token, "setChatMenuButton", {
+      menu_button: { type: "web_app", text: "Открыть", web_app: { url: base } },
+    });
+  }
 
   const me = await call(token, "getMe", {});
   log(`вебхук зарегистрирован: ${url}${me.ok ? ` (бот @${me.result.username})` : ""}`);

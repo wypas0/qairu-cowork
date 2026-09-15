@@ -201,7 +201,8 @@ export type BoardPayload = {
   days: {
     date: string;
     label: string;
-    cells: { start: number; end: number; count: number; missing: string[] }[];
+    /** `free` — кто свободен всю клетку, `missing` — кто занят (для подсказки при наведении). */
+    cells: { start: number; end: number; count: number; free: string[]; missing: string[] }[];
   }[];
   /** Варианты встречи выбранной длины на ближайшие дни, начиная с сегодня. */
   slotDays: {
@@ -214,6 +215,10 @@ export type BoardPayload = {
 };
 
 export function toBoardPayload(state: GroupState, lang: string): BoardPayload {
+  const freeNames = (freeIds: readonly number[]) =>
+    state.participants
+      .filter((person) => freeIds.includes(person.userId))
+      .map((person) => state.names.get(person.userId) ?? "?");
   const missingNames = (freeIds: readonly number[]) =>
     state.participants
       .filter((person) => !freeIds.includes(person.userId))
@@ -233,6 +238,7 @@ export function toBoardPayload(state: GroupState, lang: string): BoardPayload {
         start: cell.startMin,
         end: cell.endMin,
         count: cell.freeIds.length,
+        free: freeNames(cell.freeIds),
         missing: missingNames(cell.freeIds),
       })),
     })),

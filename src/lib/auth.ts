@@ -1,12 +1,16 @@
 /**
- * Аутентификация сайта: токен-ссылка и вход из Telegram Mini App.
+ * Аутентификация сайта.
  *
- * Аккаунтов и паролей нет. Личность подтверждается одним из двух способов:
+ * Аккаунт на сайте — это Telegram-аккаунт. Личность подтверждается так:
  *
- * 1. Токен в куке `qairu_token` — выдаётся при создании группы, при входе по
- *    ссылке-приглашению и командой /link в боте.
- * 2. `initData` из Telegram Mini App — подписанные Telegram данные, из которых
- *    достоверно берётся telegram user_id. Тогда веб и бот — один и тот же человек.
+ * 1. `initData` из Telegram Mini App — подписанные Telegram данные, из которых
+ *    достоверно берётся telegram user_id. Вход происходит сам.
+ * 2. Вход через бота в обычном браузере (см. lib/tglogin).
+ * 3. Логин и пароль, которые Telegram-пользователь задал себе в профиле.
+ *
+ * После любого из них в куке `qairu_token` лежит токен сессии. Старые аккаунты,
+ * заведённые на сайте без Telegram (`isWeb`), работать не могут, пока не
+ * подключат Telegram, — см. lib/gate.
  */
 
 import "server-only";
@@ -95,17 +99,31 @@ export async function currentUser(): Promise<User | null> {
   return repo.userByWebToken(token);
 }
 
+/** Текущий посетитель, если это Telegram-аккаунт. Аккаунты только с сайта не пускаем. */
+export async function currentTelegramUser(): Promise<User | null> {
+  const user = await currentUser();
+  return user && !user.isWeb ? user : null;
+}
+
+/**
+ * Куку сессии в Telegram Web и Desktop сайт получает, будучи встроенным в
+ * чужую страницу (Mini App во фрейме). С SameSite=Lax браузер такую куку не
+ * сохранит и вход из Mini App не удержится, поэтому на https — SameSite=None.
+ * От подделки запросов с чужих сайтов защищают проверка Origin в middleware
+ * и встроенная проверка серверных действий Next.
+ */
 export function tokenCookieOptions(): {
   httpOnly: true;
-  sameSite: "lax";
+  sameSite: "none" | "lax";
   secure: boolean;
   path: "/";
   maxAge: number;
 } {
+  const secure = process.env.NODE_ENV === "production";
   return {
     httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    sameSite: secure ? "none" : "lax",
+    secure,
     path: "/",
     maxAge: COOKIE_MAX_AGE,
   };

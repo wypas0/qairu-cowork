@@ -1,49 +1,54 @@
 /**
  * Маршрутизация апдейтов.
  *
- * Порядок повторяет регистрацию хендлеров в python-telegram-bot: сначала
- * команды, затем ответы на ForceReply-подсказки (мастер встречи и «предложить
- * изменения»), и только потом свободный текст в личке — он ловит всё подряд и
- * должен быть последним.
+ * Бот в первую очередь рассылает: напоминания заполнить расписание,
+ * приглашения на встречи, ответы на них. Команд у него немного — в личке
+ * только вход и язык, в группах то, что удобно сделать прямо в чате.
+ * Всё остальное (расписание, окна, настройки) — на сайте, куда ведут кнопки.
+ *
+ * Порядок: команды, затем ответы на ForceReply-подсказки (мастер встречи и
+ * «предложить изменения»), и только потом свободный текст в личке.
  */
 
 import "server-only";
 
 import { getMe, isPrivate, type TgUpdate } from "./api";
-import { clearPrivateState, getPrivateState, parseCommand } from "./context";
+import { parseCommand } from "./context";
 import * as availability from "./handlers/availability";
 import * as common from "./handlers/common";
 import * as meeting from "./handlers/meeting";
 import * as registration from "./handlers/registration";
-import * as schedule from "./handlers/schedule";
 import * as weblogin from "./handlers/weblogin";
 
 export const PRIVATE_COMMANDS = [
-  { command: "start", description: "Начать / Бастау / Start" },
-  { command: "schedule", description: "Заполнить расписание" },
-  { command: "wizard", description: "Мастер по дням" },
-  { command: "myschedule", description: "Моё расписание" },
-  { command: "busy", description: "Занятость на дату или период" },
-  { command: "availability", description: "Общие окна" },
-  { command: "clear", description: "Очистить расписание" },
+  { command: "start", description: "Открыть QairuCowork" },
   { command: "lang", description: "Язык / Тіл / Language" },
-  { command: "help", description: "Помощь" },
+  { command: "help", description: "Что умеет бот" },
 ];
 
 export const GROUP_COMMANDS = [
-  { command: "setup", description: "Подключить чат" },
-  { command: "join", description: "Присоединиться" },
-  { command: "availability", description: "Общие свободные окна" },
-  { command: "meeting", description: "Создать встречу" },
-  { command: "free", description: "То же, что /availability" },
+  { command: "setup", description: "Подключить чат (админ)" },
+  { command: "join", description: "Добавить себя в участники" },
   { command: "members", description: "Кто заполнил расписание" },
-  { command: "link", description: "Ссылка на веб-версию" },
-  { command: "leave", description: "Выйти из списка участников" },
-  { command: "remind", description: "Напомнить незаполнившим" },
-  { command: "settings", description: "Настройки чата" },
+  { command: "free", description: "Общие свободные окна" },
+  { command: "meeting", description: "Назначить встречу" },
+  { command: "remind", description: "Напомнить незаполнившим (админ)" },
+  { command: "link", description: "Открыть группу на сайте" },
   { command: "lang", description: "Язык / Тіл / Language" },
-  { command: "help", description: "Помощь" },
+  { command: "help", description: "Что умеет бот" },
 ];
+
+/** Команды, переехавшие на сайт: на них бот отвечает кнопкой туда. */
+const MOVED_TO_SITE = new Set([
+  "schedule",
+  "import",
+  "wizard",
+  "myschedule",
+  "busy",
+  "clear",
+  "settings",
+  "leave",
+]);
 
 let cachedBotId: number | null = null;
 
@@ -77,25 +82,14 @@ export async function handleUpdate(update: TgUpdate): Promise<void> {
     }
   }
 
-  // Ответы на ForceReply идут раньше свободного текста: иначе мастер встречи
-  // перехватывался бы импортом расписания.
+  // Ответы на ForceReply идут раньше свободного текста.
   if (message.reply_to_message) {
     if (await meeting.onChangeReply(message)) return;
     if (await meeting.onDraftReply(message)) return;
   }
 
-  if (!isPrivate(message.chat) || !text.trim()) return;
-
-  const state = await getPrivateState(message.from.id);
-  if (state?.mode === "wizard") {
-    await schedule.onWizardText(message, state.weekday);
-    return;
-  }
-  if (state?.mode === "busy") {
-    await schedule.onBusyText(message);
-    return;
-  }
-  await schedule.onScheduleText(message);
+  // Расписание в боте больше не принимается — подсказываем, где его заполнить.
+  if (isPrivate(message.chat) && text.trim()) await common.cmdMovedToSite(message);
 }
 
 async function handleCommand(
@@ -104,6 +98,11 @@ async function handleCommand(
   message: Parameters<typeof common.cmdHelp>[0],
 ): Promise<void> {
   const privateChat = isPrivate(message.chat);
+
+  if (MOVED_TO_SITE.has(command)) {
+    await common.cmdMovedToSite(message);
+    return;
+  }
 
   switch (command) {
     case "start":
@@ -115,9 +114,6 @@ async function handleCommand(
     case "lang":
       await common.cmdLang(message);
       return;
-    case "settings":
-      await common.cmdSettings(message, args);
-      return;
     case "cancel":
       await common.cmdCancel(message);
       return;
@@ -127,9 +123,6 @@ async function handleCommand(
       return;
     case "join":
       await registration.cmdJoin(message);
-      return;
-    case "leave":
-      await registration.cmdLeave(message);
       return;
     case "members":
       await registration.cmdMembers(message);
@@ -144,33 +137,15 @@ async function handleCommand(
 
     case "availability":
     case "free":
-      await availability.cmdAvailability(message, args);
+      if (privateChat) await common.cmdMovedToSite(message);
+      else await availability.cmdAvailability(message, args);
       return;
 
     case "meeting":
       await meeting.cmdMeeting(message);
       return;
 
-    case "schedule":
-    case "import":
-      if (privateChat) await schedule.cmdSchedule(message);
-      return;
-    case "wizard":
-      if (privateChat) await schedule.cmdWizard(message);
-      return;
-    case "myschedule":
-      if (privateChat) await schedule.cmdMySchedule(message);
-      return;
-    case "clear":
-      if (privateChat) await schedule.cmdClear(message);
-      return;
-    case "busy":
-      if (privateChat) await schedule.cmdBusy(message);
-      return;
-
     default:
-      // Незнакомая команда в личке не должна уехать в парсер расписания.
-      if (privateChat && message.from) await clearPrivateState(message.from.id);
       return;
   }
 }
@@ -179,12 +154,10 @@ async function handleCallback(query: NonNullable<TgUpdate["callback_query"]>): P
   const data = query.data ?? "";
   if (data.startsWith("lang:")) return common.onLangChoice(query);
   if (data === "members:show") return registration.onMembersButton(query);
-  if (data.startsWith("avl:")) return availability.onChatChoice(query);
-  if (data.startsWith("sch:")) return schedule.onScheduleConfirm(query);
-  if (data.startsWith("wiz:")) return schedule.onWizardDay(query);
-  if (data.startsWith("clr:")) return schedule.onClearChoice(query);
   if (data.startsWith("mtg:")) return meeting.onTimeButton(query);
   if (data.startsWith("vote:")) return meeting.onVote(query);
   if (data.startsWith("card:")) return meeting.onCardButton(query);
   if (weblogin.isWebLoginCallback(data)) return weblogin.onWebLoginButton(query);
+  // Кнопки мастера расписания и выбора чата из старых сообщений.
+  if (/^(sch|wiz|clr|avl):/.test(data)) return common.onRetiredButton(query);
 }

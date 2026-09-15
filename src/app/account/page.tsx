@@ -5,7 +5,7 @@ import { Topbar } from "@/components/Topbar";
 import * as repo from "@/db/repo";
 import { displayName } from "@/db/schema";
 import { translator } from "@/i18n";
-import { currentUser } from "@/lib/auth";
+import { pageUser } from "@/lib/gate";
 import { PASSWORD_MIN } from "@/lib/password";
 import { deleteCredentialsAction, logoutAction, saveCredentialsAction } from "../login/actions";
 
@@ -27,7 +27,7 @@ export default async function AccountPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const query = await searchParams;
-  const user = await currentUser();
+  const user = await pageUser("/account");
   if (!user) redirect("/login?next=/account");
 
   const t = translator(user.lang);

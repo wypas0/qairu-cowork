@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 
 import { MAX_PHOTOS, VISION_PROMPT, parseVisionResult } from "@/core/photoSchedule";
 import * as repo from "@/db/repo";
-import { currentUser } from "@/lib/auth";
+import { currentTelegramUser } from "@/lib/auth";
 import { FILE_MAX_BYTES, type PreparedFile, prepareScheduleFile } from "@/lib/scheduleFile";
 import { VisionError, askVision, hasVision } from "@/lib/vision";
 
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ sl
   const chat = await repo.getChatBySlug(slug);
   if (!chat) return Response.json({ detail: "not found" }, { status: 404 });
 
-  const user = await currentUser();
+  const user = await currentTelegramUser();
   if (!user || !(await repo.isMember(chat.chatId, user.userId))) {
     return Response.json({ detail: "not a member" }, { status: 403 });
   }

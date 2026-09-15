@@ -1,4 +1,4 @@
-/** Команда /availability — общие свободные окна (в том числе по кворуму). */
+/** Команда /free (она же /availability) — общие свободные окна в группе, в том числе по кворуму. */
 
 import "server-only";
 
@@ -15,15 +15,7 @@ import { type DateStr, chatTz, todayIn } from "@/core/timeutils";
 import * as repo from "@/db/repo";
 import type { Chat, User } from "@/db/schema";
 import { formatDay, t } from "@/i18n";
-import {
-  answerCallbackQuery,
-  editMessageText,
-  isGroup,
-  keyboard,
-  sendMessage,
-  type TgCallbackQuery,
-  type TgMessage,
-} from "../api";
+import { isGroup, sendMessage, type TgMessage } from "../api";
 import {
   extractMentionedUsers,
   extractMinDuration,
@@ -56,71 +48,17 @@ export function parseQuorum(args: string[], total: number): number | null {
   return null;
 }
 
+/** /free в группе: общие окна участников этого чата. В личке команда ведёт на сайт (см. router). */
 export async function cmdAvailability(message: TgMessage, args: string[]): Promise<void> {
   const from = message.from;
-  if (!from) return;
+  if (!from || !isGroup(message.chat)) return;
 
   await syncUser(from);
-
-  if (isGroup(message.chat)) {
-    await repo.upsertChat(message.chat.id, message.chat.title ?? "");
-    await repo.addMembership(message.chat.id, from.id);
-    const text = await buildReport(message, message.chat.id, args);
-    await sendMessage({
-      chat_id: message.chat.id,
-      text,
-      parse_mode: "HTML",
-      link_preview_options: { is_disabled: true },
-    });
-    return;
-  }
-
-  // Личка: выбрать, про какой чат речь.
-  const chats = await repo.userChats(from.id);
-  const user = await repo.getUser(from.id);
-  const lang = user?.lang ?? "ru";
-
-  if (chats.length === 0) {
-    await sendMessage({ chat_id: message.chat.id, text: t(lang, "avail_no_members") });
-    return;
-  }
-  if (chats.length === 1) {
-    const text = await buildReport(message, chats[0].chatId, args);
-    await sendMessage({
-      chat_id: message.chat.id,
-      text,
-      parse_mode: "HTML",
-      link_preview_options: { is_disabled: true },
-    });
-    return;
-  }
-
-  await repo.setBotState(`avail:${from.id}`, { args: args.join(" ").slice(0, 48) });
+  await repo.upsertChat(message.chat.id, message.chat.title ?? "");
+  await repo.addMembership(message.chat.id, from.id);
+  const text = await buildReport(message, message.chat.id, args);
   await sendMessage({
     chat_id: message.chat.id,
-    text: t(lang, "avail_title", { who: "…" }),
-    parse_mode: "HTML",
-    reply_markup: keyboard(
-      chats.map((chat) => [
-        { text: chat.title || String(chat.chatId), callback_data: `avl:${chat.chatId}` },
-      ]),
-    ),
-  });
-}
-
-export async function onChatChoice(query: TgCallbackQuery): Promise<void> {
-  const message = query.message;
-  if (!message) return;
-  await answerCallbackQuery({ callback_query_id: query.id });
-
-  const chatId = Number((query.data ?? "").split(":")[1]);
-  const saved = await repo.getBotState<{ args: string }>(`avail:${query.from.id}`);
-  const args = (saved?.args ?? "").split(/\s+/).filter(Boolean);
-
-  const text = await buildReport({ ...message, from: query.from }, chatId, args);
-  await editMessageText({
-    chat_id: message.chat.id,
-    message_id: message.message_id,
     text,
     parse_mode: "HTML",
     link_preview_options: { is_disabled: true },

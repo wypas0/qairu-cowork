@@ -125,17 +125,23 @@ describe("подключение чата и регистрация", () => {
     expect(await repo.isMember(GROUP_ID, AMIR.id)).toBe(true);
   });
 
-  it("deep-link /start привязывает человека к чату", async () => {
+  it("deep-link /start привязывает человека к чату и открывает его расписание на сайте", async () => {
     await handleUpdate(text(PRIVATE_ASEL, ASEL, `/start c${GROUP_ID}`));
-    expect(stub.lastText()).toContain("присоединился к чату");
+    const call = stub.last("sendMessage")!;
+    expect(String(call.payload.text)).toContain("Ты в группе");
+    const markup = call.payload.reply_markup as { inline_keyboard: { web_app?: { url: string } }[][] };
+    expect(markup.inline_keyboard[0][0].web_app?.url).toMatch(/^https:\/\/qairu\.example\/g\/[a-z0-9]{8}\/me$/);
 
     const repo = await import("@/db/repo");
     expect(await repo.isMember(GROUP_ID, ASEL.id)).toBe(true);
   });
 
-  it("обычный /start приветствует без привязки", async () => {
+  it("обычный /start приветствует и открывает сайт как Mini App", async () => {
     await handleUpdate(text(PRIVATE_AMIR, AMIR, "/start"));
-    expect(stub.lastText()).toContain("Привет, Амир");
+    const call = stub.last("sendMessage")!;
+    expect(String(call.payload.text)).toContain("Привет, Амир");
+    const markup = call.payload.reply_markup as { inline_keyboard: { web_app?: { url: string } }[][] };
+    expect(markup.inline_keyboard[0][0].web_app?.url).toBe("https://qairu.example/");
   });
 
   it("/members показывает, кто заполнил, а кто нет", async () => {
@@ -159,138 +165,63 @@ describe("подключение чата и регистрация", () => {
   });
 });
 
-describe("ввод расписания в личке", () => {
-  it("свободный текст разбирается и ждёт подтверждения", async () => {
-    await handleUpdate(text(PRIVATE_AMIR, AMIR, "Пн 9:00-10:30 Матан\nВт 13:00-14:30 История"));
-
-    const call = stub.last("sendMessage")!;
-    expect(String(call.payload.text)).toContain("Я так понял твоё расписание");
-    expect(String(call.payload.text)).toContain("09:00–10:30");
-    const markup = call.payload.reply_markup as {
-      inline_keyboard: { callback_data: string }[][];
-    };
-    expect(markup.inline_keyboard[0].map((b) => b.callback_data)).toEqual(["sch:ok", "sch:retry"]);
-
-    // Ничего не сохраняется молча — до подтверждения расписания нет.
+describe("личка: расписание переехало на сайт", () => {
+  beforeAll(async () => {
+    // Расписание теперь заполняют на сайте — здесь кладём его прямо в базу.
     const repo = await import("@/db/repo");
-    expect(await repo.getSlots(AMIR.id)).toEqual([]);
-  });
-
-  it("подтверждение сохраняет расписание", async () => {
-    await handleUpdate(callback(PRIVATE_AMIR as never, AMIR, "sch:ok"));
-    expect(stub.lastText("editMessageText")).toContain("Расписание сохранено");
-
-    const repo = await import("@/db/repo");
-    const slots = await repo.getSlots(AMIR.id);
-    expect(slots.map((s) => [s.weekday, s.startMin, s.endMin])).toEqual([
-      [0, 540, 630],
-      [1, 780, 870],
-    ]);
-    expect(await repo.isFilled(AMIR.id)).toBe(true);
-  });
-
-  it("мастер по дням заполняет один день за раз", async () => {
-    await handleUpdate(text(PRIVATE_ASEL, ASEL, "/wizard"));
-    expect(stub.lastText()).toContain("Выбери день");
-
-    await handleUpdate(callback(PRIVATE_ASEL as never, ASEL, "wiz:day:0"));
-    expect(stub.lastText("editMessageText")).toContain("Понедельник");
-
-    await handleUpdate(text(PRIVATE_ASEL, ASEL, "9:00-10:30, 13:00-14:30"));
-    expect(stub.of("sendMessage").some((c) => String(c.payload.text).includes("09:00–10:30"))).toBe(
-      true,
+    await repo.replaceWeeklySlots(
+      AMIR.id,
+      [0, 1, 2, 3, 4, 5, 6],
+      [
+        { weekday: 0, start: 540, end: 630, label: "Матан" },
+        { weekday: 1, start: 780, end: 870, label: "История" },
+      ],
+      "web",
     );
-
-    await handleUpdate(callback(PRIVATE_ASEL as never, ASEL, "wiz:done"));
-    const repo = await import("@/db/repo");
-    expect(await repo.isFilled(ASEL.id)).toBe(true);
-    expect((await repo.getSlots(ASEL.id)).map((s) => [s.weekday, s.startMin])).toEqual([
-      [0, 540],
-      [0, 780],
-    ]);
-  });
-
-  it("/myschedule показывает сохранённое", async () => {
-    await handleUpdate(text(PRIVATE_AMIR, AMIR, "/myschedule"));
-    const body = stub.lastText();
-    expect(body).toContain("Понедельник");
-    expect(body).toContain("09:00–10:30");
-    expect(body).toContain("Матан");
-  });
-
-  it("/busy записывает разовую занятость на диапазон дат", async () => {
-    await handleUpdate(text(PRIVATE_AMIR, AMIR, "/busy"));
-    expect(stub.lastText()).toContain("Пришли разовую занятость");
-
-    await handleUpdate(text(PRIVATE_AMIR, AMIR, "15.09-20.09 сессия"));
-    expect(stub.lastText()).toContain("Записал");
-
-    const repo = await import("@/db/repo");
-    const ranges = (await repo.getSlots(AMIR.id)).filter((slot) => slot.dateFrom !== null);
-    expect(ranges).toHaveLength(1);
-    expect(ranges[0].kind).toBe("exam");
-    expect([ranges[0].dateFrom, ranges[0].dateTo]).toEqual(["2026-09-15", "2026-09-20"]);
-    // Без времени сессия занимает сутки целиком, а не 15:09–20:09:
-    // даты вырезаются из текста до поиска диапазонов времени.
-    expect([ranges[0].startMin, ranges[0].endMin]).toEqual([0, 1440]);
-    await repo.deleteDatedSlots(AMIR.id);
-  });
-
-  it("/busy с явным временем берёт время, а не цифры даты", async () => {
-    await handleUpdate(text(PRIVATE_AMIR, AMIR, "/busy"));
-    await handleUpdate(text(PRIVATE_AMIR, AMIR, "15.09-20.09 9:00-14:00 практика"));
-
-    const repo = await import("@/db/repo");
-    const ranges = (await repo.getSlots(AMIR.id)).filter((slot) => slot.dateFrom !== null);
-    expect(ranges).toHaveLength(1);
-    expect([ranges[0].startMin, ranges[0].endMin]).toEqual([540, 840]);
-    expect(ranges[0].label).toBe("практика");
-    await repo.deleteDatedSlots(AMIR.id);
-  });
-
-  it("/busy на одну дату с временем и меткой", async () => {
-    await handleUpdate(text(PRIVATE_AMIR, AMIR, "/busy"));
-    await handleUpdate(text(PRIVATE_AMIR, AMIR, "12.09 14:00-16:00 экзамен"));
-
-    const repo = await import("@/db/repo");
-    const dated = (await repo.getSlots(AMIR.id)).filter((slot) => slot.specificDate !== null);
-    expect(dated).toHaveLength(1);
-    expect([dated[0].startMin, dated[0].endMin]).toEqual([840, 960]);
-    expect(dated[0].kind).toBe("exam");
-    expect(dated[0].label).toBe("экзамен");
-  });
-
-  it("/busy «весь день» без времени занимает сутки", async () => {
-    const repo = await import("@/db/repo");
-    await repo.deleteDatedSlots(AMIR.id);
-    await handleUpdate(text(PRIVATE_AMIR, AMIR, "/busy"));
-    await handleUpdate(text(PRIVATE_AMIR, AMIR, "12.09 весь день"));
-
-    const dated = (await repo.getSlots(AMIR.id)).filter((slot) => slot.specificDate !== null);
-    expect([dated[0].startMin, dated[0].endMin]).toEqual([0, 1440]);
-    await repo.deleteDatedSlots(AMIR.id);
-  });
-
-  it("после /busy свободный текст снова идёт в импорт расписания", async () => {
-    await handleUpdate(text(PRIVATE_AMIR, AMIR, "Ср 10:00-11:00"));
-    expect(stub.lastText()).toContain("Я так понял твоё расписание");
-  });
-
-  it("/clear просит подтверждение и удаляет", async () => {
-    await handleUpdate(text(PRIVATE_ASEL, ASEL, "/clear"));
-    expect(stub.lastText()).toContain("Точно удалить");
-
-    await handleUpdate(callback(PRIVATE_ASEL as never, ASEL, "clr:yes"));
-    const repo = await import("@/db/repo");
-    expect(await repo.getSlots(ASEL.id)).toEqual([]);
-    expect(await repo.isFilled(ASEL.id)).toBe(false);
-    // Возвращаем расписание — оно нужно следующим сценариям.
     await repo.replaceWeeklySlots(
       ASEL.id,
       [0, 1, 2, 3, 4, 5, 6],
-      [{ weekday: 0, start: 540, end: 630 }],
-      "wizard",
+      [
+        { weekday: 0, start: 540, end: 630 },
+        { weekday: 0, start: 780, end: 870 },
+      ],
+      "web",
     );
+  });
+
+  it("свободный текст не сохраняется, а ведёт на сайт", async () => {
+    await handleUpdate(text(PRIVATE_AMIR, AMIR, "Ср 10:00-11:00 Физика"));
+    const call = stub.last("sendMessage")!;
+    expect(String(call.payload.text)).toContain("на сайте");
+    const markup = call.payload.reply_markup as { inline_keyboard: { web_app?: { url: string } }[][] };
+    expect(markup.inline_keyboard[0][0].web_app?.url).toMatch(/^https:\/\/qairu\.example\//);
+
+    const repo = await import("@/db/repo");
+    expect((await repo.getSlots(AMIR.id)).map((slot) => slot.weekday)).toEqual([0, 1]);
+  });
+
+  it("старые команды расписания отвечают кнопкой на сайт", async () => {
+    for (const command of ["/schedule", "/wizard", "/myschedule", "/busy", "/clear", "/free"]) {
+      stub.reset();
+      await handleUpdate(text(PRIVATE_AMIR, AMIR, command));
+      expect(stub.lastText()).toContain("на сайте");
+    }
+    const repo = await import("@/db/repo");
+    expect(await repo.getSlots(AMIR.id)).toHaveLength(2);
+  });
+
+  it("кнопки мастера из старых сообщений объясняют, что всё на сайте", async () => {
+    await handleUpdate(callback(PRIVATE_AMIR as never, AMIR, "sch:ok"));
+    const answer = stub.last("answerCallbackQuery")!;
+    expect(String(answer.payload.text)).toContain("на сайте");
+    expect(answer.payload.show_alert).toBe(true);
+  });
+
+  it("/help в личке — про уведомления и три команды", async () => {
+    await handleUpdate(text(PRIVATE_AMIR, AMIR, "/help"));
+    const body = stub.lastText();
+    expect(body).toContain("Присылаю уведомления");
+    expect(body).not.toContain("/schedule");
   });
 });
 
@@ -299,12 +230,12 @@ describe("/availability", () => {
     await handleUpdate(text(GROUP_CHAT, AMIR, "/availability"));
     const body = stub.lastText();
     expect(body).toContain("Общие свободные окна");
-    expect(body).toContain("Рабочее окно: 08:00–22:00");
+    expect(body).toContain("Ищу с 08:00 до 22:00");
   });
 
   it("понимает минимальную длительность", async () => {
-    await handleUpdate(text(GROUP_CHAT, AMIR, "/availability 90"));
-    expect(stub.lastText()).toContain("минимум 90 мин");
+    await handleUpdate(text(GROUP_CHAT, AMIR, "/free 90"));
+    expect(stub.lastText()).toContain("окна от 90 мин");
   });
 
   it("кворум в процентах смягчает требования и называет отсутствующих", async () => {
@@ -315,19 +246,17 @@ describe("/availability", () => {
 
   it("в новом чате подключает вызвавшего сам, не требуя /setup", async () => {
     const other = { id: -100999, type: "supergroup" as const, title: "Другой" };
-    await handleUpdate(text(other as never, AMIR, "/availability"));
+    await handleUpdate(text(other as never, AMIR, "/free"));
     expect(stub.lastText()).toContain("все участники чата (1)");
 
     const repo = await import("@/db/repo");
     expect(await repo.isMember(-100999, AMIR.id)).toBe(true);
   });
 
-  it("в личке без единого чата честно говорит, что считать нечего", async () => {
+  it("в личке ведёт на сайт", async () => {
     const loner = { ...AMIR, id: 777001, username: "loner", first_name: "Одиночка" };
-    await handleUpdate(
-      text({ id: loner.id, type: "private" } as never, loner, "/availability"),
-    );
-    expect(stub.lastText()).toContain("нет зарегистрированных участников");
+    await handleUpdate(text({ id: loner.id, type: "private" } as never, loner, "/availability"));
+    expect(stub.lastText()).toContain("на сайте");
   });
 });
 
@@ -398,9 +327,15 @@ describe("/meeting", () => {
     const repo = await import("@/db/repo");
     const meeting = (await repo.chatMeetings(GROUP_ID))[0];
 
+    stub.reset();
     await handleUpdate(callback(GROUP_CHAT, ASEL, `vote:${meeting.id}:yes`));
-    expect(String(stub.last("answerCallbackQuery")?.payload.text)).toContain("Голос учтён");
-    expect(stub.lastText("editMessageText")).toContain("✅ Да (1)");
+    expect(String(stub.last("answerCallbackQuery")?.payload.text)).toContain("Ответ сохранён");
+    expect(stub.lastText("editMessageText")).toContain("✅ Придут (1)");
+
+    // Организатор получает ответ в личку.
+    const dm = stub.of("sendMessage").find((call) => call.payload.chat_id === AMIR.id)!;
+    expect(String(dm.payload.text)).toContain("Асель придёт на встречу");
+    expect(String(dm.payload.text)).toContain("Согласились 1 из");
 
     const answers = await repo.meetingResponsesFor(meeting.id);
     expect(answers.map((row) => row.userId)).toEqual([ASEL.id]);
@@ -414,7 +349,7 @@ describe("/meeting", () => {
     stub.reset();
     await handleUpdate(callback(GROUP_CHAT, stranger, `vote:${meeting.id}:yes`));
     const answer = stub.last("answerCallbackQuery")!;
-    expect(String(answer.payload.text)).toContain("не в списке приглашённых");
+    expect(String(answer.payload.text)).toContain("нет среди приглашённых");
     expect(answer.payload.show_alert).toBe(true);
     expect(stub.of("editMessageText")).toHaveLength(0);
   });
@@ -428,9 +363,12 @@ describe("/meeting", () => {
     expect(String(prompt.payload.text)).toContain("Что предлагаешь изменить");
     const promptId = lastSentMessageId();
 
+    stub.reset();
     await handleUpdate(reply(GROUP_CHAT, ASEL, "лучше в 16:00", promptId));
     expect(stub.lastText("editMessageText")).toContain("лучше в 16:00");
     expect(stub.lastText()).toContain("Предложение добавлено");
+    const dm = stub.of("sendMessage").find((call) => call.payload.chat_id === AMIR.id)!;
+    expect(String(dm.payload.text)).toContain("предлагает изменить встречу");
 
     const answers = await repo.meetingResponsesFor(meeting.id);
     expect(answers[0].answer).toBe("change");
@@ -464,35 +402,18 @@ describe("/meeting", () => {
 });
 
 describe("настройки и язык", () => {
-  it("/settings показывает текущие значения", async () => {
-    await handleUpdate(text(GROUP_CHAT, AMIR, "/settings"));
-    const body = stub.lastText();
-    expect(body).toContain("Рабочее окно: <b>08:00–22:00</b>");
-    expect(body).toContain("Asia/Almaty");
-  });
-
-  it("/settings меняет часы и буфер", async () => {
-    await handleUpdate(text(GROUP_CHAT, AMIR, "/settings hours 9:00 21:00"));
-    expect(stub.lastText()).toContain("Настройки обновлены");
-    await handleUpdate(text(GROUP_CHAT, AMIR, "/settings buffer 20"));
-
+  it("/settings и /leave в группе переехали на сайт", async () => {
     const repo = await import("@/db/repo");
-    const chat = await repo.getChat(GROUP_ID);
-    expect([chat?.dayStartMin, chat?.dayEndMin]).toEqual([540, 1260]);
-    expect(chat?.travelBufferMin).toBe(20);
-  });
-
-  it("/settings отвергает бессмыслицу", async () => {
-    await handleUpdate(text(GROUP_CHAT, AMIR, "/settings tz Nowhere/Nothing"));
-    expect(stub.lastText()).toContain("Не понял параметр");
-    await handleUpdate(text(GROUP_CHAT, AMIR, "/settings hours 22:00 9:00"));
-    expect(stub.lastText()).toContain("Не понял параметр");
-  });
-
-  it("/settings недоступен обычному участнику", async () => {
-    stub.memberStatus = "member";
-    await handleUpdate(text(GROUP_CHAT, ASEL, "/settings min 45"));
-    expect(stub.lastText()).toContain("администратор");
+    for (const command of ["/settings hours 9:00 21:00", "/leave"]) {
+      stub.reset();
+      await handleUpdate(text(GROUP_CHAT, ASEL, command));
+      const call = stub.last("sendMessage")!;
+      expect(String(call.payload.text)).toContain("переехала на сайт");
+      const markup = call.payload.reply_markup as { inline_keyboard: { url?: string }[][] };
+      expect(markup.inline_keyboard[0][0].url).toMatch(/^https:\/\/qairu\.example\/g\/[a-z0-9]{8}$/);
+    }
+    expect((await repo.getChat(GROUP_ID))?.dayStartMin).toBe(480);
+    expect(await repo.isMember(GROUP_ID, ASEL.id)).toBe(true);
   });
 
   it("/lang переключает язык чата", async () => {
@@ -508,24 +429,14 @@ describe("настройки и язык", () => {
     await repo.updateChat(GROUP_ID, { lang: "ru" });
   });
 
-  it("/link присылает персональную ссылку в личку", async () => {
+  it("/link присылает в личку кнопку Mini App — без токена в ссылке", async () => {
     stub.reset();
     await handleUpdate(text(GROUP_CHAT, AMIR, "/link"));
 
     const dm = stub.of("sendMessage").find((call) => call.payload.chat_id === AMIR.id)!;
-    const markup = dm.payload.reply_markup as { inline_keyboard: { url: string }[][] };
-    expect(markup.inline_keyboard[0][0].url).toMatch(
-      /^https:\/\/qairu\.example\/g\/[a-z0-9]{8}\?t=[\w-]+$/,
-    );
-    expect(stub.lastText()).toContain("Отправил тебе ссылку");
-  });
-
-  it("/leave убирает из списка, но расписание остаётся", async () => {
-    const repo = await import("@/db/repo");
-    await handleUpdate(text(GROUP_CHAT, ASEL, "/leave"));
-    expect(await repo.isMember(GROUP_ID, ASEL.id)).toBe(false);
-    expect((await repo.getSlots(ASEL.id)).length).toBeGreaterThan(0);
-    await repo.addMembership(GROUP_ID, ASEL.id);
+    const markup = dm.payload.reply_markup as { inline_keyboard: { web_app?: { url: string } }[][] };
+    expect(markup.inline_keyboard[0][0].web_app?.url).toMatch(/^https:\/\/qairu\.example\/g\/[a-z0-9]{8}$/);
+    expect(stub.lastText()).toContain("Отправил ссылку");
   });
 });
 
@@ -559,6 +470,32 @@ describe("напоминания", () => {
     expect(await sendDueReminders()).toBe(0);
     expect(stub.of("sendMessage")).toHaveLength(0);
   });
+
+  it("в группе с сайта напоминание приходит каждому в личку", async () => {
+    const repo = await import("@/db/repo");
+    const { sendDueReminders } = await import("@/bot/handlers/meeting");
+
+    const chat = await repo.createWebChat({ title: "Проект", tz: "Asia/Almaty", lang: "ru" });
+    await repo.updateChat(chat.chatId, { reminderMin: 30 });
+    await repo.addMembership(chat.chatId, AMIR.id);
+    await repo.addMembership(chat.chatId, ASEL.id);
+    await repo.createMeeting({
+      chatId: chat.chatId,
+      initiatorId: AMIR.id,
+      place: "Коворкинг",
+      whenText: "сегодня · 15:00–16:30",
+      goal: "Созвон по проекту",
+      invitees: [AMIR.id, ASEL.id],
+      whenStart: new Date(Date.now() + 15 * 60_000),
+    });
+
+    stub.reset();
+    expect(await sendDueReminders()).toBe(1);
+    const targets = stub.of("sendMessage").map((call) => call.payload.chat_id);
+    expect(targets.sort()).toEqual([AMIR.id, ASEL.id].sort());
+    expect(stub.lastText()).toContain("Через 30 мин встреча");
+    expect(stub.lastText()).toContain("Созвон по проекту");
+  });
 });
 
 describe("устойчивость", () => {
@@ -579,6 +516,6 @@ describe("устойчивость", () => {
   it("команда с @упоминанием бота разбирается так же", async () => {
     stub.reset();
     await handleUpdate(text(GROUP_CHAT, AMIR, `/help@${BOT_USERNAME}`));
-    expect(stub.lastText()).toContain("Команды QairuCowork");
+    expect(stub.lastText()).toContain("QairuCowork в чате группы");
   });
 });

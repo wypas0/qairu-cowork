@@ -9,7 +9,8 @@ import * as repo from "@/db/repo";
 import { type Chat, ROLE_ADMIN, ROLE_MEMBER, type User } from "@/db/schema";
 import { formatDay, normalizeLang } from "@/i18n";
 import { adminSource, isGroupAdmin, telegramAdminIds } from "@/lib/admin";
-import { currentUser, setTokenCookie } from "@/lib/auth";
+import { currentUser } from "@/lib/auth";
+import { connectUrl, requireTelegramUser } from "@/lib/gate";
 import {
   type Delivery,
   notifyFillSchedule,
@@ -30,6 +31,7 @@ async function requireChat(slug: string): Promise<Chat> {
 async function requireMember(slug: string): Promise<{ chat: Chat; user: User }> {
   const chat = await requireChat(slug);
   const user = await currentUser();
+  if (user?.isWeb) redirect(connectUrl(`/g/${slug}`));
   if (!user || !(await repo.isMember(chat.chatId, user.userId))) redirect(`/g/${slug}/join`);
   return { chat, user };
 }
@@ -55,29 +57,15 @@ function deliveryParams(delivery: Delivery): Record<string, string> {
   return { sent: `${delivery.telegram}-${delivery.site}` };
 }
 
-/** Вход по ссылке-приглашению: человек только называет себя. */
-export async function joinGroup(slug: string, formData: FormData): Promise<void> {
+/**
+ * Вступить в группу по ссылке-приглашению. Только для вошедших через Telegram:
+ * имя и фото берутся из Telegram, представляться отдельно не нужно.
+ */
+export async function joinGroup(slug: string): Promise<void> {
   const chat = await requireChat(slug);
-  const name = String(formData.get("name") ?? "").trim();
-  if (!name) redirect(`/g/${slug}/join`);
-
-  const existing = await currentUser();
-  let token: string | null = null;
-
-  await repo.transaction(async (tx) => {
-    let userId: number;
-    if (existing) {
-      await repo.renameUser(existing.userId, name, tx);
-      userId = existing.userId;
-    } else {
-      const created = await repo.createWebUser({ fullName: name, lang: chat.lang }, tx);
-      userId = created.userId;
-      token = await repo.issueWebSession(userId, tx);
-    }
-    await repo.addMembership(chat.chatId, userId, tx);
-  });
-
-  if (token) await setTokenCookie(token);
+  const user = await requireTelegramUser(`/g/${slug}/join`);
+  await repo.addMembership(chat.chatId, user.userId);
+  revalidatePath("/", "layout");
   redirect(`/g/${slug}/me`);
 }
 

@@ -10,7 +10,7 @@ import { type DateStr, chatTz, todayIn, zonedWallToUtc } from "@/core/timeutils"
 import * as repo from "@/db/repo";
 import type { User } from "@/db/schema";
 import { formatDay, t } from "@/i18n";
-import { isGroupAdmin } from "@/lib/admin";
+import { isGroupAdmin, isTelegramChat } from "@/lib/admin";
 import {
   FORCE_REPLY,
   answerCallbackQuery,
@@ -26,6 +26,7 @@ import {
   type TgMessage,
 } from "../api";
 import { extractMentionedUsers, mentionList, syncUser } from "../context";
+import { groupPath, webAppButton } from "../site";
 
 type TimeOption = { label: string; date: DateStr; start: number; end: number };
 
@@ -445,6 +446,13 @@ export async function onVote(query: TgCallbackQuery): Promise<void> {
     });
   }
 
+  // Организатору — короткий ответ в личку. Импорт ленивый: lib/notify сам импортирует этот модуль.
+  if ((answer === "yes" || answer === "no") && chat && query.from.id !== meeting.initiatorId) {
+    const { notifyOrganizerAnswer } = await import("@/lib/notify");
+    const voter = (await repo.getUser(query.from.id))!;
+    await notifyOrganizerAnswer(chat, meeting, voter, answer);
+  }
+
   if (answer === "change") {
     const name = escapeHtml(
       [query.from.first_name, query.from.last_name].filter(Boolean).join(" ") || "",
@@ -576,8 +584,9 @@ export async function onChangeReply(message: TgMessage): Promise<boolean> {
       reply_markup: card.markup,
       link_preview_options: { is_disabled: true },
     });
-  } else if (chat) {
-    // Общей карточки нет (группа с сайта) — иначе организатор предложения не увидит.
+  }
+  if (chat) {
+    // Организатор получает предложение лично: в большом чате карточку легко пропустить.
     // Импорт ленивый: lib/notify сам импортирует этот модуль ради renderCard.
     const { notifyChangeProposal } = await import("@/lib/notify");
     const voter = (await repo.getUser(from.id)) ?? {
@@ -616,11 +625,42 @@ export async function sendDueReminders(now = new Date()): Promise<number> {
 
     // Флаг ставим до отправки: повторное напоминание хуже пропущенного.
     await repo.updateMeeting(meeting.id, { reminderSent: true });
+
+    // Группа с сайта: общего чата нет — напоминаем каждому лично.
+    if (!isTelegramChat(chat)) {
+      let delivered = 0;
+      for (const user of ordered) {
+        if (user.isWeb || user.userId <= 0) continue;
+        const lang = user.lang || chat.lang;
+        const button = chat.slug ? webAppButton(t(lang, "btn_open_group_site"), groupPath(chat)) : null;
+        try {
+          await sendMessage({
+            chat_id: user.userId,
+            text: t(lang, "meeting_reminder_dm", {
+              minutes: chat.reminderMin,
+              chat: escapeHtml(chat.title) || "—",
+              place: escapeHtml(meeting.place) || "—",
+              when: escapeHtml(meeting.whenText) || "—",
+              goal: escapeHtml(meeting.goal) || "—",
+            }),
+            parse_mode: "HTML",
+            reply_markup: button ? keyboard([[button]]) : undefined,
+          });
+          delivered += 1;
+        } catch {
+          // Человек не запускал бота или заблокировал его.
+        }
+      }
+      if (delivered > 0) sent += 1;
+      continue;
+    }
+
     try {
       await sendMessage({
         chat_id: meeting.chatId,
         text: t(chat.lang, "meeting_reminder", {
           minutes: chat.reminderMin,
+          when: escapeHtml(meeting.whenText) || "—",
           place: escapeHtml(meeting.place) || "—",
           goal: escapeHtml(meeting.goal) || "—",
           names: mentionList(ordered),

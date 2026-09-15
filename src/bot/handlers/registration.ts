@@ -1,11 +1,10 @@
-/** Подключение чата и регистрация участников: /setup, /join, /members, /remind, /link. */
+/** Подключение чата и участники: /setup, /join, /members, /remind, /link. */
 
 import "server-only";
 
 import * as repo from "@/db/repo";
 import type { User } from "@/db/schema";
 import { t } from "@/i18n";
-import { siteUrl } from "@/lib/config";
 import {
   TelegramError,
   answerCallbackQuery,
@@ -18,30 +17,32 @@ import {
   type TgChatMemberUpdated,
   type TgMessage,
 } from "../api";
-import { botUsername, isChatAdmin, mentionList, resolveLang, syncUser } from "../context";
+import { isChatAdmin, mentionList, resolveLang, syncUser } from "../context";
+import { groupPath, joinViaBotButton, sitePage, webAppButton } from "../site";
 
-/** Кнопка deep-link: открывает личку и сразу привязывает человека к чату. */
+/**
+ * Кнопки под сообщениями бота в группе. «Заполнить расписание» открывает личку
+ * с ботом и сразу привязывает человека к чату, а оттуда — сайт как Mini App.
+ */
 async function setupKeyboard(chatId: number, lang: string): Promise<InlineKeyboardMarkup> {
-  const username = await botUsername();
   return keyboard([
-    [{ text: t(lang, "btn_fill_schedule"), url: `https://t.me/${username}?start=c${chatId}` }],
+    [await joinViaBotButton(lang, chatId)],
     [{ text: t(lang, "btn_who_filled"), callback_data: "members:show" }],
   ]);
 }
 
 /**
- * Персональная ссылка на веб-версию этой группы.
+ * /link — открыть группу на сайте.
  *
- * Токен выдаётся конкретному человеку и открывает ЕГО расписание — то же
- * самое, что он заполнил в боте. Поэтому шлём только в личку.
+ * Ссылка приходит в личку кнопкой Mini App: Telegram сам подтверждает, кто
+ * открыл сайт, поэтому ни токенов в ссылке, ни пароля не нужно.
  */
 export async function cmdLink(message: TgMessage): Promise<void> {
   const from = message.from;
   if (!from) return;
 
   const lang = await resolveLang(message.chat, from);
-  const base = siteUrl();
-  if (!base) {
+  if (!sitePage()) {
     await sendMessage({ chat_id: message.chat.id, text: t(lang, "web_not_configured") });
     return;
   }
@@ -54,36 +55,24 @@ export async function cmdLink(message: TgMessage): Promise<void> {
     await repo.addMembership(message.chat.id, from.id);
   } else {
     const chats = await repo.userChats(from.id);
-    chat = chats[0] ?? null;
-  }
-  if (!chat) {
-    await sendMessage({ chat_id: message.chat.id, text: t(lang, "avail_no_members") });
-    return;
+    chat = chats.length === 1 ? chats[0] : null;
   }
 
-  const slug = await repo.ensureSlug(chat);
-  const token = await repo.issueWebSession(from.id);
-  const markup = keyboard([
-    [{ text: t(lang, "btn_open_web"), url: `${base}/g/${slug}?t=${token}` }],
-  ]);
+  const path = chat ? groupPath({ slug: await repo.ensureSlug(chat) }) : "/";
+  const button = webAppButton(t(lang, chat ? "btn_open_group_site" : "btn_open_site"), path);
+  const dm = {
+    text: chat ? t(lang, "web_link", { chat: chat.title || "—" }) : t(lang, "web_link_any"),
+    parse_mode: "HTML" as const,
+    reply_markup: button ? keyboard([[button]]) : undefined,
+  };
 
   if (!isGroup(message.chat)) {
-    await sendMessage({
-      chat_id: message.chat.id,
-      text: t(lang, "web_link"),
-      parse_mode: "HTML",
-      reply_markup: markup,
-    });
+    await sendMessage({ chat_id: message.chat.id, ...dm });
     return;
   }
 
   try {
-    await sendMessage({
-      chat_id: from.id,
-      text: t(lang, "web_link"),
-      parse_mode: "HTML",
-      reply_markup: markup,
-    });
+    await sendMessage({ chat_id: from.id, ...dm });
     await sendMessage({ chat_id: message.chat.id, text: t(lang, "web_link_sent") });
   } catch (error) {
     // Бот не может написать первым, пока человек не нажал /start.
@@ -91,7 +80,7 @@ export async function cmdLink(message: TgMessage): Promise<void> {
       await sendMessage({
         chat_id: message.chat.id,
         text: t(lang, "web_link_dm_first"),
-        reply_markup: await setupKeyboard(message.chat.id, lang),
+        reply_markup: keyboard([[await joinViaBotButton(lang, message.chat.id, "btn_open_bot")]]),
       });
       return;
     }
@@ -147,28 +136,6 @@ export async function cmdJoin(message: TgMessage): Promise<void> {
     text: t(lang, isNew ? "join_ok" : "join_already", { name: from.first_name ?? "" }),
     parse_mode: "HTML",
     reply_markup: await setupKeyboard(message.chat.id, lang),
-  });
-}
-
-/** Выйти из списка участников чата — расписание при этом сохраняется. */
-export async function cmdLeave(message: TgMessage): Promise<void> {
-  const from = message.from;
-  if (!from) return;
-
-  if (!isGroup(message.chat)) {
-    const lang = await resolveLang(message.chat, from);
-    await sendMessage({ chat_id: message.chat.id, text: t(lang, "only_group") });
-    return;
-  }
-
-  const chat = await repo.getChat(message.chat.id);
-  const lang = chat?.lang ?? "ru";
-  await repo.removeMembership(message.chat.id, from.id);
-
-  await sendMessage({
-    chat_id: message.chat.id,
-    text: t(lang, "leave_ok", { name: from.first_name ?? "" }),
-    parse_mode: "HTML",
   });
 }
 

@@ -20,12 +20,13 @@ import {
 import { mentionList } from "@/bot/context";
 import { renderCard } from "@/bot/handlers/meeting";
 import { setupKeyboard } from "@/bot/handlers/registration";
+import { groupPath, webAppButton } from "@/bot/site";
 import { escapeHtml } from "@/core/textutils";
 import * as repo from "@/db/repo";
 import { type Chat, type Meeting, type User, displayName } from "@/db/schema";
 import { t } from "@/i18n";
 import { isTelegramChat } from "./admin";
-import { hasBot, siteUrl } from "./config";
+import { hasBot } from "./config";
 
 export type Delivery = { telegram: number; site: number };
 
@@ -57,15 +58,15 @@ async function directMessage(
   }
 }
 
-function groupUrl(chat: Chat, suffix = ""): string | null {
-  const base = siteUrl();
-  return base && chat.slug ? `${base}/g/${chat.slug}${suffix}` : null;
+/** Кнопка группы на сайте для личного сообщения — открывается как Mini App, вход сам. */
+function siteButton(chat: Chat, lang: string, key = "btn_open_group_site", suffix = "") {
+  return chat.slug ? webAppButton(t(lang, key), groupPath(chat, suffix)) : null;
 }
 
 function withSiteButton(markup: InlineKeyboardMarkup, chat: Chat, lang: string): InlineKeyboardMarkup {
-  const url = groupUrl(chat);
-  if (!url) return markup;
-  return keyboard([...markup.inline_keyboard, [{ text: t(lang, "btn_open_web"), url }]]);
+  const button = siteButton(chat, lang);
+  if (!button) return markup;
+  return keyboard([...markup.inline_keyboard, [button]]);
 }
 
 /**
@@ -160,9 +161,36 @@ export async function notifyVote(
     });
   }
 
-  if (answer === "change" && voter.userId !== meeting.initiatorId) {
-    await notifyChangeProposal(chat, meeting, voter, comment);
-  }
+  if (voter.userId === meeting.initiatorId) return;
+  if (answer === "change") await notifyChangeProposal(chat, meeting, voter, comment);
+  else if (answer === "yes" || answer === "no") await notifyOrganizerAnswer(chat, meeting, voter, answer);
+}
+
+/**
+ * Обратная связь организатору: кто ответил «да» или «нет» и сколько уже
+ * согласились. Только личным сообщением — баннеров на сайте на каждый голос
+ * не создаём, там и так видна карточка встречи.
+ */
+export async function notifyOrganizerAnswer(
+  chat: Chat,
+  meeting: Meeting,
+  voter: Pick<User, "userId" | "fullName" | "username" | "realName">,
+  answer: "yes" | "no",
+): Promise<boolean> {
+  if (voter.userId === meeting.initiatorId) return false;
+  const initiator = await repo.getUser(meeting.initiatorId);
+  if (!initiator) return false;
+
+  const responses = await repo.meetingResponsesFor(meeting.id);
+  const lang = initiator.lang || chat.lang;
+  const text = t(lang, answer === "yes" ? "notify_answer_yes" : "notify_answer_no", {
+    name: escapeHtml(displayName(voter)),
+    goal: escapeHtml(meeting.goal || meeting.whenText || "—"),
+    yes: responses.filter((row) => row.answer === "yes").length,
+    total: repo.inviteeIds(meeting).length,
+  });
+  const button = siteButton(chat, lang);
+  return directMessage(initiator, text, button ? keyboard([[button]]) : undefined);
 }
 
 export async function notifyChangeProposal(
@@ -179,9 +207,8 @@ export async function notifyChangeProposal(
     goal: escapeHtml(meeting.goal || meeting.whenText || "—"),
     comment: escapeHtml(comment || "—"),
   });
-  const url = groupUrl(chat);
-  const markup = url ? keyboard([[{ text: t(chat.lang, "btn_open_web"), url }]]) : undefined;
-  if (await directMessage(initiator, text, markup)) return;
+  const button = siteButton(chat, chat.lang);
+  if (await directMessage(initiator, text, button ? keyboard([[button]]) : undefined)) return;
 
   await repo.addNotices([
     {
@@ -273,8 +300,8 @@ export async function notifyFillSchedule(
       name: escapeHtml(displayName(from)),
       chat: escapeHtml(chat.title),
     });
-    const url = groupUrl(chat, "/me");
-    const markup = url ? keyboard([[{ text: t(chat.lang, "btn_fill_schedule"), url }]]) : undefined;
+    const button = siteButton(chat, chat.lang, "btn_fill_schedule", "/me");
+    const markup = button ? keyboard([[button]]) : undefined;
     for (const user of viaTelegram) {
       if (await directMessage(user, text, markup)) delivery.telegram += 1;
       else siteOnly.push(user);

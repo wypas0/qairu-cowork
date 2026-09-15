@@ -1377,3 +1377,72 @@ table.week td.cell.meeting {
   font-weight: 600;
   color: var(--danger);
 }
+
+/* --- «Моё расписание»: занятые клетки сплошным цветом --- */
+table.week.editor td.cell.busy::after {
+  content: none;
+}
+
+/* --- подсказка «кто свободен» при наведении на клетку --- */
+.cell-tooltip {
+  position: fixed;
+  z-index: 60;
+  transform: translate(-50%, calc(-100% - 8px));
+  max-width: min(300px, calc(100vw - 32px));
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  pointer-events: none;
+  font-size: 12px;
+  line-height: 1.35;
+}
+.cell-tooltip.below {
+  transform: translate(-50%, 8px);
+}
+.cell-tooltip-head {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.who-free {
+  display: grid;
+  gap: 3px;
+  margin: 4px 0;
+  overflow-wrap: anywhere;
+}
+.who-free-label {
+  color: var(--muted);
+  font-weight: 600;
+}
+.who-free-label.ok {
+  color: var(--accent);
+}
+
+/* --- вход только через Telegram --- */
+.tg-signin {
+  display: grid;
+  gap: 8px;
+}
+.tg-only-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 10px;
+}
+.tg-only-list li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.login-password {
+  margin-top: 16px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+.login-password summary {
+  cursor: pointer;
+  color: var(--muted);
+}

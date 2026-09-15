@@ -166,6 +166,10 @@ describe("второй участник и кворум", () => {
 
     const all = await board(chat.slug!);
     expect(all.payload.total).toBe(2);
+    // Подсказка при наведении: в понедельник свободна только Асель, Амир занят.
+    const mondayCell = all.payload.days[0].cells[0];
+    expect(mondayCell.free).toEqual(["Асель"]);
+    expect(mondayCell.missing).toEqual(["Амир"]);
 
     const relaxed = await board(chat.slug!, { quorum: 1 });
     expect(relaxed.payload.quorum).toBe(1);

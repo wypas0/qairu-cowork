@@ -6,7 +6,6 @@ import { ConfirmSubmit } from "@/components/ConfirmSubmit";
 import { CopyButton } from "@/components/CopyButton";
 import { MeetingForm } from "@/components/MeetingForm";
 import { ScrollToAnchor } from "@/components/ScrollToAnchor";
-import { TelegramAuth } from "@/components/TelegramAuth";
 import { Topbar } from "@/components/Topbar";
 import { fmtMinutes } from "@/core/intervals";
 import { formatDM, weekdayOf } from "@/core/timeutils";
@@ -14,7 +13,7 @@ import * as repo from "@/db/repo";
 import { ROLE_ADMIN, displayName } from "@/db/schema";
 import { LANG_NAMES, translator, weekdayName } from "@/i18n";
 import { type AdminSource, adminSources } from "@/lib/admin";
-import { currentUser } from "@/lib/auth";
+import { pageUser } from "@/lib/gate";
 import { durationOptions, loadGroupState, toBoardPayload } from "@/lib/group";
 import { baseUrl } from "@/lib/url";
 import {
@@ -55,7 +54,7 @@ export default async function GroupPage({
   const chat = await repo.getChatBySlug(slug);
   if (!chat) notFound();
 
-  const user = await currentUser();
+  const user = await pageUser(`/g/${slug}`);
   if (!user || !(await repo.isMember(chat.chatId, user.userId))) {
     redirect(`/g/${slug}/join`);
   }
@@ -101,7 +100,6 @@ export default async function GroupPage({
 
   return (
     <>
-      <TelegramAuth slug={slug} authed />
       <ScrollToAnchor id={typeof query.at === "string" ? query.at : null} />
       <Topbar lang={lang}>
         <Link className="btn btn-sm" href={`/g/${slug}/me`}>
@@ -269,6 +267,9 @@ export default async function GroupPage({
             legendNone: t("w_legend_none"),
             legendAll: t("w_legend_all"),
             legendMeeting: t("w_legend_meeting"),
+            freeNames: t("w_free_names"),
+            busyNames: t("w_busy_names"),
+            nobody: t("w_nobody"),
             windowsTitle: t("w_windows_title"),
             windowsEmpty: t("w_windows_empty"),
             windowsNoData: t("w_windows_nodata"),

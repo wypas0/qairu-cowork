@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { cookies, headers } from "next/headers";
 
+import { TelegramAuth } from "@/components/TelegramAuth";
 import { normalizeLang, t } from "@/i18n";
 import { THEME_COOKIE, normalizeTheme } from "@/lib/theme";
 import "./globals.css";
@@ -33,6 +34,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     // баг гидратации.
     <html lang={lang} data-theme={theme === "system" ? undefined : theme} suppressHydrationWarning>
       <body>
+        <TelegramAuth />
         {children}
         <footer className="foot">
           <span>{t(lang, "w_footer")}</span>

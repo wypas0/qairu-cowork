@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 
 import { GROUP_COMMANDS, PRIVATE_COMMANDS } from "@/bot/router";
-import { setMyCommands } from "@/bot/api";
+import { setChatMenuButton, setMyCommands } from "@/bot/api";
 import { botToken, hasBot, webhookSecret } from "@/lib/config";
 import { baseUrl } from "@/lib/url";
 
@@ -49,6 +49,10 @@ export async function GET(request: NextRequest) {
       scope: { type: "all_private_chats" },
     });
     await setMyCommands({ commands: GROUP_COMMANDS, scope: { type: "all_group_chats" } });
+    // Кнопка «Открыть» рядом с полем ввода: сайт запускается как Mini App и входит сам.
+    if (base.startsWith("https://")) {
+      await setChatMenuButton({ menu_button: { type: "web_app", text: "Открыть", web_app: { url: base } } });
+    }
   }
 
   return Response.json({ ok: body.ok, url, detail: body.description ?? null });
