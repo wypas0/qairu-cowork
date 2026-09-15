@@ -318,6 +318,8 @@ DNS-записи, которые покажет Vercel. После этого д
 | `CRON_SECRET` | нет | Vercel подставляет сам; задать, если нужен внешний пингер |
 | `DEFAULT_TZ` | нет | по умолчанию `Asia/Almaty` |
 | `DEFAULT_LANG` | нет | по умолчанию `ru` |
+| `OPENAI_API_KEY` | для фото | распознавание расписания со скриншота; без ключа кнопки загрузки нет |
+| `VISION_API_KEY`, `VISION_API_BASE_URL`, `VISION_MODEL` | нет | другой сервис с OpenAI-совместимым API вместо OpenAI; по умолчанию `https://api.openai.com/v1` и `gpt-4o-mini` |
 
 ---
 

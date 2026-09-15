@@ -11,9 +11,10 @@ import { slotTimes } from "@/core/grid";
 import { fmtMinutes } from "@/core/intervals";
 import { chatTz, compareDates, formatDM, formatDMY, todayIn } from "@/core/timeutils";
 import * as repo from "@/db/repo";
-import { WEEKDAY_NAMES, isLang, translator } from "@/i18n";
+import { WEEKDAY_NAMES, WEEKDAY_SHORT, isLang, translator } from "@/i18n";
 import { currentUser } from "@/lib/auth";
 import { SLOT_STEP } from "@/lib/config";
+import { hasVision } from "@/lib/vision";
 import { addDatedBusyAction, deleteDatedBusyAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -90,6 +91,8 @@ export default async function MySchedulePage({
           slotTimes={times}
           initialBusy={initialBusy}
           weekdayNames={WEEKDAY_NAMES[isLang(lang) ? lang : "ru"]}
+          weekdayShort={WEEKDAY_SHORT[isLang(lang) ? lang : "ru"]}
+          photoEnabled={hasVision()}
           labels={{
             paintHint: t("w_paint_hint"),
             save: t("w_save"),
@@ -105,6 +108,16 @@ export default async function MySchedulePage({
             importPlaceholder: IMPORT_PLACEHOLDER,
             legendFree: t("w_legend_free"),
             legendBusy: t("w_legend_busy"),
+            photoTitle: t("w_photo_title"),
+            photoHint: t("w_photo_hint"),
+            photoBtn: t("w_photo_btn"),
+            photoWorking: t("w_photo_working"),
+            photoFailed: t("w_photo_failed"),
+            photoTooLarge: t("w_photo_too_large"),
+            photoLimit: t("w_photo_limit"),
+            photoBusy: t("w_photo_busy"),
+            photoNotConfigured: t("w_photo_not_configured"),
+            photoTooMany: t("w_photo_too_many", { n: "{n}" }),
           }}
         />
 

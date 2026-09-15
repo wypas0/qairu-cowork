@@ -40,16 +40,17 @@ export function sniffImage(bytes: Uint8Array): AvatarMime | null {
 /** Разобрать `data:image/...;base64,...` из браузера. */
 export function parseAvatarDataUrl(
   dataUrl: unknown,
+  maxBytes: number = AVATAR_MAX_BYTES,
 ): { ok: true; value: AvatarUpload } | { ok: false; error: AvatarProblem } {
   if (typeof dataUrl !== "string" || !dataUrl) return { ok: false, error: "empty" };
   const match = /^data:[\w/+.-]*;base64,([A-Za-z0-9+/]+={0,2})$/.exec(dataUrl);
   if (!match) return { ok: false, error: "format" };
 
   // Проверяем длину до декодирования: не распаковываем мегабайты впустую.
-  if ((match[1].length * 3) / 4 > AVATAR_MAX_BYTES + 3) return { ok: false, error: "too_large" };
+  if ((match[1].length * 3) / 4 > maxBytes + 3) return { ok: false, error: "too_large" };
   const bytes = Uint8Array.from(Buffer.from(match[1], "base64"));
   if (bytes.length === 0) return { ok: false, error: "empty" };
-  if (bytes.length > AVATAR_MAX_BYTES) return { ok: false, error: "too_large" };
+  if (bytes.length > maxBytes) return { ok: false, error: "too_large" };
 
   const mime = sniffImage(bytes);
   if (!mime) return { ok: false, error: "format" };

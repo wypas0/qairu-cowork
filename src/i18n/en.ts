@@ -471,4 +471,16 @@ export const EN: Strings = {
   w_pp_join_btn: "Join",
   w_pp_create: "Create a group",
   w_pp_login_label: "login {login}",
+
+  // --- расписание со скриншота ---
+  w_photo_title: "Upload a timetable screenshot",
+  w_photo_hint: "A weekly screenshot from your university portal. If the table does not fit on one screen, choose 2 screenshots at once. Each is compressed to under 1 MB. Recognised classes appear on the grid: check them and press «Save».",
+  w_photo_btn: "Choose screenshots",
+  w_photo_working: "Reading the timetable…",
+  w_photo_failed: "Could not recognise classes. Try a sharper screenshot or paste the schedule as text.",
+  w_photo_too_large: "The screenshot is too large: it could not be compressed under 1 MB. Take a smaller screenshot.",
+  w_photo_limit: "Today's recognition limit is used up. Try tomorrow or paste the schedule as text.",
+  w_photo_busy: "The recognition service is busy, try again in a minute.",
+  w_photo_not_configured: "Photo recognition is not configured.",
+  w_photo_too_many: "Up to {n} screenshots at a time.",
 };

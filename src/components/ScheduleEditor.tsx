@@ -20,7 +20,71 @@ export type EditorLabels = {
   importPlaceholder: string;
   legendFree: string;
   legendBusy: string;
+  photoTitle: string;
+  photoHint: string;
+  photoBtn: string;
+  photoWorking: string;
+  photoFailed: string;
+  photoTooLarge: string;
+  photoLimit: string;
+  photoBusy: string;
+  photoNotConfigured: string;
+  photoTooMany: string; // «{n}»
 };
+
+/** Не больше 2 скриншотов за раз, каждый меньше мегабайта — те же лимиты проверяет сервер. */
+const MAX_PHOTOS = 2;
+const PHOTO_MAX_BYTES = 1024 * 1024 - 1;
+/** Исходный файл больше этого даже не открываем — это не скриншот. */
+const SOURCE_MAX_BYTES = 20 * 1024 * 1024;
+
+class PhotoTooLarge extends Error {}
+
+/** Размер data URL в байтах без декодирования. */
+function dataUrlBytes(dataUrl: string): number {
+  const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+  return Math.floor((base64.length * 3) / 4) - (base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0);
+}
+
+/**
+ * Перекодировать скриншот в JPEG меньше мегабайта. Сначала пробуем 1800 px
+ * и хорошее качество, если не влезло — уменьшаем размер и качество.
+ */
+async function shrinkPhoto(file: File): Promise<string> {
+  if (file.size > SOURCE_MAX_BYTES) throw new PhotoTooLarge();
+  const url = URL.createObjectURL(file);
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const element = new Image();
+      element.onload = () => resolve(element);
+      element.onerror = () => reject(new Error("decode"));
+      element.src = url;
+    });
+    const attempts: [number, number][] = [
+      [1800, 0.88],
+      [1600, 0.8],
+      [1400, 0.72],
+      [1200, 0.65],
+    ];
+    for (const [maxSide, quality] of attempts) {
+      const scale = Math.min(1, maxSide / Math.max(image.naturalWidth, image.naturalHeight));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+      canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("canvas");
+      // Прозрачный PNG на чёрном фоне читается хуже — подкладываем белый.
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL("image/jpeg", quality);
+      if (dataUrlBytes(dataUrl) <= PHOTO_MAX_BYTES) return dataUrl;
+    }
+    throw new PhotoTooLarge();
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
 
 type ParsedSlot = {
   weekday: number;
@@ -50,6 +114,8 @@ export function ScheduleEditor({
   slotTimes,
   initialBusy,
   weekdayNames,
+  weekdayShort,
+  photoEnabled,
   labels,
 }: {
   slug: string;
@@ -57,6 +123,8 @@ export function ScheduleEditor({
   slotTimes: number[];
   initialBusy: string[];
   weekdayNames: string[];
+  weekdayShort: string[];
+  photoEnabled: boolean;
   labels: EditorLabels;
 }) {
   const router = useRouter();
@@ -66,7 +134,9 @@ export function ScheduleEditor({
   const [importText, setImportText] = useState("");
   const [importing, setImporting] = useState(false);
   const [preview, setPreview] = useState<{ slots: ParsedSlot[]; errors: string[] } | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
+  const [photoWorking, setPhotoWorking] = useState(false);
+  const photoRef = useRef<HTMLInputElement>(null);
 
   const painting = useRef(false);
   const paintTo = useRef(true);
@@ -195,10 +265,68 @@ export function ScheduleEditor({
     }
   }
 
+  /**
+   * Раскрасить сетку по распознанным парам, ничего не сохраняя: человек
+   * сначала видит результат и только потом жмёт «Сохранить».
+   * Клетка занята, если пара задевает её хотя бы частично.
+   */
+  function applyParsed(slots: ParsedSlot[], errors: string[]) {
+    const next = new Set<string>();
+    for (const slot of slots) {
+      for (const start of slotTimes) {
+        if (start < slot.end && start + step > slot.start) next.add(cellKey(slot.weekday, start));
+      }
+    }
+    setBusy(next);
+    setDirty(true);
+    setPreview({ slots, errors });
+  }
+
+  async function runPhotoImport(files: File[]) {
+    if (files.length === 0) return;
+    if (files.length > MAX_PHOTOS) {
+      setFailed(labels.photoTooMany.replace("{n}", String(MAX_PHOTOS)));
+      return;
+    }
+    setPhotoWorking(true);
+    setFailed(null);
+    try {
+      const images = await Promise.all(files.map(shrinkPhoto));
+      const response = await fetch(`/api/g/${slug}/import-photo`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ images }),
+      });
+      const data = (await response.json().catch(() => ({}))) as {
+        ok?: boolean;
+        slots?: ParsedSlot[];
+        error?: string;
+      };
+      if (!response.ok || !data.ok || !data.slots) {
+        setPreview(null);
+        const messages: Record<string, string> = {
+          too_large: labels.photoTooLarge,
+          limit: labels.photoLimit,
+          busy: labels.photoBusy,
+          not_configured: labels.photoNotConfigured,
+        };
+        setFailed(messages[data.error ?? ""] ?? labels.photoFailed);
+        return;
+      }
+      applyParsed(data.slots, []);
+    } catch (error) {
+      setFailed(error instanceof PhotoTooLarge ? labels.photoTooLarge : labels.photoFailed);
+    } finally {
+      setPhotoWorking(false);
+      if (photoRef.current) photoRef.current.value = "";
+    }
+  }
+
   async function runImport() {
     if (!importText.trim()) return;
     setImporting(true);
-    setFailed(false);
+    setFailed(null);
     try {
       const response = await fetch(`/api/g/${slug}/import`, {
         method: "POST",
@@ -214,20 +342,10 @@ export function ScheduleEditor({
       };
       if (!data.ok) {
         setPreview(null);
-        setFailed(true);
+        setFailed(labels.importFailed);
         return;
       }
-      // Раскрашиваем сетку по распознанным парам, ничего не сохраняя:
-      // человек сначала видит результат и только потом жмёт «Сохранить».
-      const next = new Set<string>();
-      for (const slot of data.slots) {
-        for (let minute = slot.start; minute < slot.end; minute += step) {
-          if (slotTimes.includes(minute)) next.add(cellKey(slot.weekday, minute));
-        }
-      }
-      setBusy(next);
-      setDirty(true);
-      setPreview({ slots: data.slots, errors: data.errors });
+      applyParsed(data.slots, data.errors);
     } catch {
       toast(labels.saveError);
     } finally {
@@ -320,6 +438,34 @@ export function ScheduleEditor({
       </section>
 
       <div>
+        {photoEnabled && (
+          <section className="card">
+            <h2>{labels.photoTitle}</h2>
+            <p className="small muted">{labels.photoHint}</p>
+            <input
+              ref={photoRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              multiple
+              hidden
+              onChange={(event) => void runPhotoImport([...(event.target.files ?? [])])}
+            />
+            <button
+              className="btn btn-primary"
+              type="button"
+              disabled={photoWorking || importing}
+              onClick={() => photoRef.current?.click()}
+            >
+              {photoWorking ? labels.photoWorking : labels.photoBtn}
+            </button>
+            {photoWorking && (
+              <p className="small muted waiting" role="status" aria-live="polite">
+                <span className="spinner" aria-hidden="true" /> {labels.photoWorking}
+              </p>
+            )}
+          </section>
+        )}
+
         <section className="card">
           <h2>{labels.importTitle}</h2>
           <p className="small muted">{labels.importHint}</p>
@@ -332,23 +478,27 @@ export function ScheduleEditor({
             className="btn"
             type="button"
             style={{ marginTop: 8 }}
-            disabled={importing}
+            disabled={importing || photoWorking}
             onClick={runImport}
           >
             {labels.importBtn}
           </button>
 
           <div style={{ marginTop: 10 }}>
-            {failed && <p className="muted small">{labels.importFailed}</p>}
+            {failed && (
+              <p className="small" role="alert" style={{ color: "var(--danger)" }}>
+                {failed}
+              </p>
+            )}
             {preview && (
               <>
                 <p className="small">
                   {labels.importParsed.replace("{n}", String(preview.slots.length))}
                 </p>
                 <p className="small muted mono">
-                  {preview.slots.slice(0, 12).map((slot, index) => (
+                  {preview.slots.slice(0, 40).map((slot, index) => (
                     <span key={`${slot.weekday}-${slot.start}-${index}`}>
-                      {slot.text}
+                      {weekdayShort[slot.weekday]} {slot.text}
                       {slot.label ? ` · ${slot.label}` : ""}
                       <br />
                     </span>
