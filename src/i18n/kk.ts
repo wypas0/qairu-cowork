@@ -449,6 +449,16 @@ export const KK: Strings = {
   w_tglogin_back: "Кіру бетіне оралу",
 
   // --- панель профиля ---
+  w_pp_back: "Артқа",
+  w_pp_account: "Аккаунт",
+  w_pp_open_account: "Аккаунтты ашу",
+  w_pp_photo: "Профиль суреті",
+  w_pp_change_photo: "Суретті ауыстыру",
+  w_pp_remove_photo: "Суретті алып тастау",
+  w_pp_photo_error: "Суретті жүктеу мүмкін болмады. JPG, PNG немесе WebP жарайды.",
+  w_pp_photo_too_large: "Сурет тым үлкен.",
+  w_pp_credentials_unset: "орнатылмаған — Telegram немесе сілтеме арқылы кіруге болады",
+  w_pp_logout: "Аккаунттан шығу",
   w_pp_join_ph: "Топ сілтемесі не коды",
   w_pp_leave_group: "«{title}» тобынан шығу",
   w_pp_join_btn: "Кіру",

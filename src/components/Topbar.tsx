@@ -21,10 +21,12 @@ export async function Topbar({
   let groups: ProfileGroup[] = [];
   if (user) {
     const credentials = await repo.getCredentials(user.userId);
+    const avatar = await repo.avatarVersion(user.userId);
     profile = {
       name: displayName(user),
       telegram: !user.isWeb && user.username ? user.username : null,
       login: credentials?.login ?? null,
+      avatarUrl: avatar ? `/api/avatar/${user.userId}?v=${avatar}` : null,
     };
     const chats = await repo.userChats(user.userId);
     groups = chats
@@ -41,6 +43,7 @@ export async function Topbar({
         labels={{
           profile: t("w_profile"),
           close: t("w_close"),
+          back: t("w_pp_back"),
           myGroups: t("w_my_groups"),
           noGroups: t("w_no_groups"),
           leaveGroup: t("w_pp_leave_group", { title: "{title}" }),
@@ -49,10 +52,19 @@ export async function Topbar({
           joinBtn: t("w_pp_join_btn"),
           createGroup: t("w_pp_create"),
           anon: t("w_profile_anon"),
-          account: t("w_acct_title"),
           login: t("w_login_btn"),
-          logout: t("w_logout"),
           loginLabel: t("w_pp_login_label", { login: "{login}" }),
+          account: t("w_pp_account"),
+          openAccount: t("w_pp_open_account"),
+          photo: t("w_pp_photo"),
+          changePhoto: t("w_pp_change_photo"),
+          removePhoto: t("w_pp_remove_photo"),
+          photoError: t("w_pp_photo_error"),
+          photoTooLarge: t("w_pp_photo_too_large"),
+          credentials: t("w_acct_title"),
+          credentialsSet: t("w_pp_login_label", { login: "{login}" }),
+          credentialsUnset: t("w_pp_credentials_unset"),
+          logout: t("w_pp_logout"),
         }}
       />
       <Link className="brand" href="/">

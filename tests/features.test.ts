@@ -641,3 +641,78 @@ describe("исправления после ревью", () => {
     expect(edits).toContainEqual([chat.chatId, 777]);
   });
 });
+
+describe("фото профиля", () => {
+  const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 73, 72, 68, 82]);
+  const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 16, 74, 70, 73, 70]);
+  const WEBP = Buffer.concat([Buffer.from("RIFF"), Buffer.from([36, 0, 0, 0]), Buffer.from("WEBPVP8 ")]);
+  const dataUrl = (mime: string, bytes: Buffer) => `data:${mime};base64,${bytes.toString("base64")}`;
+
+  it("принимает JPEG, PNG и WebP и определяет тип по содержимому, а не по подписи", async () => {
+    const { parseAvatarDataUrl } = await import("@/core/avatar");
+    expect(parseAvatarDataUrl(dataUrl("image/png", PNG))).toMatchObject({ ok: true, value: { mime: "image/png" } });
+    expect(parseAvatarDataUrl(dataUrl("image/jpeg", JPEG))).toMatchObject({ ok: true, value: { mime: "image/jpeg" } });
+    expect(parseAvatarDataUrl(dataUrl("image/webp", WEBP))).toMatchObject({ ok: true, value: { mime: "image/webp" } });
+    // Браузер подписал JPEG как PNG — сохраняется настоящий тип.
+    expect(parseAvatarDataUrl(dataUrl("image/png", JPEG))).toMatchObject({ ok: true, value: { mime: "image/jpeg" } });
+  });
+
+  it("отвергает HTML и SVG под видом картинки, мусор и слишком большие файлы", async () => {
+    const { AVATAR_MAX_BYTES, parseAvatarDataUrl } = await import("@/core/avatar");
+    const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');
+    expect(parseAvatarDataUrl(dataUrl("image/svg+xml", svg))).toEqual({ ok: false, error: "format" });
+    expect(parseAvatarDataUrl(dataUrl("image/png", Buffer.from("<html><script>1</script>")))).toEqual({ ok: false, error: "format" });
+    expect(parseAvatarDataUrl("not a data url")).toEqual({ ok: false, error: "format" });
+    expect(parseAvatarDataUrl(undefined)).toEqual({ ok: false, error: "empty" });
+    const huge = Buffer.concat([JPEG, Buffer.alloc(AVATAR_MAX_BYTES)]);
+    expect(parseAvatarDataUrl(dataUrl("image/jpeg", huge))).toEqual({ ok: false, error: "too_large" });
+  });
+
+  it("фото сохраняется, получает новую версию при замене и удаляется", async () => {
+    const { repo } = await mods();
+    const user = await repo.createWebUser({ fullName: "С фото", lang: "ru" });
+    expect(await repo.avatarVersion(user.userId)).toBeNull();
+
+    const first = await repo.setAvatar(user.userId, { mime: "image/png", base64: PNG.toString("base64") });
+    expect(await repo.avatarVersion(user.userId)).toBe(first);
+    const stored = await repo.getAvatar(user.userId);
+    expect(stored?.mime).toBe("image/png");
+    expect(stored?.data.equals(PNG)).toBe(true);
+
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const second = await repo.setAvatar(user.userId, { mime: "image/jpeg", base64: JPEG.toString("base64") });
+    expect(second).toBeGreaterThan(first);
+
+    await repo.deleteAvatar(user.userId);
+    expect(await repo.getAvatar(user.userId)).toBeNull();
+  });
+
+  it("фото отдаётся с типом картинки, запретом sniffing и вечным кэшем по версии", async () => {
+    const { repo } = await mods();
+    const { GET } = await import("@/app/api/avatar/[userId]/route");
+    const user = await repo.createWebUser({ fullName: "Отдача", lang: "ru" });
+    await repo.setAvatar(user.userId, { mime: "image/webp", base64: WEBP.toString("base64") });
+
+    const response = await GET(new Request("http://x"), { params: Promise.resolve({ userId: String(user.userId) }) });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("image/webp");
+    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(response.headers.get("cache-control")).toContain("immutable");
+    expect(Buffer.from(await response.arrayBuffer()).equals(WEBP)).toBe(true);
+
+    const missing = await GET(new Request("http://x"), { params: Promise.resolve({ userId: "12345" }) });
+    expect(missing.status).toBe(404);
+    const junk = await GET(new Request("http://x"), { params: Promise.resolve({ userId: "../etc" }) });
+    expect(junk.status).toBe(404);
+  });
+
+  it("при переносе аккаунта в Telegram фото переезжает, если у Telegram-аккаунта его нет", async () => {
+    const { repo } = await mods();
+    const web = await repo.createWebUser({ fullName: "Веб с фото", lang: "ru" });
+    await repo.setAvatar(web.userId, { mime: "image/png", base64: PNG.toString("base64") });
+    const tg = await repo.upsertUser({ userId: ++tgId, fullName: "ТГ без фото" });
+
+    expect(await repo.mergeWebUserIntoTelegram(web.userId, tg.userId)).toBe(true);
+    expect((await repo.getAvatar(tg.userId))?.mime).toBe("image/png");
+  });
+});

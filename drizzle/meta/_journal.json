@@ -15,6 +15,13 @@
       "when": 1789364610590,
       "tag": "0001_admin_login",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789375843976,
+      "tag": "0002_avatars",
+      "breakpoints": true
     }
   ]
 }

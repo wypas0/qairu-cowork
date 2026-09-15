@@ -25,6 +25,7 @@ import {
   type User,
   ROLE_ADMIN,
   ROLE_MEMBER,
+  avatars,
   botState,
   busySlots,
   chats,
@@ -892,6 +893,51 @@ export async function credentialsForLogin(
 }
 
 // --------------------------------------------------------------------------
+// Фото профиля
+// --------------------------------------------------------------------------
+
+export async function setAvatar(
+  userId: number,
+  avatar: { mime: string; base64: string },
+  exec?: Exec,
+): Promise<number> {
+  const now = new Date();
+  await ex(exec)
+    .insert(avatars)
+    .values({ userId, mime: avatar.mime, data: avatar.base64, updatedAt: now })
+    .onConflictDoUpdate({
+      target: avatars.userId,
+      set: { mime: avatar.mime, data: avatar.base64, updatedAt: now },
+    });
+  return now.getTime();
+}
+
+export async function getAvatar(
+  userId: number,
+  exec?: Exec,
+): Promise<{ mime: string; data: Buffer; updatedAt: Date } | null> {
+  const [row] = await ex(exec).select().from(avatars).where(eq(avatars.userId, userId)).limit(1);
+  return row ? { mime: row.mime, data: Buffer.from(row.data, "base64"), updatedAt: row.updatedAt } : null;
+}
+
+/**
+ * Метка версии фото (время обновления в мс) без самих данных — для адреса
+ * `/api/avatar/<id>?v=<версия>`, который можно кэшировать навсегда. null — фото нет.
+ */
+export async function avatarVersion(userId: number, exec?: Exec): Promise<number | null> {
+  const [row] = await ex(exec)
+    .select({ updatedAt: avatars.updatedAt })
+    .from(avatars)
+    .where(eq(avatars.userId, userId))
+    .limit(1);
+  return row ? row.updatedAt.getTime() : null;
+}
+
+export async function deleteAvatar(userId: number, exec?: Exec): Promise<void> {
+  await ex(exec).delete(avatars).where(eq(avatars.userId, userId));
+}
+
+// --------------------------------------------------------------------------
 // Уведомления на сайте
 // --------------------------------------------------------------------------
 
@@ -1133,6 +1179,9 @@ export async function mergeWebUserIntoTelegram(
     await tx.update(notices).set({ fromUserId: telegramUserId }).where(eq(notices.fromUserId, webUserId));
     if (!(await getCredentials(telegramUserId, tx))) {
       await tx.update(credentials).set({ userId: telegramUserId }).where(eq(credentials.userId, webUserId));
+    }
+    if (!(await avatarVersion(telegramUserId, tx))) {
+      await tx.update(avatars).set({ userId: telegramUserId }).where(eq(avatars.userId, webUserId));
     }
     // Другие устройства сайтового аккаунта — тот же человек: они продолжают работать уже как Telegram-аккаунт.
     await tx.update(webSessions).set({ userId: telegramUserId }).where(eq(webSessions.userId, webUserId));

@@ -447,6 +447,16 @@ export const EN: Strings = {
   w_tglogin_back: "Back to sign-in",
 
   // --- панель профиля ---
+  w_pp_back: "Back",
+  w_pp_account: "Account",
+  w_pp_open_account: "Open account",
+  w_pp_photo: "Profile photo",
+  w_pp_change_photo: "Change photo",
+  w_pp_remove_photo: "Remove photo",
+  w_pp_photo_error: "Couldn't upload the photo. JPG, PNG or WebP will do.",
+  w_pp_photo_too_large: "The photo is too large.",
+  w_pp_credentials_unset: "not set — sign in via Telegram or a link",
+  w_pp_logout: "Sign out",
   w_pp_join_ph: "Group link or code",
   w_pp_leave_group: "Leave «{title}»",
   w_pp_join_btn: "Join",

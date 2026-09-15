@@ -392,6 +392,107 @@ a {
   margin-top: auto;
   padding-top: 14px;
 }
+/* Кнопка «кто ты» на главном экране панели — ведёт в аккаунт. */
+.pp-me {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  margin: -6px 0 -6px -8px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.pp-me:hover,
+.pp-me:focus-visible {
+  background: var(--surface-2);
+}
+.pp-chevron {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 20px;
+  line-height: 1;
+}
+img.pp-avatar {
+  object-fit: cover;
+  background: var(--surface-2);
+}
+.pp-avatar-lg {
+  width: 88px;
+  height: 88px;
+  font-size: 34px;
+}
+.pp-photo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+.pp-photo-name {
+  font-size: 16px;
+  margin-top: 4px;
+}
+.pp-photo-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 6px;
+}
+.pp-menu {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0;
+  margin: 0 -8px;
+}
+.pp-menu form {
+  display: contents;
+}
+.pp-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.pp-menu-item:hover,
+.pp-menu-item:focus-visible {
+  background: var(--surface-2);
+}
+.pp-menu-sub {
+  display: block;
+}
+.pp-danger {
+  color: var(--danger);
+}
+/* Фото на кнопке профиля в шапке. */
+.icon-btn:has(.icon-avatar) {
+  padding: 0;
+  overflow: hidden;
+  border-radius: 50%;
+}
+.icon-avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
 @media (hover: none) {
   .pp-leave {
     opacity: 1;

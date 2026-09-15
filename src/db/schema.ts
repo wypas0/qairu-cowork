@@ -141,6 +141,21 @@ export const credentials = pgTable("credentials", {
 });
 
 /**
+ * Фото профиля. Лежит в самой базе: у Vercel нет постоянного диска, а отдельное
+ * хранилище ради картинок в пару десятков килобайт не нужно — браузер ужимает
+ * фото до 256×256 перед загрузкой. Данные — base64 уже проверенного JPEG, PNG
+ * или WebP (SVG не принимается: он может содержать скрипт).
+ */
+export const avatars = pgTable("avatars", {
+  userId: bigint("user_id", { mode: "number" })
+    .primaryKey()
+    .references(() => users.userId, { onDelete: "cascade" }),
+  mime: varchar("mime", { length: 32 }).notNull(),
+  data: text("data").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
  * Уведомления на сайте — для тех, до кого не дотянется бот: людей без
  * Telegram и тех, кто ещё не нажал /start. Показываются баннером в группе,
  * пока человек не отреагирует или не закроет их.

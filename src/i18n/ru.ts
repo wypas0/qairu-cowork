@@ -458,6 +458,16 @@ export const RU: Strings = {
   w_tglogin_back: "Назад ко входу",
 
   // --- панель профиля ---
+  w_pp_back: "Назад",
+  w_pp_account: "Аккаунт",
+  w_pp_open_account: "Открыть аккаунт",
+  w_pp_photo: "Фото профиля",
+  w_pp_change_photo: "Сменить фото",
+  w_pp_remove_photo: "Убрать фото",
+  w_pp_photo_error: "Не удалось загрузить фото. Подойдёт JPG, PNG или WebP.",
+  w_pp_photo_too_large: "Фото слишком большое.",
+  w_pp_credentials_unset: "не задан — войти можно через Telegram или по ссылке",
+  w_pp_logout: "Выйти из аккаунта",
   w_pp_join_ph: "Ссылка или код группы",
   w_pp_leave_group: "Выйти из группы «{title}»",
   w_pp_join_btn: "Войти",
