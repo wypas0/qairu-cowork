@@ -1309,6 +1309,10 @@ table.week.editor td.cell.busy {
 }
 
 /* --- сетка по парам, как на портале университета --- */
+/* Колонки дней одной ширины: подпись встречи в клетке не должна раздвигать свой день. */
+table.week.periods {
+  table-layout: fixed;
+}
 table.week.periods td.cell {
   height: 44px;
   border-radius: 6px;
@@ -1341,4 +1345,35 @@ table.week tr.break-row td {
   padding: 3px 8px;
   border-radius: 4px;
   text-align: left;
+}
+
+/* --- назначенные встречи на тепловой карте --- */
+table.week td.cell.meeting,
+.legend i.swatch-meeting {
+  background: var(--danger);
+}
+table.week td.cell.meeting {
+  overflow: hidden;
+}
+.cell-meeting {
+  /* Поверх клетки: подпись не должна увеличивать высоту ряда. */
+  position: absolute;
+  inset: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  padding: 3px 5px;
+  font-size: 10.5px;
+  line-height: 1.2;
+  font-weight: 600;
+  color: #fff;
+  text-align: left;
+  word-break: break-word;
+  pointer-events: none;
+}
+.cell-popover-meeting {
+  margin: 0 0 4px;
+  font-weight: 600;
+  color: var(--danger);
 }

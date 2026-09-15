@@ -268,6 +268,7 @@ export default async function GroupPage({
             breakRow: t("w_break_row", { m: "{m}" }),
             legendNone: t("w_legend_none"),
             legendAll: t("w_legend_all"),
+            legendMeeting: t("w_legend_meeting"),
             windowsTitle: t("w_windows_title"),
             windowsEmpty: t("w_windows_empty"),
             windowsNoData: t("w_windows_nodata"),

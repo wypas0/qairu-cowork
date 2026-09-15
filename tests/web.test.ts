@@ -272,6 +272,57 @@ describe("встречи", () => {
   });
 });
 
+describe("встречи на тепловой карте", () => {
+  it("назначенная встреча занимает свои клетки, отменённая пропадает", async () => {
+    const { repo } = await mods();
+    const { chat, user } = await makeGroup("Встречи на карте", "Амир");
+    await repo.replaceWeeklySlots(user.userId, [0, 1, 2, 3, 4, 5, 6], [], "web");
+    const { todayIn, zonedWallToUtc } = await import("@/core/timeutils");
+    const today = todayIn("Asia/Almaty");
+
+    const meeting = await repo.createMeeting({
+      chatId: chat.chatId,
+      initiatorId: user.userId,
+      place: "Коворкинг",
+      whenText: "сегодня · 11:10–13:00",
+      goal: "Проект",
+      invitees: [user.userId],
+      whenStart: zonedWallToUtc(today, 670, "Asia/Almaty"),
+    });
+    // Без точного времени на карту не попадает.
+    await repo.createMeeting({
+      chatId: chat.chatId,
+      initiatorId: user.userId,
+      place: "",
+      whenText: "как-нибудь",
+      goal: "Без времени",
+      invitees: [user.userId],
+    });
+
+    const { payload } = await board(chat.slug!);
+    expect(payload.meetings).toEqual([{ id: meeting.id, date: today, start: 670, end: 780, title: "Проект" }]);
+
+    await repo.updateMeeting(meeting.id, { status: "cancelled" });
+    expect((await board(chat.slug!)).payload.meetings).toEqual([]);
+  });
+
+  it("конец встречи — из текста времени, иначе полтора часа", async () => {
+    const { group } = await mods();
+    const { zonedWallToUtc } = await import("@/core/timeutils");
+    const base = { id: 1, goal: "", place: "Кафе", whenStart: zonedWallToUtc("2026-09-16", 900, "Asia/Almaty") };
+    expect(group.meetingSpan({ ...base, whenText: "ср · 15:00–16:30" }, "Asia/Almaty")).toEqual({
+      id: 1,
+      date: "2026-09-16",
+      start: 900,
+      end: 990,
+      title: "Кафе",
+    });
+    expect(group.meetingSpan({ ...base, whenText: "завтра после пар" }, "Asia/Almaty")?.end).toBe(990);
+    expect(group.meetingSpan({ ...base, whenText: "9:00-10:00" }, "Asia/Almaty")?.end).toBe(990);
+    expect(group.meetingSpan({ ...base, whenStart: null, whenText: "" }, "Asia/Almaty")).toBeNull();
+  });
+});
+
 describe("настройки группы", () => {
   it("меняют границы сетки", async () => {
     const { repo } = await mods();

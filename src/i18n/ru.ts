@@ -516,4 +516,5 @@ export const RU: Strings = {
 
   // --- сетка по парам ---
   w_break_row: "Перерыв {m} мин",
+  w_legend_meeting: "встреча",
 };

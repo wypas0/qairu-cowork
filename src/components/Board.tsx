@@ -16,6 +16,7 @@ export type BoardLabels = {
   breakRow: string; // «Перерыв {m} мин»
   legendNone: string;
   legendAll: string;
+  legendMeeting: string;
   windowsTitle: string;
   windowsEmpty: string;
   windowsNoData: string;
@@ -38,6 +39,7 @@ type CellDetail = {
   end: number;
   count: number;
   missing: string[];
+  meetings: string[];
 };
 
 /** Чем меньше свободных, тем темнее клетка — h0 светлее всего (свободны все), h5 темнее всего (никого). */
@@ -141,6 +143,12 @@ export function Board({
   }, [quorum, duration, refresh]);
 
   const total = payload.total;
+  // Встречи берём из свежего серверного рендера: после создания или отмены
+  // встречи страница перерисовывается, а состояние доски может остаться прежним.
+  const meetings = initial.meetings;
+  const meetingsAt = (date: string, start: number, end: number) =>
+    meetings.filter((meeting) => meeting.date === date && meeting.start < end && start < meeting.end);
+
   const day = payload.slotDays.find((entry) => entry.date === selectedDay) ?? payload.slotDays[0];
 
   function pick(date: string, start: number, end: number, text: string) {
@@ -181,6 +189,11 @@ export function Board({
                   <PeriodTime period={period} />
                   {payload.days.map((heatDay) => {
                     const cell = heatDay.cells[row];
+                    const here = meetingsAt(heatDay.date, cell.start, cell.end);
+                    // Подпись — только в первой клетке встречи за день, дальше просто красные.
+                    const titled = here.filter(
+                      (meeting) => row === 0 || !(meeting.start < heatDay.cells[row - 1].end && heatDay.cells[row - 1].start < meeting.end),
+                    );
                     const detail: CellDetail = {
                       date: heatDay.date,
                       dayLabel: heatDay.label,
@@ -188,22 +201,25 @@ export function Board({
                       end: cell.end,
                       count: cell.count,
                       missing: cell.missing,
+                      meetings: here.map((meeting) => meeting.title),
                     };
                     return (
                       <td
                         key={`${heatDay.date}-${cell.start}`}
-                        className={`cell ${heatClass(cell.count, total)}`}
-                        title={`${cell.count}/${total}`}
+                        className={`cell ${here.length > 0 ? "meeting" : heatClass(cell.count, total)}`}
+                        title={[...here.map((meeting) => `📌 ${meeting.title}`), `${cell.count}/${total}`].join("\n")}
                         tabIndex={0}
                         role="button"
-                        aria-label={`${heatDay.label} ${hhmm(cell.start)}–${hhmm(cell.end)}: ${cell.count}/${total}`}
+                        aria-label={`${heatDay.label} ${hhmm(cell.start)}–${hhmm(cell.end)}: ${cell.count}/${total}${here.length > 0 ? ` · ${labels.legendMeeting}: ${here.map((meeting) => meeting.title).join(", ")}` : ""}`}
                         onClick={() => setActiveCell(detail)}
                         onKeyDown={(event) => {
                           if (event.key !== " " && event.key !== "Enter") return;
                           event.preventDefault();
                           setActiveCell(detail);
                         }}
-                      />
+                      >
+                        {titled.length > 0 && <span className="cell-meeting">{titled[0].title}</span>}
+                      </td>
                     );
                   })}
                 </tr>,
@@ -218,6 +234,8 @@ export function Board({
             <i key={cls} className={cls} />
           ))}
           <span>{labels.legendNone}</span>
+          <i className="swatch-meeting" />
+          <span>{labels.legendMeeting}</span>
         </div>
       </section>
 
@@ -347,6 +365,11 @@ export function Board({
             <p className="when" style={{ fontSize: 16 }}>
               {hhmm(activeCell.start)}–{hhmm(activeCell.end)}
             </p>
+            {activeCell.meetings.map((title, index) => (
+              <p key={index} className="cell-popover-meeting">
+                📌 {title}
+              </p>
+            ))}
             <p className="small muted">
               {activeCell.count}/{total}
               {activeCell.missing.length > 0 &&

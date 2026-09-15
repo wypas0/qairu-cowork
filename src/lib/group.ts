@@ -19,7 +19,16 @@ import {
 } from "@/core/availability";
 import { type Period, gridPeriods } from "@/core/grid";
 import { fmtInterval } from "@/core/intervals";
-import { type DateStr, addDays, chatTz, formatDM, todayIn, weekdayOf } from "@/core/timeutils";
+import {
+  type DateStr,
+  addDays,
+  chatTz,
+  formatDM,
+  todayIn,
+  utcToZonedWall,
+  weekdayOf,
+  zonedWallToUtc,
+} from "@/core/timeutils";
 import * as repo from "@/db/repo";
 import type { Chat, Meeting, MeetingResponse, User } from "@/db/schema";
 import { displayName } from "@/db/schema";
@@ -44,6 +53,39 @@ export function durationOptions(current: number): number[] {
   return [...new Set([...DURATION_OPTIONS, current])].sort((a, b) => a - b);
 }
 
+/** Если по тексту встречи нельзя понять, когда она заканчивается. */
+export const DEFAULT_MEETING_MIN = 90;
+
+/** Встреча на тепловой карте: день и минуты в поясе группы. */
+export type MeetingSpan = { id: number; date: DateStr; start: number; end: number; title: string };
+
+/**
+ * Когда идёт встреча. Длительность отдельно не хранится, но в тексте времени
+ * встречи, выбранной в окнах, есть «15:00–16:30» — конец берём оттуда, если
+ * начало совпадает с сохранённым. Иначе считаем полтора часа.
+ */
+export function meetingSpan(
+  meeting: Pick<Meeting, "id" | "whenStart" | "whenText" | "goal" | "place">,
+  tz: string,
+): MeetingSpan | null {
+  if (!meeting.whenStart) return null;
+  const { day, minutes } = utcToZonedWall(meeting.whenStart, tz);
+  let end = minutes + DEFAULT_MEETING_MIN;
+  const range = /(\d{1,2}):(\d{2})\s*[–—-]\s*(\d{1,2}):(\d{2})/.exec(meeting.whenText);
+  if (range) {
+    const from = Number(range[1]) * 60 + Number(range[2]);
+    const to = Number(range[3]) * 60 + Number(range[4]);
+    if (from === minutes && to > from) end = to;
+  }
+  return {
+    id: meeting.id,
+    date: day,
+    start: minutes,
+    end: Math.min(end, 24 * 60),
+    title: meeting.goal || meeting.place || meeting.whenText,
+  };
+}
+
 export type GroupState = {
   members: User[];
   names: Map<number, string>;
@@ -60,6 +102,8 @@ export type GroupState = {
   meetings: Meeting[];
   responses: Map<number, MeetingResponse[]>;
   duration: number;
+  /** Назначенные встречи на неделе тепловой карты. */
+  weekMeetings: MeetingSpan[];
 };
 
 export async function loadGroupState(
@@ -84,6 +128,16 @@ export async function loadGroupState(
   // встречу на прошедший день не нужно.
   const weekStart = addDays(today, -weekdayOf(today));
   const periods = gridPeriods(chat.dayStartMin, chat.dayEndMin, SLOT_STEP);
+  const tz = chatTz(chat);
+  const weekMeetings = (
+    await repo.openMeetingsBetween(
+      chat.chatId,
+      zonedWallToUtc(weekStart, 0, tz),
+      zonedWallToUtc(addDays(weekStart, DAYS_AHEAD), 0, tz),
+    )
+  )
+    .map((meeting) => meetingSpan(meeting, tz))
+    .filter((span): span is MeetingSpan => span !== null);
 
   const grid = heatmap(people, weekStart, {
     daysAhead: DAYS_AHEAD,
@@ -122,6 +176,7 @@ export async function loadGroupState(
     meetings: meetingRows,
     responses,
     duration: length,
+    weekMeetings,
   };
 }
 
@@ -141,6 +196,8 @@ export type BoardPayload = {
   duration: number;
   /** Ряды тепловой карты: номер пары и перерыв перед ней. */
   periods: Period[];
+  /** Назначенные встречи — их клетки на карте красные. */
+  meetings: MeetingSpan[];
   days: {
     date: string;
     label: string;
@@ -168,6 +225,7 @@ export function toBoardPayload(state: GroupState, lang: string): BoardPayload {
     everyone: state.everyone,
     duration: state.duration,
     periods: state.periods,
+    meetings: state.weekMeetings,
     days: state.grid.map((day) => ({
       date: day.day,
       label: formatDay(lang, day.day),

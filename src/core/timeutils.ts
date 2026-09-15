@@ -147,6 +147,12 @@ export function zonedWallToUtc(value: DateStr, minutes: number, tz: string): Dat
   return new Date(ts);
 }
 
+/** Обратное к zonedWallToUtc: календарная дата и минуты от полуночи в поясе. */
+export function utcToZonedWall(date: Date, tz: string): { day: DateStr; minutes: number } {
+  const p = partsIn(date, tzOf(tz));
+  return { day: makeDate(p.year, p.month, p.day), minutes: p.hour * 60 + p.minute };
+}
+
 /** «12.09», «12.09.2026», «12/09» -> дата. Год подставляется ближайший будущий. */
 export function parseDateToken(token: string, today: DateStr): DateStr | null {
   const match = /^(\d{1,2})[./-](\d{1,2})(?:[./-](\d{2,4}))?$/.exec(token.trim());

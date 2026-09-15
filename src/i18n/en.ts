@@ -505,4 +505,5 @@ export const EN: Strings = {
 
   // --- сетка по парам ---
   w_break_row: "Break {m} min",
+  w_legend_meeting: "meeting",
 };

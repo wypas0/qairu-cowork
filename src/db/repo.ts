@@ -10,7 +10,7 @@
 import "server-only";
 
 import crypto from "node:crypto";
-import { and, desc, eq, gt, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 
 import { PersonSchedule } from "@/core/availability";
 import type { Interval } from "@/core/intervals";
@@ -642,6 +642,29 @@ export async function chatMeetings(chatId: number, limit = 20, exec?: Exec): Pro
     .where(eq(meetings.chatId, chatId))
     .orderBy(desc(meetings.createdAt))
     .limit(limit);
+}
+
+/** Открытые встречи группы с точным временем начала в промежутке [from, to). */
+export async function openMeetingsBetween(
+  chatId: number,
+  from: Date,
+  to: Date,
+  exec?: Exec,
+): Promise<Meeting[]> {
+  return ex(exec)
+    .select()
+    .from(meetings)
+    .where(
+      and(
+        eq(meetings.chatId, chatId),
+        eq(meetings.status, "open"),
+        isNotNull(meetings.whenStart),
+        gte(meetings.whenStart, from),
+        lt(meetings.whenStart, to),
+      ),
+    )
+    .orderBy(asc(meetings.whenStart))
+    .limit(100);
 }
 
 /** Открытые встречи во всех группах пользователя — для профильной панели. */

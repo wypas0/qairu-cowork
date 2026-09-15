@@ -507,4 +507,5 @@ export const KK: Strings = {
 
   // --- сетка по парам ---
   w_break_row: "Үзіліс {m} мин",
+  w_legend_meeting: "кездесу",
 };
