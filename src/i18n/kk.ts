@@ -504,4 +504,7 @@ export const KK: Strings = {
   w_tglink_title: "Telegram-ды қосу",
   w_tglink_lead: "Топтарың, кестең және кездесулерге жауаптарың Telegram-аккаунтқа ауысады. Онда өз кестең бұрыннан болса, сол қалады.",
   w_tglink_done: "Telegram қосылды, қайтып жатырмыз…",
+
+  // --- сетка по парам ---
+  w_break_row: "Үзіліс {m} мин",
 };

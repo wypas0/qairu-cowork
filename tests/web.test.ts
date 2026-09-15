@@ -123,15 +123,26 @@ describe("расписание и сетка", () => {
     const starts = payload.days[0].cells.map((cell) => cell.start);
     expect(new Set(starts).size).toBe(starts.length);
     expect([...starts].sort((a, b) => a - b)).toEqual(starts);
-    expect(starts[1] - starts[0]).toBe(30);
+    expect(starts.slice(0, 4)).toEqual([480, 540, 600, 670]); // 08:00, 09:00, 10:00, 11:10
+    expect(payload.periods[3]).toMatchObject({ n: 4, start: 670, end: 720, breakBefore: 20 });
   });
 
-  it("сетка редактора покрывает весь рабочий день", async () => {
+  it("сетка по парам как на портале: 50 минут, после 3-й пары перерыв 20 минут", async () => {
     const { grid } = await mods();
-    const times = grid.slotTimes(8 * 60, 22 * 60, 30);
-    expect(times).toHaveLength(28); // 08:00–22:00 по 30 минут
-    expect(times[0]).toBe(480);
-    expect(times[times.length - 1]).toBe(1290);
+    const periods = grid.lessonPeriods(8 * 60, 22 * 60);
+    const text = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+    expect(periods.slice(0, 6).map((p) => `${p.n} ${text(p.start)}-${text(p.end)}`)).toEqual([
+      "1 08:00-08:50",
+      "2 09:00-09:50",
+      "3 10:00-10:50",
+      "4 11:10-12:00",
+      "5 12:10-13:00",
+      "6 13:10-14:00",
+    ]);
+    expect(periods.map((p) => p.breakBefore).filter((m) => m >= grid.BREAK_ROW_MIN)).toEqual([20]);
+    expect(periods.every((p) => p.end <= 22 * 60)).toBe(true);
+    // Часы группы короче одной пары — запасная сетка по 30 минут.
+    expect(grid.gridPeriods(600, 640, 30).map((p) => [p.n, p.start, p.end])).toEqual([[0, 600, 630], [0, 630, 640]]);
   });
 });
 
@@ -278,7 +289,7 @@ describe("настройки группы", () => {
     const cells = payload.days[0].cells;
     expect(cells[0].start).toBe(600);
     expect(cells[cells.length - 1].end).toBe(840);
-    expect(state.slotTimes[0]).toBe(600);
+    expect(state.periods[0]).toMatchObject({ n: 3, start: 600, end: 650 });
   });
 });
 

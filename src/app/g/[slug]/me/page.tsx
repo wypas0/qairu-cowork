@@ -7,7 +7,7 @@ import { ScrollToAnchor } from "@/components/ScrollToAnchor";
 import { ScheduleEditor } from "@/components/ScheduleEditor";
 import { TelegramAuth } from "@/components/TelegramAuth";
 import { Topbar } from "@/components/Topbar";
-import { slotTimes } from "@/core/grid";
+import { gridPeriods, periodOverlaps } from "@/core/grid";
 import { fmtMinutes } from "@/core/intervals";
 import { chatTz, compareDates, formatDM, formatDMY, todayIn } from "@/core/timeutils";
 import * as repo from "@/db/repo";
@@ -55,15 +55,15 @@ export default async function MySchedulePage({
   const t = translator(lang);
   const slots = await repo.getSlots(user.userId);
   const dated = await repo.datedSlots(user.userId);
-  const times = slotTimes(chat.dayStartMin, chat.dayEndMin, SLOT_STEP);
+  const periods = gridPeriods(chat.dayStartMin, chat.dayEndMin, SLOT_STEP);
   const today = todayIn(chatTz(chat));
 
   const initialBusy: string[] = [];
   for (const slot of slots) {
     if (slot.weekday === null || slot.specificDate !== null || slot.dateFrom !== null) continue;
-    for (const start of times) {
-      if (slot.startMin <= start && start < slot.endMin) {
-        initialBusy.push(`${slot.weekday}:${start}`);
+    for (const period of periods) {
+      if (periodOverlaps(period, slot.startMin, slot.endMin)) {
+        initialBusy.push(`${slot.weekday}:${period.start}`);
       }
     }
   }
@@ -87,8 +87,7 @@ export default async function MySchedulePage({
 
         <ScheduleEditor
           slug={slug}
-          step={SLOT_STEP}
-          slotTimes={times}
+          periods={periods}
           initialBusy={initialBusy}
           weekdayNames={WEEKDAY_NAMES[isLang(lang) ? lang : "ru"]}
           weekdayShort={WEEKDAY_SHORT[isLang(lang) ? lang : "ru"]}
@@ -108,6 +107,7 @@ export default async function MySchedulePage({
             importPlaceholder: IMPORT_PLACEHOLDER,
             legendFree: t("w_legend_free"),
             legendBusy: t("w_legend_busy"),
+            breakRow: t("w_break_row", { m: "{m}" }),
             photoTitle: t("w_photo_title"),
             photoHint: t("w_photo_hint"),
             photoBtn: t("w_photo_btn"),

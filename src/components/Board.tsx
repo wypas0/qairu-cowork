@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { BoardPayload } from "@/lib/group";
+import { BreakRow, PeriodTime, hhmm } from "./PeriodRow";
 
 export type PickDetail = { value: string; text: string };
 
@@ -12,6 +13,7 @@ export const PICK_EVENT = "qairu:pick";
 export type BoardLabels = {
   heatTitle: string;
   heatHint: string;
+  breakRow: string; // «Перерыв {m} мин»
   legendNone: string;
   legendAll: string;
   windowsTitle: string;
@@ -47,12 +49,6 @@ function heatClass(count: number, total: number): string {
   if (share >= 0.6) return "h2";
   if (share >= 0.4) return "h3";
   return "h4";
-}
-
-function hhmm(minutes: number): string {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
 function durationText(minutes: number, labels: BoardLabels): string {
@@ -145,7 +141,6 @@ export function Board({
   }, [quorum, duration, refresh]);
 
   const total = payload.total;
-  const rows = payload.days[0]?.cells.length ?? 0;
   const day = payload.slotDays.find((entry) => entry.date === selectedDay) ?? payload.slotDays[0];
 
   function pick(date: string, start: number, end: number, text: string) {
@@ -161,7 +156,7 @@ export function Board({
         <p className="small muted">{labels.heatHint}</p>
 
         <div className="gridwrap">
-          <table className="week">
+          <table className="week periods">
             <thead>
               <tr>
                 <th className="timecol" />
@@ -175,11 +170,15 @@ export function Board({
               </tr>
             </thead>
             <tbody>
-              {Array.from({ length: rows }, (_, row) => (
-                <tr key={row}>
-                  <td className="timecol">
-                    {row % 2 === 0 ? hhmm(payload.days[0].cells[row].start) : ""}
-                  </td>
+              {payload.periods.map((period, row) => [
+                <BreakRow
+                  key={`break-${period.start}`}
+                  period={period}
+                  columns={payload.days.length}
+                  template={labels.breakRow}
+                />,
+                <tr key={period.start}>
+                  <PeriodTime period={period} />
                   {payload.days.map((heatDay) => {
                     const cell = heatDay.cells[row];
                     const detail: CellDetail = {
@@ -207,8 +206,8 @@ export function Board({
                       />
                     );
                   })}
-                </tr>
-              ))}
+                </tr>,
+              ])}
             </tbody>
           </table>
         </div>

@@ -502,4 +502,7 @@ export const EN: Strings = {
   w_tglink_title: "Connect Telegram",
   w_tglink_lead: "Your groups, schedule and meeting answers move to your Telegram account. If it already has its own schedule, that one is kept.",
   w_tglink_done: "Telegram connected, going back…",
+
+  // --- сетка по парам ---
+  w_break_row: "Break {m} min",
 };

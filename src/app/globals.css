@@ -1307,3 +1307,38 @@ table.week.editor td.cell.busy {
   color: var(--accent);
   font-weight: 700;
 }
+
+/* --- сетка по парам, как на портале университета --- */
+table.week.periods td.cell {
+  height: 44px;
+  border-radius: 6px;
+}
+table.week.periods td.cell.busy::after {
+  border-radius: 6px;
+}
+table.week.periods td.timecol.period {
+  width: 64px;
+  min-width: 64px;
+  text-align: left;
+  vertical-align: top;
+  padding: 4px 6px 0 2px;
+  line-height: 1.25;
+}
+.period-n {
+  display: block;
+  font-family: var(--font, inherit);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+.period-time {
+  font-size: 10.5px;
+}
+table.week tr.break-row td {
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  color: var(--muted);
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  text-align: left;
+}

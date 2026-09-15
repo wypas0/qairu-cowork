@@ -17,7 +17,7 @@ import {
   parityFromSemesterStart,
   slotsOfLength,
 } from "@/core/availability";
-import { slotTimes } from "@/core/grid";
+import { type Period, gridPeriods } from "@/core/grid";
 import { fmtInterval } from "@/core/intervals";
 import { type DateStr, addDays, chatTz, formatDM, todayIn, weekdayOf } from "@/core/timeutils";
 import * as repo from "@/db/repo";
@@ -56,7 +56,7 @@ export type GroupState = {
   everyone: boolean;
   total: number;
   today: DateStr;
-  slotTimes: number[];
+  periods: Period[];
   meetings: Meeting[];
   responses: Map<number, MeetingResponse[]>;
   duration: number;
@@ -83,6 +83,7 @@ export async function loadGroupState(
   // встречи ниже по-прежнему считаются вперёд от сегодня — предлагать
   // встречу на прошедший день не нужно.
   const weekStart = addDays(today, -weekdayOf(today));
+  const periods = gridPeriods(chat.dayStartMin, chat.dayEndMin, SLOT_STEP);
 
   const grid = heatmap(people, weekStart, {
     daysAhead: DAYS_AHEAD,
@@ -91,6 +92,7 @@ export async function loadGroupState(
     step: SLOT_STEP,
     parityOf,
     bufferMin: chat.travelBufferMin,
+    rows: periods,
   });
 
   const slots = slotsOfLength(people, today, {
@@ -116,7 +118,7 @@ export async function loadGroupState(
     everyone: slots.everyone,
     total: slots.participants.length,
     today,
-    slotTimes: slotTimes(chat.dayStartMin, chat.dayEndMin, SLOT_STEP),
+    periods,
     meetings: meetingRows,
     responses,
     duration: length,
@@ -137,6 +139,8 @@ export type BoardPayload = {
   quorum: number;
   everyone: boolean;
   duration: number;
+  /** Ряды тепловой карты: номер пары и перерыв перед ней. */
+  periods: Period[];
   days: {
     date: string;
     label: string;
@@ -163,6 +167,7 @@ export function toBoardPayload(state: GroupState, lang: string): BoardPayload {
     quorum: state.quorum,
     everyone: state.everyone,
     duration: state.duration,
+    periods: state.periods,
     days: state.grid.map((day) => ({
       date: day.day,
       label: formatDay(lang, day.day),

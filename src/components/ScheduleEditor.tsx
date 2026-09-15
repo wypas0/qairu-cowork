@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import type { Period } from "@/core/grid";
+import { periodOverlaps } from "@/core/grid";
+import { BreakRow, PeriodTime, hhmm } from "./PeriodRow";
 import { toast } from "./toast";
 
 export type EditorLabels = {
@@ -20,6 +23,7 @@ export type EditorLabels = {
   importPlaceholder: string;
   legendFree: string;
   legendBusy: string;
+  breakRow: string; // «Перерыв {m} мин»
   photoTitle: string;
   photoHint: string;
   photoBtn: string;
@@ -117,10 +121,6 @@ function cellKey(weekday: number, start: number): string {
   return `${weekday}:${start}`;
 }
 
-function hhmm(minutes: number): string {
-  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
-}
-
 /**
  * Редактор своей занятости.
  *
@@ -129,8 +129,7 @@ function hhmm(minutes: number): string {
  */
 export function ScheduleEditor({
   slug,
-  step,
-  slotTimes,
+  periods,
   initialBusy,
   weekdayNames,
   weekdayShort,
@@ -138,8 +137,8 @@ export function ScheduleEditor({
   labels,
 }: {
   slug: string;
-  step: number;
-  slotTimes: number[];
+  /** Ряды сетки — пары. Занятость хранится по началу пары. */
+  periods: Period[];
   initialBusy: string[];
   weekdayNames: string[];
   weekdayShort: string[];
@@ -232,28 +231,28 @@ export function ScheduleEditor({
   }
 
   function toggleDay(weekday: number) {
-    const keys = slotTimes.map((start) => cellKey(weekday, start));
+    const keys = periods.map((period) => cellKey(weekday, period.start));
     const allBusy = keys.every((key) => busy.has(key));
     apply(keys, !allBusy);
   }
 
   function clearAll() {
     apply(
-      weekdayNames.flatMap((_, weekday) => slotTimes.map((start) => cellKey(weekday, start))),
+      weekdayNames.flatMap((_, weekday) => periods.map((period) => cellKey(weekday, period.start))),
       false,
     );
   }
 
-  /** Собрать клетки обратно в интервалы. */
+  /** Собрать клетки обратно в интервалы: подряд занятые пары — одна занятость вместе с перерывами. */
   function collect(): { weekday: number; start: number; end: number }[] {
     const slots: { weekday: number; start: number; end: number }[] = [];
     for (let weekday = 0; weekday < 7; weekday += 1) {
       let runStart: number | null = null;
       let previousEnd = 0;
-      for (const start of slotTimes) {
-        if (busy.has(cellKey(weekday, start))) {
-          if (runStart === null) runStart = start;
-          previousEnd = start + step;
+      for (const period of periods) {
+        if (busy.has(cellKey(weekday, period.start))) {
+          if (runStart === null) runStart = period.start;
+          previousEnd = period.end;
         } else if (runStart !== null) {
           slots.push({ weekday, start: runStart, end: previousEnd });
           runStart = null;
@@ -292,8 +291,8 @@ export function ScheduleEditor({
   function applyParsed(slots: ParsedSlot[], errors: string[]) {
     const next = new Set<string>();
     for (const slot of slots) {
-      for (const start of slotTimes) {
-        if (start < slot.end && start + step > slot.start) next.add(cellKey(slot.weekday, start));
+      for (const period of periods) {
+        if (periodOverlaps(period, slot.start, slot.end)) next.add(cellKey(slot.weekday, period.start));
       }
     }
     setBusy(next);
@@ -409,7 +408,7 @@ export function ScheduleEditor({
           onKeyDown={onKeyDown}
           style={{ touchAction: "none" }}
         >
-          <table className="week editor">
+          <table className="week editor periods">
             <thead>
               <tr>
                 <th className="timecol" />
@@ -428,11 +427,17 @@ export function ScheduleEditor({
               </tr>
             </thead>
             <tbody>
-              {slotTimes.map((start, row) => (
-                <tr key={start}>
-                  <td className="timecol">{row % 2 === 0 ? hhmm(start) : ""}</td>
+              {periods.map((period) => [
+                <BreakRow
+                  key={`break-${period.start}`}
+                  period={period}
+                  columns={weekdayNames.length}
+                  template={labels.breakRow}
+                />,
+                <tr key={period.start}>
+                  <PeriodTime period={period} />
                   {weekdayNames.map((name, weekday) => {
-                    const key = cellKey(weekday, start);
+                    const key = cellKey(weekday, period.start);
                     const isBusy = busy.has(key);
                     return (
                       <td
@@ -441,13 +446,13 @@ export function ScheduleEditor({
                         tabIndex={0}
                         role="button"
                         aria-pressed={isBusy}
-                        aria-label={`${name} ${hhmm(start)}`}
+                        aria-label={`${name} ${hhmm(period.start)}–${hhmm(period.end)}`}
                         data-key={key}
                       />
                     );
                   })}
-                </tr>
-              ))}
+                </tr>,
+              ])}
             </tbody>
           </table>
         </div>

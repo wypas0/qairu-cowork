@@ -347,6 +347,8 @@ export function heatmap(
     step?: number;
     parityOf?: ParityOf | null;
     bufferMin?: number;
+    /** Готовые ряды (например, пары). Без них — отрезки по `step`. */
+    rows?: readonly { start: number; end: number }[];
   } = {},
 ): HeatDay[] {
   const {
@@ -356,6 +358,7 @@ export function heatmap(
     step = 30,
     parityOf = null,
     bufferMin = 0,
+    rows = null,
   } = options;
 
   const withData = people.filter((person) => person.hasData);
@@ -365,6 +368,13 @@ export function heatmap(
     const day = addDays(startDay, offset);
     const freeByUser = freeByUserFor(withData, day, dayStart, dayEnd, parityOf, bufferMin);
     const cells: HeatCell[] = [];
+    if (rows) {
+      for (const row of rows) {
+        cells.push({ startMin: row.start, endMin: row.end, freeIds: whoIsFree(freeByUser, [row.start, row.end]) });
+      }
+      result.push({ day, cells });
+      continue;
+    }
     for (let start = dayStart; start < dayEnd; start += step) {
       const end = Math.min(start + step, dayEnd);
       cells.push({ startMin: start, endMin: end, freeIds: whoIsFree(freeByUser, [start, end]) });

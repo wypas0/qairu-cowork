@@ -265,6 +265,7 @@ export default async function GroupPage({
           labels={{
             heatTitle: t("w_heat_title"),
             heatHint: t("w_heat_hint"),
+            breakRow: t("w_break_row", { m: "{m}" }),
             legendNone: t("w_legend_none"),
             legendAll: t("w_legend_all"),
             windowsTitle: t("w_windows_title"),

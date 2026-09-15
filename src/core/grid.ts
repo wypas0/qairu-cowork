@@ -22,6 +22,56 @@ export function slotTimes(dayStart: number, dayEnd: number, step: number): numbe
   return times;
 }
 
+/** Строка сетки: пара университета или, если пары не влезают в часы группы, отрезок по шагу. */
+export type Period = {
+  /** Номер пары; 0 — ряд без номера (запасная сетка по шагу). */
+  n: number;
+  start: number;
+  end: number;
+  /** Перерыв перед этим рядом, минуты: показываем его отдельной строкой, если он длинный. */
+  breakBefore: number;
+};
+
+/** Пары как на портале университета: по 50 минут с 08:00, после 3-й перерыв 20 минут, иначе 10. */
+export const LESSON_MIN = 50;
+export const FIRST_LESSON = 8 * 60;
+const SHORT_BREAK = 10;
+const LONG_BREAK_AFTER: Record<number, number> = { 3: 20 };
+/** Перерыв от стольких минут выделяется отдельной строкой. */
+export const BREAK_ROW_MIN = 20;
+
+/** Пары, целиком попадающие в часы группы. Нумерация — университетская: 08:00 всегда 1-я. */
+export function lessonPeriods(dayStart: number, dayEnd: number): Period[] {
+  const periods: Period[] = [];
+  let start = FIRST_LESSON;
+  for (let n = 1; start + LESSON_MIN <= 24 * 60; n += 1) {
+    const end = start + LESSON_MIN;
+    if (start >= dayStart && end <= dayEnd) {
+      const previous = periods[periods.length - 1];
+      periods.push({ n, start, end, breakBefore: previous ? start - previous.end : 0 });
+    }
+    start = end + (LONG_BREAK_AFTER[n] ?? SHORT_BREAK);
+  }
+  return periods;
+}
+
+/** Ряды сетки недели: пары, а если часы группы уже одной пары — прежние отрезки по шагу. */
+export function gridPeriods(dayStart: number, dayEnd: number, step: number): Period[] {
+  const lessons = lessonPeriods(dayStart, dayEnd);
+  if (lessons.length > 0) return lessons;
+  return slotTimes(dayStart, dayEnd, step).map((start) => ({
+    n: 0,
+    start,
+    end: Math.min(start + step, dayEnd),
+    breakBefore: 0,
+  }));
+}
+
+/** Ряд задевает интервал хотя бы частично. */
+export function periodOverlaps(period: { start: number; end: number }, start: number, end: number): boolean {
+  return period.start < end && start < period.end;
+}
+
 type IncomingSlot = {
   weekday?: unknown;
   start?: unknown;
