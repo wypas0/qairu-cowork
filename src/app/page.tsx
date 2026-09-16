@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 
+import { IconBell, IconPhone, IconUser } from "@/components/icons";
 import { TelegramSignIn } from "@/components/TelegramSignIn";
 import { Topbar } from "@/components/Topbar";
 import * as repo from "@/db/repo";
@@ -31,33 +32,33 @@ export default async function LandingPage() {
       <Topbar />
       <main className="wrap">
         <section className="hero">
-          <h1>{t("w_hero_title")}</h1>
+          <h1 className="type-display">{t("w_hero_title")}</h1>
           <p className="lead">{t("w_hero_lead")}</p>
         </section>
 
-        <div className="steps">
+        {/* Как это работает — строки с волосяными линиями, без нумерованных плиток. */}
+        <ol className="steps">
           {([1, 2, 3] as const).map((n) => (
-            <div className="step" key={n}>
-              <div className="n">{n}</div>
+            <li className="step" key={n}>
               <h3>{t(`w_step${n}_t`)}</h3>
               <p className="small muted">{t(`w_step${n}_d`)}</p>
-            </div>
+            </li>
           ))}
-        </div>
+        </ol>
 
         <section className="card tg-only" aria-labelledby="tg-only-title">
           <h2 id="tg-only-title">{t("w_tg_only_title")}</h2>
           <ul className="tg-only-list">
             <li>
-              <span aria-hidden="true">👤</span>
+              <IconUser size={20} className="ico" />
               <span>{t("w_tg_only_1")}</span>
             </li>
             <li>
-              <span aria-hidden="true">📲</span>
+              <IconPhone size={20} className="ico" />
               <span>{t("w_tg_only_2")}</span>
             </li>
             <li>
-              <span aria-hidden="true">🔔</span>
+              <IconBell size={20} className="ico" />
               <span>{t("w_tg_only_3")}</span>
             </li>
           </ul>

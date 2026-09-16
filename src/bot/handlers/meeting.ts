@@ -344,7 +344,7 @@ export async function renderCard(
 
   let text = t(lang, "meeting_card", { place, when, goal, invitees: mentionList(ordered) });
 
-  const buckets: Record<string, User[]> = { yes: [], no: [], change: [] };
+  const buckets: Record<string, User[]> = { yes: [], maybe: [], no: [], change: [] };
   const comments: string[] = [];
   for (const response of responses) {
     const user = byId.get(response.userId);
@@ -357,6 +357,8 @@ export async function renderCard(
   text += t(lang, "meeting_votes", {
     yes: buckets.yes.length,
     yes_names: mentionList(buckets.yes),
+    maybe: buckets.maybe.length,
+    maybe_names: mentionList(buckets.maybe),
     no: buckets.no.length,
     no_names: mentionList(buckets.no),
     change: buckets.change.length,
@@ -374,7 +376,10 @@ export async function renderCard(
         callback_data: `vote:${meetingId}:no`,
       },
     ],
-    [{ text: t(lang, "btn_change"), callback_data: `vote:${meetingId}:change` }],
+    [
+      { text: `${t(lang, "btn_maybe")} ${buckets.maybe.length}`, callback_data: `vote:${meetingId}:maybe` },
+      { text: t(lang, "btn_change"), callback_data: `vote:${meetingId}:change` },
+    ],
   ];
   const extra = [];
   if (meeting.whenStart) {
@@ -447,7 +452,11 @@ export async function onVote(query: TgCallbackQuery): Promise<void> {
   }
 
   // Организатору — короткий ответ в личку. Импорт ленивый: lib/notify сам импортирует этот модуль.
-  if ((answer === "yes" || answer === "no") && chat && query.from.id !== meeting.initiatorId) {
+  if (
+    (answer === "yes" || answer === "maybe" || answer === "no") &&
+    chat &&
+    query.from.id !== meeting.initiatorId
+  ) {
     const { notifyOrganizerAnswer } = await import("@/lib/notify");
     const voter = (await repo.getUser(query.from.id))!;
     await notifyOrganizerAnswer(chat, meeting, voter, answer);

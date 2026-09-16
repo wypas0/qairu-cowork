@@ -71,7 +71,7 @@ export function MeetingForm({
           {labels.whenHint}
         </p>
       </div>
-      <button className="btn btn-primary" type="submit">
+      <button className="btn" type="submit">
         {labels.create}
       </button>
     </form>

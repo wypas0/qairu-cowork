@@ -3,18 +3,20 @@ import { notFound, redirect } from "next/navigation";
 
 import { Board } from "@/components/Board";
 import { ConfirmSubmit } from "@/components/ConfirmSubmit";
+import { GroupTabs, type GroupTabKey } from "@/components/GroupTabs";
 import { CopyButton } from "@/components/CopyButton";
+import { MeetingCard } from "@/components/MeetingCard";
 import { MeetingForm } from "@/components/MeetingForm";
 import { ScrollToAnchor } from "@/components/ScrollToAnchor";
 import { Topbar } from "@/components/Topbar";
 import { fmtMinutes } from "@/core/intervals";
-import { formatDM, weekdayOf } from "@/core/timeutils";
+import { chatTz } from "@/core/timeutils";
 import * as repo from "@/db/repo";
 import { ROLE_ADMIN, displayName } from "@/db/schema";
-import { LANG_NAMES, translator, weekdayName } from "@/i18n";
+import { LANG_NAMES, translator } from "@/i18n";
 import { type AdminSource, adminSources } from "@/lib/admin";
 import { pageUser } from "@/lib/gate";
-import { durationOptions, loadGroupState, toBoardPayload } from "@/lib/group";
+import { durationOptions, loadGroupState, normalizeWeek, toBoardPayload } from "@/lib/group";
 import { baseUrl } from "@/lib/url";
 import {
   cancelMeetingAction,
@@ -40,8 +42,6 @@ const ERRORS: Record<string, string> = {
   empty_comment: "w_err_empty_comment",
 };
 
-const ANSWER_ICON: Record<string, string> = { yes: "✅", no: "❌", change: "✏️" };
-
 export default async function GroupPage({
   params,
   searchParams,
@@ -61,8 +61,8 @@ export default async function GroupPage({
 
   const lang = chat.lang;
   const t = translator(lang);
-  const state = await loadGroupState(chat);
-  const payload = toBoardPayload(state, lang);
+  const state = await loadGroupState(chat, { week: normalizeWeek(query.week) });
+  const payload = toBoardPayload(state, lang, user.userId);
   const inviteUrl = `${await baseUrl()}/g/${slug}`;
 
   const roster = await repo.chatRoster(chat.chatId);
@@ -71,18 +71,30 @@ export default async function GroupPage({
   const notices = await repo.unreadNotices(chat.chatId, user.userId);
   const openMeetings = new Map(state.meetings.map((meeting) => [meeting.id, meeting]));
 
+  // Встреча уходит в архив, когда началась: голосовать за прошедшее нечего.
+  const startedAlready = (meeting: (typeof state.meetings)[number]) =>
+    meeting.status === "cancelled" || (meeting.whenStart !== null && meeting.whenStart.getTime() < Date.now());
+  const upcomingMeetings = state.meetings.filter((meeting) => !startedAlready(meeting));
+  const archivedMeetings = state.meetings.filter(startedAlready);
+
   const unfilledOthers = roster.filter(
     (entry) => !state.filledIds.has(entry.user.userId) && entry.user.userId !== user.userId,
   );
 
-  const dayHeaders = state.grid.map((day) => ({
-    short: weekdayName(lang, weekdayOf(day.day)).slice(0, 3),
-    dm: formatDM(day.day),
-  }));
-
   const sent = typeof query.sent === "string" ? /^(\d+)-(\d+)$/.exec(query.sent) : null;
   const errorKey = typeof query.err === "string" ? ERRORS[query.err] : undefined;
   const savedSettings = query.saved === "settings";
+
+  // Серверные действия возвращают человека с параметром `at` — по нему
+  // открываем тот же раздел, из которого он ушёл.
+  const at = typeof query.at === "string" ? query.at : "";
+  const initialTab: GroupTabKey = at.startsWith("meeting-")
+    ? "meetings"
+    : at === "members"
+      ? "members"
+      : savedSettings
+        ? "settings"
+        : "time";
 
   const roleLabel = (source: AdminSource) =>
     source === "creator" ? t("w_role_creator") : source === "telegram" ? t("w_role_tg_admin") : t("w_role_admin");
@@ -101,14 +113,19 @@ export default async function GroupPage({
   return (
     <>
       <ScrollToAnchor id={typeof query.at === "string" ? query.at : null} />
-      <Topbar lang={lang}>
-        <Link className="btn btn-sm" href={`/g/${slug}/me`}>
-          {t("w_edit_mine")}
-        </Link>
-      </Topbar>
+      {/* Действие страницы живёт в её заголовке — в шапке его не дублируем. */}
+      <Topbar lang={lang} />
 
       <main className="wrap">
-        <h1>{chat.title}</h1>
+        <header className="page-head">
+          <div>
+            <p className="eyebrow">{t("w_eyebrow_group")}</p>
+            <h1>{chat.title}</h1>
+          </div>
+          <Link className="btn btn-primary" href={`/g/${slug}/me`}>
+            {t("w_edit_mine")}
+          </Link>
+        </header>
 
         {/* ============ сообщения о результате действия ============ */}
         {sent && (
@@ -133,7 +150,7 @@ export default async function GroupPage({
             <span>{noticeText(notice)}</span>
             <span className="notice-actions">
               {notice.kind === "fill_schedule" ? (
-                <Link className="btn btn-sm btn-primary" href={`/g/${slug}/me`}>
+                <Link className="btn btn-sm" href={`/g/${slug}/me`}>
                   {t("w_fill_now")}
                 </Link>
               ) : (
@@ -155,397 +172,327 @@ export default async function GroupPage({
         {!state.filledIds.has(user.userId) && notices.every((n) => n.kind !== "fill_schedule") && (
           <div className="notice">
             {t("w_no_schedule_yet")}
-            <Link
-              className="btn btn-sm btn-primary"
-              style={{ marginLeft: 8 }}
-              href={`/g/${slug}/me`}
-            >
+            <Link className="btn btn-sm" href={`/g/${slug}/me`}>
               {t("w_fill_now")}
             </Link>
           </div>
         )}
 
-        {/* ============ участники ============ */}
-        <section className="card" id="members">
-          <div className="card-head">
-            <h2>
-              {t("w_members")}{" "}
-              <span className="small muted">
-                {t("w_members_count", { filled: state.filledIds.size, n: roster.length })}
-              </span>
-            </h2>
-            {isAdmin && unfilledOthers.length > 0 && (
-              <form action={remindFillAction.bind(null, slug)}>
-                <button className="btn btn-sm btn-primary" type="submit">
-                  {t("w_remind_all", { n: unfilledOthers.length })}
-                </button>
-              </form>
-            )}
-          </div>
-          {isAdmin && <p className="small muted">{t("w_admin_hint")}</p>}
+        <GroupTabs
+          initial={initialTab}
+          labels={{
+            time: t("w_tab_time"),
+            meetings: t("w_tab_meetings"),
+            members: t("w_tab_members"),
+            settings: t("w_tab_settings"),
+          }}
+          panels={{
+            time: (
+              <>
+                <Board
+                  slug={slug}
+                  initial={payload}
+                  durationOptions={durationOptions(state.duration)}
+                  labels={{
+                    bestTitle: t("w_best_title"),
+                    bestLead: t("w_best_lead"),
+                    bestEmpty: t("w_best_empty"),
+                    bestAll: t("w_best_all"),
+                    bestCount: t("w_best_count", { n: "{n}", total: "{total}" }),
+                    weekPrev: t("w_week_prev"),
+                    weekNext: t("w_week_next"),
+                    weekThis: t("w_week_this"),
+                    quorumAll: t("w_quorum_all"),
+                    quorumMinusOne: t("w_quorum_minus_one"),
+                    quorumMost: t("w_quorum_most"),
+                    heatTitle: t("w_heat_title"),
+                    heatHint: t("w_heat_hint"),
+                    breakRow: t("w_break_row", { m: "{m}" }),
+                    legendNone: t("w_legend_none"),
+                    legendAll: t("w_legend_all"),
+                    legendMeeting: t("w_legend_meeting"),
+                    legendMine: t("w_legend_mine"),
+                    freeNames: t("w_free_names"),
+                    busyNames: t("w_busy_names"),
+                    nobody: t("w_nobody"),
+                    windowsTitle: t("w_windows_title"),
+                    windowsEmpty: t("w_windows_empty"),
+                    windowsNoData: t("w_windows_nodata"),
+                    missingShort: t("w_missing_short"),
+                    pick: t("w_pick"),
+                    day: t("w_day"),
+                    duration: t("w_duration"),
+                    durationTemplate: t("w_duration_hm", { h: "{h}", m: "{m}" }),
+                    hoursOnlyTemplate: t("w_duration_h", { h: "{h}" }),
+                    minutesTemplate: t("w_duration_m", { m: "{m}" }),
+                    variantsTemplate: t("w_variants", { n: "{n}" }),
+                    quorumTemplate: t("w_quorum_label", { q: "{q}", n: "{n}" }),
+                    close: t("w_close"),
+                  }}
+                />
+              </>
+            ),
+            meetings: (
+              <>
+                <section className="card">
+                  <h2>{t("w_meetings")}</h2>
 
-          <ul className="roster">
-            {roster.map((entry) => {
-              const member = entry.user;
-              const filled = state.filledIds.has(member.userId);
-              const source = sources.get(member.userId);
-              const self = member.userId === user.userId;
-              const siteAdmin = entry.role === ROLE_ADMIN;
-              return (
-                <li className="roster-row" key={member.userId}>
-                  <div className="roster-who">
-                    <span className={`dot ${filled ? "ok" : "warn"}`} aria-hidden="true" />
-                    <b>{displayName(member)}</b>
-                    {member.realName && member.realName !== displayName(member) && (
-                      <span className="small muted">{member.realName}</span>
-                    )}
-                    {self && <span className="small muted">({t("w_you")})</span>}
-                    {source && <span className="badge">{roleLabel(source)}</span>}
-                    <span className="small muted">
-                      {filled ? t("w_filled") : t("w_not_filled")}
-                    </span>
-                  </div>
-
-                  {isAdmin && !self && (
-                    <div className="roster-actions">
-                      {!filled && (
-                        <form action={remindFillAction.bind(null, slug)}>
-                          <input type="hidden" name="user_id" value={member.userId} />
-                          <button className="btn btn-sm" type="submit">
-                            {t("w_remind_one")}
-                          </button>
-                        </form>
-                      )}
-                      {source !== "creator" && source !== "telegram" && (
-                        <form action={setRoleAction.bind(null, slug)}>
-                          <input type="hidden" name="user_id" value={member.userId} />
-                          <input
-                            type="hidden"
-                            name="role"
-                            value={siteAdmin ? "member" : ROLE_ADMIN}
-                          />
-                          <button className="btn btn-sm btn-quiet" type="submit">
-                            {siteAdmin ? t("w_remove_admin") : t("w_make_admin")}
-                          </button>
-                        </form>
-                      )}
-                      {source !== "creator" && source !== "telegram" && (
-                        <form action={removeMemberAction.bind(null, slug)}>
-                          <input type="hidden" name="user_id" value={member.userId} />
-                          <ConfirmSubmit
-                            className="btn btn-sm btn-quiet btn-danger"
-                            confirm={t("w_remove_confirm", { name: displayName(member) })}
-                          >
-                            {t("w_remove_member")}
-                          </ConfirmSubmit>
-                        </form>
-                      )}
+                  {upcomingMeetings.length === 0 && (
+                    <div className="empty">
+                      <h3>{t("w_meetings_empty")}</h3>
+                      <p>{t("w_meetings_empty_hint")}</p>
                     </div>
                   )}
-                </li>
-              );
-            })}
-          </ul>
 
-          <h3 style={{ marginTop: 16 }}>{t("w_invite")}</h3>
-          <p className="small muted">{t("w_invite_hint")}</p>
-          <div className="row">
-            <input type="text" readOnly value={inviteUrl} aria-label={t("w_invite")} />
-            <CopyButton value={inviteUrl} label={t("w_copy")} copiedLabel={t("w_copied")} />
-          </div>
-        </section>
+                  {upcomingMeetings.map((meeting) => (
+                    <MeetingCard
+                      key={meeting.id}
+                      slug={slug}
+                      lang={lang}
+                      tz={chatTz(chat)}
+                      meeting={meeting}
+                      answers={state.responses.get(meeting.id) ?? []}
+                      names={state.names}
+                      invitees={repo.inviteeIds(meeting)}
+                      viewerId={user.userId}
+                      canManage={meeting.initiatorId === user.userId || isAdmin}
+                    />
+                  ))}
 
-        <Board
-          slug={slug}
-          initial={payload}
-          dayHeaders={dayHeaders}
-          durationOptions={durationOptions(state.duration)}
-          labels={{
-            heatTitle: t("w_heat_title"),
-            heatHint: t("w_heat_hint"),
-            breakRow: t("w_break_row", { m: "{m}" }),
-            legendNone: t("w_legend_none"),
-            legendAll: t("w_legend_all"),
-            legendMeeting: t("w_legend_meeting"),
-            freeNames: t("w_free_names"),
-            busyNames: t("w_busy_names"),
-            nobody: t("w_nobody"),
-            windowsTitle: t("w_windows_title"),
-            windowsEmpty: t("w_windows_empty"),
-            windowsNoData: t("w_windows_nodata"),
-            missingShort: t("w_missing_short"),
-            pick: t("w_pick"),
-            day: t("w_day"),
-            duration: t("w_duration"),
-            durationTemplate: t("w_duration_hm", { h: "{h}", m: "{m}" }),
-            hoursOnlyTemplate: t("w_duration_h", { h: "{h}" }),
-            minutesTemplate: t("w_duration_m", { m: "{m}" }),
-            variantsTemplate: t("w_variants", { n: "{n}" }),
-            quorumTemplate: t("w_quorum_label", { q: "{q}", n: "{n}" }),
-            close: t("w_close"),
-          }}
-        />
+                  {/* Прошедшие и отменённые не мешают отвечать на ближайшие. */}
+                  {archivedMeetings.length > 0 && (
+                    <details className="past-meetings">
+                      <summary className="small muted">
+                        {t("w_past_meetings", { n: archivedMeetings.length })}
+                      </summary>
+                      {archivedMeetings.map((meeting) => (
+                        <MeetingCard
+                          key={meeting.id}
+                          slug={slug}
+                          lang={lang}
+                          tz={chatTz(chat)}
+                          meeting={meeting}
+                          answers={state.responses.get(meeting.id) ?? []}
+                          names={state.names}
+                          invitees={repo.inviteeIds(meeting)}
+                          viewerId={user.userId}
+                          canManage={false}
+                          past
+                        />
+                      ))}
+                    </details>
+                  )}
 
-        <div className="grid-2">
-          {/* ============ встречи ============ */}
-          <section className="card">
-            <h2>{t("w_meetings")}</h2>
-
-            {state.meetings.length === 0 && <p className="muted small">—</p>}
-
-            {state.meetings.map((meeting) => {
-              const answers = state.responses.get(meeting.id) ?? [];
-              const byUser = new Map(answers.map((answer) => [answer.userId, answer]));
-              const invitees = repo.inviteeIds(meeting);
-              const waiting = invitees.filter((id) => !byUser.has(id));
-              const count = (value: string) => answers.filter((a) => a.answer === value).length;
-              const cancelled = meeting.status === "cancelled";
-              const mine = byUser.get(user.userId);
-              const canManage = meeting.initiatorId === user.userId || isAdmin;
-              const invited = invitees.includes(user.userId);
-
-              return (
-                <div
-                  className={`meeting${cancelled ? " cancelled" : ""}`}
-                  key={meeting.id}
-                  id={`meeting-${meeting.id}`}
-                >
-                  <div className="mtitle">
-                    <b>{meeting.goal || t("w_new_meeting")}</b>
+                  <MeetingForm
+                    action={createMeetingAction.bind(null, slug)}
+                    labels={{
+                      newMeeting: t("w_new_meeting"),
+                      place: t("w_place"),
+                      placePh: t("w_place_ph"),
+                      goal: t("w_goal"),
+                      goalPh: t("w_goal_ph"),
+                      when: t("w_when"),
+                      whenHint: t("w_when_hint"),
+                      create: t("w_create_meeting"),
+                    }}
+                  />
+                </section>
+              </>
+            ),
+            members: (
+              <>
+                {/* ============ участники ============ */}
+                <section className="card" id="members">
+                  <div className="card-head">
+                    <h2>
+                      {t("w_members")}{" "}
+                      <span className="small muted">
+                        {t("w_members_count", { filled: state.filledIds.size, n: roster.length })}
+                      </span>
+                    </h2>
+                    {isAdmin && unfilledOthers.length > 0 && (
+                      <form action={remindFillAction.bind(null, slug)}>
+                        <button className="btn btn-sm" type="submit">
+                          {t("w_remind_all", { n: unfilledOthers.length })}
+                        </button>
+                      </form>
+                    )}
                   </div>
-                  <div className="small muted">
-                    📍 {meeting.place || "—"} · 🕒 {meeting.whenText || "—"} · 👤{" "}
-                    {state.names.get(meeting.initiatorId) ?? "—"}
-                  </div>
+                  {isAdmin && <p className="small muted">{t("w_admin_hint")}</p>}
 
-                  {cancelled ? (
-                    <p className="small muted" style={{ marginTop: 8 }}>
-                      {t("w_cancelled")}
-                    </p>
-                  ) : (
-                    <>
-                      <div className="small" style={{ marginTop: 8 }}>
-                        ✅ {count("yes")} · ❌ {count("no")} · ✏️ {count("change")} · ⏳{" "}
-                        {waiting.length}
-                      </div>
-
-                      <details className="responses" open={invitees.length <= 8}>
-                        <summary className="small">{t("w_responses")}</summary>
-                        <ul>
-                          {invitees.map((id) => {
-                            const answer = byUser.get(id);
-                            return (
-                              <li key={id} className="small">
-                                <span aria-hidden="true">
-                                  {answer ? ANSWER_ICON[answer.answer] ?? "•" : "⏳"}
-                                </span>{" "}
-                                <b>{state.names.get(id) ?? "?"}</b>{" "}
-                                <span className="muted">
-                                  {answer ? t(`w_answer_${answer.answer}`) : t("w_answer_wait")}
-                                  {id === meeting.initiatorId ? ` · ${t("w_initiator")}` : ""}
-                                </span>
-                                {answer?.comment && (
-                                  <div className="muted response-comment">💬 {answer.comment}</div>
-                                )}
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      </details>
-
-                      {invited && (
-                        <>
-                          {mine && (
-                            <p className="small" style={{ margin: "8px 0 0" }}>
-                              {t("w_your_answer", { answer: t(`w_answer_${mine.answer}`) })}
-                            </p>
-                          )}
-                          <div className="votes">
-                            {(
-                              [
-                                ["yes", t("w_yes")],
-                                ["no", t("w_no")],
-                              ] as const
-                            ).map(([value, label]) => (
-                              <form key={value} action={voteAction.bind(null, slug, meeting.id)}>
-                                <input type="hidden" name="answer" value={value} />
-                                <button
-                                  className={`btn btn-sm${mine?.answer === value ? " btn-primary" : ""}`}
-                                  type="submit"
-                                  aria-pressed={mine?.answer === value}
-                                >
-                                  {label}
-                                </button>
-                              </form>
-                            ))}
-                            {meeting.whenStart && (
-                              <a
-                                className="btn btn-sm"
-                                href={`/g/${slug}/meetings/${meeting.id}.ics`}
-                              >
-                                {t("w_ics")}
-                              </a>
+                  <ul className="roster">
+                    {roster.map((entry) => {
+                      const member = entry.user;
+                      const filled = state.filledIds.has(member.userId);
+                      const source = sources.get(member.userId);
+                      const self = member.userId === user.userId;
+                      const siteAdmin = entry.role === ROLE_ADMIN;
+                      return (
+                        <li className="roster-row" key={member.userId}>
+                          <div className="roster-who">
+                            <span className={`dot ${filled ? "ok" : "warn"}`} aria-hidden="true" />
+                            <b>{displayName(member)}</b>
+                            {member.realName && member.realName !== displayName(member) && (
+                              <span className="small muted">{member.realName}</span>
                             )}
+                            {self && <span className="small muted">({t("w_you")})</span>}
+                            {source && <span className="badge">{roleLabel(source)}</span>}
+                            <span className="small muted">
+                              {filled ? t("w_filled") : t("w_not_filled")}
+                            </span>
                           </div>
 
-                          <form
-                            action={voteAction.bind(null, slug, meeting.id)}
-                            className="change-form"
-                          >
-                            <input type="hidden" name="answer" value="change" />
-                            <input
-                              type="text"
-                              name="comment"
-                              maxLength={300}
-                              required
-                              placeholder={t("w_comment_ph")}
-                              aria-label={t("w_comment_ph")}
-                            />
-                            <button className="btn btn-sm" type="submit">
-                              {t("w_change")}
-                            </button>
-                          </form>
-                        </>
-                      )}
-
-                      {canManage && (
-                        <div className="votes">
-                          {waiting.filter((id) => id !== user.userId).length > 0 && (
-                            <form action={pingNonRespondersAction.bind(null, slug, meeting.id)}>
-                              <button className="btn btn-sm" type="submit">
-                                {t("w_ping", {
-                                  n: waiting.filter((id) => id !== user.userId).length,
-                                })}
-                              </button>
-                            </form>
+                          {isAdmin && !self && (
+                            <div className="roster-actions">
+                              {!filled && (
+                                <form action={remindFillAction.bind(null, slug)}>
+                                  <input type="hidden" name="user_id" value={member.userId} />
+                                  <button className="btn btn-sm" type="submit">
+                                    {t("w_remind_one")}
+                                  </button>
+                                </form>
+                              )}
+                              {source !== "creator" && source !== "telegram" && (
+                                <form action={setRoleAction.bind(null, slug)}>
+                                  <input type="hidden" name="user_id" value={member.userId} />
+                                  <input
+                                    type="hidden"
+                                    name="role"
+                                    value={siteAdmin ? "member" : ROLE_ADMIN}
+                                  />
+                                  <button className="btn btn-sm btn-quiet" type="submit">
+                                    {siteAdmin ? t("w_remove_admin") : t("w_make_admin")}
+                                  </button>
+                                </form>
+                              )}
+                              {source !== "creator" && source !== "telegram" && (
+                                <form action={removeMemberAction.bind(null, slug)}>
+                                  <input type="hidden" name="user_id" value={member.userId} />
+                                  <ConfirmSubmit
+                                    className="btn btn-sm btn-quiet btn-danger"
+                                    confirm={t("w_remove_confirm", { name: displayName(member) })}
+                                  >
+                                    {t("w_remove_member")}
+                                  </ConfirmSubmit>
+                                </form>
+                              )}
+                            </div>
                           )}
-                          <form action={cancelMeetingAction.bind(null, slug, meeting.id)}>
-                            <ConfirmSubmit
-                              className="btn btn-sm btn-quiet btn-danger"
-                              confirm={t("w_cancel_confirm")}
-                            >
-                              {t("w_cancel_meeting")}
-                            </ConfirmSubmit>
-                          </form>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              );
-            })}
+                        </li>
+                      );
+                    })}
+                  </ul>
 
-            <MeetingForm
-              action={createMeetingAction.bind(null, slug)}
-              labels={{
-                newMeeting: t("w_new_meeting"),
-                place: t("w_place"),
-                placePh: t("w_place_ph"),
-                goal: t("w_goal"),
-                goalPh: t("w_goal_ph"),
-                when: t("w_when"),
-                whenHint: t("w_when_hint"),
-                create: t("w_create_meeting"),
-              }}
-            />
-          </section>
-
-          {/* ============ настройки ============ */}
-          <section className="card">
-            <h2>{t("w_settings")}</h2>
-            {!isAdmin ? (
-              <>
-                <p className="small muted">{t("w_settings_admin_only")}</p>
-                <ul className="settings-summary small">
-                  <li>
-                    {t("w_hours")}: {fmtMinutes(chat.dayStartMin)}–{fmtMinutes(chat.dayEndMin)}
-                  </li>
-                  <li>
-                    {t("w_min_slot")}: {chat.minSlotMin} {t("w_minutes_short")}
-                  </li>
-                  <li>
-                    {t("w_buffer")}: {chat.travelBufferMin}
-                  </li>
-                  <li>
-                    {t("w_semester")}: {chat.semesterStart ?? "—"}
-                  </li>
-                </ul>
+                  <h3 style={{ marginTop: 16 }}>{t("w_invite")}</h3>
+                  <p className="small muted">{t("w_invite_hint")}</p>
+                  <div className="row">
+                    <input type="text" readOnly value={inviteUrl} aria-label={t("w_invite")} />
+                    <CopyButton value={inviteUrl} label={t("w_copy")} copiedLabel={t("w_copied")} />
+                  </div>
+                </section>
               </>
-            ) : (
-              <form action={saveSettingsAction.bind(null, slug)}>
-                <div className="row">
-                  <div className="field">
-                    <label htmlFor="day_start">{t("w_hours")}</label>
-                    <input
-                      id="day_start"
-                      name="day_start"
-                      type="text"
-                      defaultValue={fmtMinutes(chat.dayStartMin)}
-                    />
-                  </div>
-                  <div className="field">
-                    <label htmlFor="day_end">&nbsp;</label>
-                    <input
-                      id="day_end"
-                      name="day_end"
-                      type="text"
-                      defaultValue={fmtMinutes(chat.dayEndMin)}
-                    />
-                  </div>
-                </div>
-                <div className="row">
-                  <div className="field">
-                    <label htmlFor="min_slot">{t("w_min_slot")}</label>
-                    <input
-                      id="min_slot"
-                      name="min_slot"
-                      type="number"
-                      min={15}
-                      max={720}
-                      defaultValue={chat.minSlotMin}
-                    />
-                  </div>
-                  <div className="field">
-                    <label htmlFor="buffer">{t("w_buffer")}</label>
-                    <input
-                      id="buffer"
-                      name="buffer"
-                      type="number"
-                      min={0}
-                      max={120}
-                      defaultValue={chat.travelBufferMin}
-                    />
-                  </div>
-                </div>
-                <div className="field">
-                  <label htmlFor="semester">{t("w_semester")}</label>
-                  <input
-                    id="semester"
-                    name="semester"
-                    type="date"
-                    defaultValue={chat.semesterStart ?? ""}
-                  />
-                  <p className="small muted" style={{ marginTop: 5 }}>
-                    {t("w_semester_hint")}
-                  </p>
-                </div>
-                <div className="field">
-                  <label htmlFor="lang-select">{t("w_lang")}</label>
-                  <select id="lang-select" name="lang" defaultValue={chat.lang}>
-                    {Object.entries(LANG_NAMES).map(([code, title]) => (
-                      <option key={code} value={code}>
-                        {title}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <button className="btn" type="submit">
-                  {t("w_save_settings")}
-                </button>
-              </form>
-            )}
-          </section>
-        </div>
+            ),
+            settings: (
+              <>
+                {/* ============ настройки ============ */}
+                <section className="card">
+                  <h2>{t("w_settings")}</h2>
+                  {!isAdmin ? (
+                    <>
+                      <p className="small muted">{t("w_settings_admin_only")}</p>
+                      <ul className="settings-summary small">
+                        <li>
+                          {t("w_hours")}: {fmtMinutes(chat.dayStartMin)}–{fmtMinutes(chat.dayEndMin)}
+                        </li>
+                        <li>
+                          {t("w_min_slot")}: {chat.minSlotMin} {t("w_minutes_short")}
+                        </li>
+                        <li>
+                          {t("w_buffer")}: {chat.travelBufferMin}
+                        </li>
+                        <li>
+                          {t("w_semester")}: {chat.semesterStart ?? "—"}
+                        </li>
+                      </ul>
+                  </>
+                ) : (
+                  <form action={saveSettingsAction.bind(null, slug)}>
+                    <div className="row">
+                      <div className="field">
+                        <label htmlFor="day_start">{t("w_hours")}</label>
+                        <input
+                          id="day_start"
+                          name="day_start"
+                          type="text"
+                          defaultValue={fmtMinutes(chat.dayStartMin)}
+                        />
+                      </div>
+                      <div className="field">
+                        <label htmlFor="day_end">&nbsp;</label>
+                        <input
+                          id="day_end"
+                          name="day_end"
+                          type="text"
+                          defaultValue={fmtMinutes(chat.dayEndMin)}
+                        />
+                      </div>
+                    </div>
+                    <div className="row">
+                      <div className="field">
+                        <label htmlFor="min_slot">{t("w_min_slot")}</label>
+                        <input
+                          id="min_slot"
+                          name="min_slot"
+                          type="number"
+                          min={15}
+                          max={720}
+                          defaultValue={chat.minSlotMin}
+                        />
+                      </div>
+                      <div className="field">
+                        <label htmlFor="buffer">{t("w_buffer")}</label>
+                        <input
+                          id="buffer"
+                          name="buffer"
+                          type="number"
+                          min={0}
+                          max={120}
+                          defaultValue={chat.travelBufferMin}
+                        />
+                      </div>
+                    </div>
+                    <div className="field">
+                      <label htmlFor="semester">{t("w_semester")}</label>
+                      <input
+                        id="semester"
+                        name="semester"
+                        type="date"
+                        defaultValue={chat.semesterStart ?? ""}
+                      />
+                      <p className="small muted" style={{ marginTop: 5 }}>
+                        {t("w_semester_hint")}
+                      </p>
+                    </div>
+                    <div className="field">
+                      <label htmlFor="lang-select">{t("w_lang")}</label>
+                      <select id="lang-select" name="lang" defaultValue={chat.lang}>
+                        {Object.entries(LANG_NAMES).map(([code, title]) => (
+                          <option key={code} value={code}>
+                            {title}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <button className="btn" type="submit">
+                      {t("w_save_settings")}
+                    </button>
+                  </form>
+                )}
+              </section>
+              </>
+            ),
+          }}
+        />
       </main>
     </>
   );

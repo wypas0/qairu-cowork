@@ -12,6 +12,7 @@ import {
   saveRealNameAction,
 } from "@/app/profile/actions";
 import type { Theme } from "@/lib/theme";
+import { IconCheck, IconChevronLeft, IconChevronRight, IconClose } from "./icons";
 import { ThemeSwitch } from "./ThemeSwitch";
 
 export type ProfileGroup = { chatId: number; slug: string; title: string };
@@ -304,13 +305,13 @@ export function ProfilePanel({
                       setPhotoError(null);
                     }}
                   >
-                    ‹
+                    <IconChevronLeft size={18} />
                   </button>
                   <div className="pp-who">
                     <b>{labels.account}</b>
                   </div>
                   <button type="button" className="pp-close" aria-label={labels.close} onClick={close}>
-                    ×
+                    <IconClose size={18} />
                   </button>
                 </div>
 
@@ -395,8 +396,8 @@ export function ProfilePanel({
                             : labels.telegramConnectedNoUsername}
                         </span>
                       </span>
-                      <span className="pp-ok" aria-hidden="true">
-                        ✓
+                      <span className="pp-ok">
+                        <IconCheck size={16} />
                       </span>
                     </div>
                   ) : (
@@ -410,7 +411,7 @@ export function ProfilePanel({
                             {labels.connectTelegram}
                             <span className="small muted pp-menu-sub">{labels.connectTelegramHint}</span>
                           </span>
-                          <span aria-hidden="true">›</span>
+                          <IconChevronRight className="muted" />
                         </button>
                       </form>
                     )
@@ -424,7 +425,7 @@ export function ProfilePanel({
                           : labels.credentialsUnset}
                       </span>
                     </span>
-                    <span aria-hidden="true">›</span>
+                    <IconChevronRight className="muted" />
                   </Link>
                   <form action={logoutAction}>
                     <button type="submit" className="pp-menu-item pp-danger">
@@ -449,8 +450,8 @@ export function ProfilePanel({
                         <b>{user.name}</b>
                         {subtitle && <span className="small muted">{subtitle}</span>}
                       </span>
-                      <span className="pp-chevron" aria-hidden="true">
-                        ›
+                      <span className="pp-chevron">
+                        <IconChevronRight size={18} />
                       </span>
                     </button>
                   ) : (
@@ -459,7 +460,7 @@ export function ProfilePanel({
                     </div>
                   )}
                   <button type="button" className="pp-close" aria-label={labels.close} onClick={close}>
-                    ×
+                    <IconClose size={18} />
                   </button>
                 </div>
 

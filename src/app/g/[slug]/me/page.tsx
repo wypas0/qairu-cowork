@@ -5,6 +5,7 @@ import { ConfirmSubmit } from "@/components/ConfirmSubmit";
 import { DatedTimeFields } from "@/components/DatedTimeFields";
 import { ScrollToAnchor } from "@/components/ScrollToAnchor";
 import { ScheduleEditor } from "@/components/ScheduleEditor";
+import { TelegramBackButton } from "@/components/TelegramButtons";
 import { Topbar } from "@/components/Topbar";
 import { gridPeriods, periodOverlaps } from "@/core/grid";
 import { fmtMinutes } from "@/core/intervals";
@@ -73,18 +74,26 @@ export default async function MySchedulePage({
   return (
     <>
       <ScrollToAnchor id={typeof query.at === "string" ? query.at : null} />
+      {/* В Telegram назад ведёт нативная кнопка в шапке — своя тогда лишняя. */}
+      <TelegramBackButton href={`/g/${slug}`} />
       <Topbar lang={lang}>
-        <Link className="btn btn-sm" href={`/g/${slug}`}>
+        <Link className="btn btn-sm tg-hide" href={`/g/${slug}`}>
           {t("w_back")}
         </Link>
       </Topbar>
 
       <main className="wrap">
-        <h1>{t("w_me_title")}</h1>
-        <p className="muted">{t("w_me_lead")}</p>
+        <header className="page-head">
+          <div>
+            <p className="eyebrow">{chat.title}</p>
+            <h1>{t("w_me_title")}</h1>
+            <p className="lead">{t("w_me_lead")}</p>
+          </div>
+        </header>
 
         <ScheduleEditor
           slug={slug}
+          backHref={`/g/${slug}`}
           periods={periods}
           initialBusy={initialBusy}
           weekdayNames={WEEKDAY_NAMES[isLang(lang) ? lang : "ru"]}
@@ -92,12 +101,17 @@ export default async function MySchedulePage({
           photoEnabled={hasVision()}
           labels={{
             paintHint: t("w_paint_hint"),
-            save: t("w_save"),
             saved: t("w_saved"),
-            unsaved: t("w_unsaved"),
+            saving: t("w_saving"),
             saveError: t("w_save_error"),
+            saveRetry: t("w_save_retry"),
+            done: t("w_done"),
+            undo: t("w_undo"),
             clear: t("w_clear"),
+            busyTotal: t("w_busy_total", { h: "{h}" }),
+            importFirst: t("w_import_first"),
             importTitle: t("w_import_title"),
+            importTitleFirst: t("w_import_title_first"),
             importHint: t("w_import_hint"),
             importBtn: t("w_import_btn"),
             importParsed: t("w_import_parsed", { n: "{n}" }),

@@ -3,18 +3,7 @@
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
-type WebApp = {
-  initData?: string;
-  initDataUnsafe?: { start_param?: string };
-  ready: () => void;
-  expand: () => void;
-};
-
-declare global {
-  interface Window {
-    Telegram?: { WebApp?: WebApp };
-  }
-}
+import { whenReady } from "@/lib/telegram";
 
 const DONE_KEY = "qairu-tg-authed";
 
@@ -33,19 +22,8 @@ export function TelegramAuth() {
 
   useEffect(() => {
     let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
 
-    // Скрипт Telegram грузится с async, поэтому ждём его появления.
-    function start(attempt = 0) {
-      const app = window.Telegram?.WebApp;
-      if (!app) {
-        if (attempt < 30) timer = setTimeout(() => start(attempt + 1), 100);
-        return;
-      }
-      if (!app.initData) return;
-      app.ready();
-      app.expand();
-
+    return whenReady((app) => {
       const slug = /^\/g\/([a-z0-9]{3,24})(?:\/|$)/i.exec(pathname)?.[1] ?? app.initDataUnsafe?.start_param ?? "";
       const doneKey = `${DONE_KEY}:${slug}`;
       try {
@@ -73,13 +51,11 @@ export function TelegramAuth() {
         .catch(() => {
           // Остаётся обычный вход через бота.
         });
-    }
 
-    start();
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-    };
+      return () => {
+        cancelled = true;
+      };
+    });
   }, [pathname, router]);
 
   return null;

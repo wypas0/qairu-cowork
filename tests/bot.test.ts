@@ -341,6 +341,26 @@ describe("/meeting", () => {
     expect(answers.map((row) => row.userId)).toEqual([ASEL.id]);
   });
 
+  it("ответ «может быть» попадает в карточку и в личку организатору", async () => {
+    const repo = await import("@/db/repo");
+    const meeting = (await repo.chatMeetings(GROUP_ID))[0];
+
+    stub.reset();
+    await handleUpdate(callback(GROUP_CHAT, ASEL, `vote:${meeting.id}:maybe`));
+    const card = stub.lastText("editMessageText");
+    expect(card).toContain("🤔 Может быть (1)");
+    expect(card).toContain("✅ Придут (0)");
+
+    const dm = stub.of("sendMessage").find((call) => call.payload.chat_id === AMIR.id)!;
+    expect(String(dm.payload.text)).toContain("пока не уверен");
+
+    const answers = await repo.meetingResponsesFor(meeting.id);
+    expect(answers.find((row) => row.userId === ASEL.id)?.answer).toBe("maybe");
+
+    // Возвращаем «да», чтобы следующие проверки шли от прежнего состояния.
+    await handleUpdate(callback(GROUP_CHAT, ASEL, `vote:${meeting.id}:yes`));
+  });
+
   it("посторонний проголосовать не может", async () => {
     const repo = await import("@/db/repo");
     const meeting = (await repo.chatMeetings(GROUP_ID))[0];

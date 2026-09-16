@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { BoardPayload } from "@/lib/group";
+import { IconChevronLeft, IconChevronRight, IconMeeting } from "./icons";
 import { BreakRow, PeriodTime, hhmm } from "./PeriodRow";
 
 export type PickDetail = { value: string; text: string };
@@ -11,12 +12,24 @@ export type PickDetail = { value: string; text: string };
 export const PICK_EVENT = "qairu:pick";
 
 export type BoardLabels = {
+  bestTitle: string;
+  bestLead: string;
+  bestEmpty: string;
+  bestAll: string;
+  bestCount: string; // «свободны {n} из {total}»
+  weekPrev: string;
+  weekNext: string;
+  weekThis: string;
+  quorumAll: string;
+  quorumMinusOne: string;
+  quorumMost: string;
   heatTitle: string;
   heatHint: string;
   breakRow: string; // «Перерыв {m} мин»
   legendNone: string;
   legendAll: string;
   legendMeeting: string;
+  legendMine: string;
   freeNames: string;
   busyNames: string;
   nobody: string;
@@ -49,7 +62,7 @@ type CellDetail = {
 /** Где показать подсказку: над клеткой, а у верхнего края экрана — под ней. */
 type Hover = { detail: CellDetail; x: number; y: number; below: boolean };
 
-/** Чем меньше свободных, тем темнее клетка — h0 светлее всего (свободны все), h5 темнее всего (никого). */
+/** h0 — свободны все (самая насыщенная клетка), h5 — никого (почти фон): сильнее цвет — полезнее окно. */
 function heatClass(count: number, total: number): string {
   if (!total || count <= 0) return "h5";
   const share = count / total;
@@ -76,19 +89,18 @@ function firstDayWithSlots(payload: BoardPayload): string {
 export function Board({
   slug,
   initial,
-  dayHeaders,
   durationOptions,
   labels,
 }: {
   slug: string;
   initial: BoardPayload;
-  dayHeaders: { short: string; dm: string }[];
   durationOptions: number[];
   labels: BoardLabels;
 }) {
   const [payload, setPayload] = useState(initial);
   const [quorum, setQuorum] = useState(initial.quorum);
   const [duration, setDuration] = useState(initial.duration);
+  const [week, setWeek] = useState(initial.week);
   const [selectedDay, setSelectedDay] = useState(() => firstDayWithSlots(initial));
   const [loading, setLoading] = useState(false);
   const [activeCell, setActiveCell] = useState<CellDetail | null>(null);
@@ -98,7 +110,7 @@ export function Board({
   // Сравнивать выбор нужно с ними, а не с начальными значениями: иначе
   // 60 → 90 → 60 не перезапрашивало данные, и под «1 ч» оставались
   // 90-минутные варианты.
-  const loaded = useRef({ quorum: initial.quorum, duration: initial.duration });
+  const loaded = useRef({ quorum: initial.quorum, duration: initial.duration, week: initial.week });
 
   useEffect(() => {
     if (!activeCell) return;
@@ -118,13 +130,14 @@ export function Board({
   }, [hover]);
 
   const refresh = useCallback(
-    async (nextQuorum: number, nextDuration: number) => {
+    async (nextQuorum: number, nextDuration: number, nextWeek: number) => {
       const id = ++requestId.current;
       setLoading(true);
       try {
         const params = new URLSearchParams({
           quorum: String(nextQuorum),
           duration: String(nextDuration),
+          week: String(nextWeek),
         });
         const response = await fetch(`/api/g/${slug}/state?${params}`, {
           credentials: "same-origin",
@@ -133,8 +146,12 @@ export function Board({
         const data = (await response.json()) as BoardPayload;
         // Ответы могут прийти не в том порядке, в каком уехали запросы.
         if (id === requestId.current) {
-          loaded.current = { quorum: nextQuorum, duration: nextDuration };
+          loaded.current = { quorum: nextQuorum, duration: nextDuration, week: nextWeek };
           setPayload(data);
+          // День для списка окон принадлежал прошлой неделе — берём первый с вариантами.
+          setSelectedDay((current) =>
+            data.slotDays.some((entry) => entry.date === current) ? current : firstDayWithSlots(data),
+          );
         }
       } catch {
         // При сетевой ошибке просто оставляем прежнюю картинку.
@@ -147,25 +164,33 @@ export function Board({
 
   // Ползунок двигают непрерывно — ждём паузы, иначе на каждый пиксель уходит запрос.
   useEffect(() => {
-    if (quorum === loaded.current.quorum && duration === loaded.current.duration) {
+    if (
+      quorum === loaded.current.quorum &&
+      duration === loaded.current.duration &&
+      week === loaded.current.week
+    ) {
       // Вернулись к тому, что уже на экране: запрос, отправленный за
       // промежуточным выбором, не должен затем подменить эти данные.
       requestId.current += 1;
       setLoading(false);
       return;
     }
-    const timer = setTimeout(() => void refresh(quorum, duration), 180);
+    const timer = setTimeout(() => void refresh(quorum, duration, week), 180);
     return () => clearTimeout(timer);
-  }, [quorum, duration, refresh]);
+  }, [quorum, duration, week, refresh]);
 
   const total = payload.total;
-  // Встречи берём из свежего серверного рендера: после создания или отмены
-  // встречи страница перерисовывается, а состояние доски может остаться прежним.
-  const meetings = initial.meetings;
+  // Встречи приходят вместе с остальными данными доски: иначе при переходе
+  // на следующую неделю на карте остались бы встречи текущей.
+  const meetings = payload.meetings;
   const meetingsAt = (date: string, start: number, end: number) =>
     meetings.filter((meeting) => meeting.date === date && meeting.start < end && start < meeting.end);
 
   const day = payload.slotDays.find((entry) => entry.date === selectedDay) ?? payload.slotDays[0];
+
+  // Кворум выбирается словами, а не числом: «все» и «все, кроме одного» —
+  // то, чем люди на самом деле меряют «можно ли встречаться».
+  const quorumChoices = quorumOptions(total, labels);
 
   function pick(date: string, start: number, end: number, text: string) {
     const detail: PickDetail = { value: `${date}T${hhmm(start)}|${end - start}`, text };
@@ -173,10 +198,75 @@ export function Board({
   }
 
   return (
-    <div className="grid-2">
+    <>
+      {/* ============ главный ответ страницы ============ */}
+      <section className="card" aria-busy={loading}>
+        <h2>{labels.bestTitle}</h2>
+        <p className="small muted">{labels.bestLead}</p>
+        {payload.best.length === 0 ? (
+          <div className="empty">
+            <h3>{labels.bestEmpty}</h3>
+          </div>
+        ) : (
+          <ul className="best-list">
+            {payload.best.map((item) => (
+              <li className="best-item" key={`${item.date}-${item.start}`}>
+                <div className="best-when">
+                  <span className="type-title-3">{item.text}</span>
+                  <span className="small muted">{item.short}</span>
+                </div>
+                <p className="small muted best-who">
+                  {item.missing.length === 0
+                    ? labels.bestAll
+                    : `${labels.bestCount
+                        .replace("{n}", String(item.count))
+                        .replace("{total}", String(total))} — ${labels.missingShort} ${item.missing.join(", ")}`}
+                </p>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => pick(item.date, item.start, item.end, `${item.label} · ${item.text}`)}
+                >
+                  {labels.pick}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <div className="grid-2">
       {/* ============ тепловая карта недели ============ */}
-      <section className="card">
-        <h2>{labels.heatTitle}</h2>
+      <section className="card" aria-busy={loading}>
+        <div className="card-head">
+          <h2>{labels.heatTitle}</h2>
+          <div className="weeknav">
+            <button
+              type="button"
+              className="btn btn-sm btn-quiet"
+              aria-label={labels.weekPrev}
+              disabled={week === 0}
+              onClick={() => setWeek((current) => Math.max(0, current - 1))}
+            >
+              <IconChevronLeft size={18} />
+            </button>
+            <span className="small">{payload.weekLabel}</span>
+            <button
+              type="button"
+              className="btn btn-sm btn-quiet"
+              aria-label={labels.weekNext}
+              disabled={week >= MAX_WEEK}
+              onClick={() => setWeek((current) => Math.min(MAX_WEEK, current + 1))}
+            >
+              <IconChevronRight size={18} />
+            </button>
+            {week > 0 && (
+              <button type="button" className="btn btn-sm" onClick={() => setWeek(0)}>
+                {labels.weekThis}
+              </button>
+            )}
+          </div>
+        </div>
         <p className="small muted">{labels.heatHint}</p>
 
         <div className="gridwrap">
@@ -184,11 +274,11 @@ export function Board({
             <thead>
               <tr>
                 <th className="timecol" />
-                {payload.days.map((heatDay, index) => (
+                {payload.days.map((heatDay) => (
                   <th key={heatDay.date}>
-                    {dayHeaders[index]?.short}
+                    {heatDay.short}
                     <br />
-                    <span className="small muted">{dayHeaders[index]?.dm}</span>
+                    <span className="small muted">{heatDay.dm}</span>
                   </th>
                 ))}
               </tr>
@@ -223,7 +313,9 @@ export function Board({
                     return (
                       <td
                         key={`${heatDay.date}-${cell.start}`}
-                        className={`cell ${here.length > 0 ? "meeting" : heatClass(cell.count, total)}`}
+                        className={`cell ${here.length > 0 ? "meeting" : heatClass(cell.count, total)}${
+                          cell.mine ? " mine" : ""
+                        }`}
                         onPointerEnter={(event) => {
                           // Подсказка — для мыши; на телефоне то же самое показывает окно по нажатию.
                           if (event.pointerType !== "mouse") return;
@@ -263,6 +355,8 @@ export function Board({
           <span>{labels.legendNone}</span>
           <i className="swatch-meeting" />
           <span>{labels.legendMeeting}</span>
+          <i className="swatch-mine" />
+          <span>{labels.legendMine}</span>
         </div>
       </section>
 
@@ -310,23 +404,29 @@ export function Board({
               ))}
             </select>
           </div>
-          <div className="field">
-            <label htmlFor="quorum">
-              {labels.quorumTemplate
-                .replace("{q}", String(payload.quorum))
-                .replace("{n}", String(total))}
-            </label>
-            <input
-              id="quorum"
-              type="range"
-              min={1}
-              max={Math.max(1, total)}
-              value={Math.min(quorum, Math.max(1, total))}
-              disabled={total <= 1}
-              onChange={(event) => setQuorum(Number(event.target.value))}
-              style={{ width: "100%" }}
-            />
-          </div>
+          {quorumChoices.length > 1 && (
+            <div className="field">
+              <span className="label" id="quorum-label">
+                {labels.quorumTemplate
+                  .replace("{q}", String(payload.quorum))
+                  .replace("{n}", String(total))}
+              </span>
+              <div className="daypicker" role="radiogroup" aria-labelledby="quorum-label">
+                {quorumChoices.map((choice) => (
+                  <button
+                    key={choice.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={quorum === choice.value}
+                    className={`daychip${quorum === choice.value ? " active" : ""}`}
+                    onClick={() => setQuorum(choice.value)}
+                  >
+                    {choice.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {day && (
@@ -369,6 +469,7 @@ export function Board({
           )}
         </div>
       </section>
+      </div>
 
       {hover && !activeCell && (
         <div
@@ -381,7 +482,7 @@ export function Board({
           </div>
           {hover.detail.meetings.map((title, index) => (
             <div key={index} className="cell-popover-meeting">
-              📌 {title}
+              <IconMeeting /> {title}
             </div>
           ))}
           <WhoIsFree detail={hover.detail} total={total} labels={labels} />
@@ -412,7 +513,7 @@ export function Board({
             </p>
             {activeCell.meetings.map((title, index) => (
               <p key={index} className="cell-popover-meeting">
-                📌 {title}
+                <IconMeeting /> {title}
               </p>
             ))}
             <WhoIsFree detail={activeCell} total={total} labels={labels} />
@@ -435,7 +536,7 @@ export function Board({
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
 
@@ -456,4 +557,23 @@ function WhoIsFree({ detail, total, labels }: { detail: CellDetail; total: numbe
       )}
     </div>
   );
+}
+
+/** Насколько далеко вперёд можно листать недели (на сервере значение то же). */
+const MAX_WEEK = 8;
+
+/** Варианты кворума словами. Повторяющиеся числа схлопываются. */
+function quorumOptions(total: number, labels: BoardLabels): { value: number; label: string }[] {
+  if (total <= 1) return [];
+  const options = [
+    { value: total, label: labels.quorumAll },
+    { value: total - 1, label: labels.quorumMinusOne },
+    { value: Math.ceil(total / 2), label: labels.quorumMost },
+  ];
+  const seen = new Set<number>();
+  return options.filter((option) => {
+    if (option.value < 1 || seen.has(option.value)) return false;
+    seen.add(option.value);
+    return true;
+  });
 }

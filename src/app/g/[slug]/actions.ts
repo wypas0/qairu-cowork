@@ -127,7 +127,7 @@ export async function voteAction(
   const { chat, user } = await requireMember(slug);
 
   const answer = String(formData.get("answer") ?? "");
-  if (answer !== "yes" && answer !== "no" && answer !== "change") back(slug);
+  if (answer !== "yes" && answer !== "maybe" && answer !== "no" && answer !== "change") back(slug);
 
   const meeting = await repo.getMeeting(meetingId);
   if (!meeting || meeting.chatId !== chat.chatId || meeting.status !== "open") back(slug);

@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 
+import { BrandMark } from "@/components/icons";
+
 import { displayName } from "@/db/schema";
 import * as repo from "@/db/repo";
 import { translator } from "@/i18n";
@@ -91,7 +93,7 @@ export async function Topbar({
         }}
       />
       <Link className="brand" href="/">
-        <span className="brand-mark" aria-hidden="true" />
+        <BrandMark className="brand-mark" />
         <span>
           Qairu<b>Cowork</b>
         </span>

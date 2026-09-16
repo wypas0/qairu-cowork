@@ -1,13 +1,24 @@
 import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
 import { cookies, headers } from "next/headers";
 
 import { TelegramAuth } from "@/components/TelegramAuth";
+import { TelegramChrome } from "@/components/TelegramChrome";
 import { normalizeLang, t } from "@/i18n";
 import { THEME_COOKIE, normalizeTheme } from "@/lib/theme";
 import "./globals.css";
 
+/* Единственный шрифт сайта. Кириллица подключена явно: без неё Inter
+   отдаёт русские буквы системному шрифту, и заголовки едут по ширине. */
+const inter = Inter({
+  subsets: ["latin", "cyrillic"],
+  display: "swap",
+  variable: "--font-inter",
+});
+
+/* Знак продукта — то же кольцо с ножкой, что и в шапке (BrandMark). */
 const FAVICON =
-  "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗓</text></svg>";
+  "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'><circle cx='11' cy='11' r='7' stroke='%230064e0' stroke-width='4'/><path d='M11 18h9' stroke='%230064e0' stroke-width='4'/></svg>";
 
 export const metadata: Metadata = {
   title: "QairuCowork",
@@ -32,9 +43,15 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     // CSS-переменные (--tg-viewport-height и т.п.) прямо в style этого узла,
     // иногда раньше, чем React успевает гидрироваться — это ожидаемо и не
     // баг гидратации.
-    <html lang={lang} data-theme={theme === "system" ? undefined : theme} suppressHydrationWarning>
+    <html
+      lang={lang}
+      data-theme={theme === "system" ? undefined : theme}
+      className={inter.variable}
+      suppressHydrationWarning
+    >
       <body>
         <TelegramAuth />
+        <TelegramChrome />
         {children}
         <footer className="foot">
           <span>{t(lang, "w_footer")}</span>

@@ -1,105 +1,163 @@
 @import "tailwindcss";
 
-/* QairuCowork — оформление сайта.
+/* QairuCowork — оформление сайта по дизайн-коду QAIRU Hub (DESIGN.md).
+   Коротко: один акцент — кобальт, один шрифт — Inter, кнопки-пилюли,
+   плоские карточки с волосяной обводкой, тени только у всплывающих слоёв,
+   движение — только отклик на действие.
+
    Палитра задана токенами на :root; тёмная тема переопределяет только их,
    поэтому ни одному компоненту не нужен вариант `dark:`. */
 
 :root {
-  --bg: #f7f7f5;
-  --surface: #ffffff;
-  --surface-2: #f0efec;
-  --border: #e2e0da;
-  --text: #1c1b19;
-  --muted: #6d6a63;
-  --accent: #2f6f4f;
-  --accent-soft: #e8f2ec;
+  /* --- холст и поверхности --- */
+  --bg: #f4f6fa;
+  --surface: #ffffff; /* card */
+  --popover: #ffffff; /* всплывающие слои: шторка, окно, подсказка */
+  --surface-2: #e9eef5; /* secondary: тихая заливка контрола */
+  --border: #dee3e9;
+  --hairline: #ced0d4; /* обводка на hover, разделители посильнее */
+  --text: #0a1628;
+  --muted: #5d6c7b;
+  --hover: #e8f0fc; /* заливка строки под курсором */
+
+  /* --- действие --- */
+  --accent: #0064e0; /* кобальт — цвет действия и только его */
+  --accent-deep: #0457cb;
+  --accent-soft: #e8f0fc;
   --accent-text: #ffffff;
-  --danger: #a8433a;
-  --busy: #8a8378;
-  --busy-text: #ffffff;
+  --ring: #0064e0;
 
-  /* Редактор «Моё расписание»: тёмный фон — свободен, синий — занят. */
-  --slot-free: #2b3036;
-  --slot-free-border: #3a4048;
-  --slot-busy: #2f6fd6;
+  /* --- инверсия: navy на светлой теме, белый на тёмной --- */
+  --ink: #0a1628;
+  --ink-text: #ffffff;
 
-  /* Тепловая карта: от «никто не свободен» к «свободны все» */
-  --heat-0: #eceae5;
-  --heat-1: #dbe7dc;
-  --heat-2: #bcd8c5;
-  --heat-3: #93c3a6;
-  --heat-4: #5da583;
-  --heat-5: #2f6f4f;
+  /* --- семантика --- */
+  --success: #1f8f3a;
+  --warning: #f7b928;
+  --danger: #e41e3f;
 
-  --radius: 4px;
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 16px rgba(0, 0, 0, 0.04);
-  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  /* Редактор «Моё расписание»: пустая клетка — тихая поверхность,
+     занятая — залита кобальтом (это отметка человека, а не украшение). */
+  --slot-free: #eef2f7;
+  --slot-free-border: #dee3e9;
+  --slot-busy: #0064e0;
+  /* Штриховка «тут занят ты» поверх общей карты. */
+  --mine-stripe: rgba(10, 22, 40, 0.3);
+
+  /* Тепловая карта — шкала данных, а не действие: приглушённый стальной
+     синий, чтобы её нельзя было спутать с кобальтовой кнопкой.
+     h0 — свободны все (самый насыщенный), h5 — никого (почти фон).
+     Насыщенность растёт вместе с пользой клетки. */
+  --heat-0: #3f6ea8;
+  --heat-1: #6a94c4;
+  --heat-2: #9ab6d8;
+  --heat-3: #c0d2e6;
+  --heat-4: #dde5ee;
+  --heat-5: #eef1f5;
+
+  /* --- радиусы, ровно те роли, что в дизайн-коде --- */
+  --r-sm: 6px; /* мелкий контрол */
+  --r-md: 8px;
+  --r-input: 10px; /* поля ввода */
+  --r-lg: 12px; /* строка списка, чип-вкладка */
+  --r-xl: 16px; /* рамка списка, карточка в сетке */
+  --r-2xl: 24px; /* одиночная панель объекта */
+  --r-3xl: 32px; /* диалог */
+  --r-full: 9999px; /* кнопки, бейджи, аватары */
+
+  /* Тень бывает только у всплывающего слоя. У карточек её нет. */
+  --shadow-float: 0 8px 28px rgba(10, 22, 40, 0.16), 0 2px 6px rgba(10, 22, 40, 0.08);
+
+  /* Безопасные зоны. В браузере их даёт env(), внутри Telegram —
+     TelegramChrome из значений мини-аппа: env() там всегда ноль. */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+
+  --ease: cubic-bezier(0.23, 1, 0.32, 1);
+  --sans: var(--font-inter), system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #16181a;
-    --surface: #1e2124;
-    --surface-2: #262a2e;
-    --border: #333940;
-    --text: #e8e6e3;
-    --muted: #9a9791;
-    --accent: #63b98a;
-    --accent-soft: #1f2f27;
-    --accent-text: #10231a;
-    --danger: #e08379;
-    --busy: #7b8794;
-    --busy-text: #10151a;
-    --slot-free: #22262a;
-    --slot-free-border: #333940;
-    --slot-busy: #4a8fe8;
+    --bg: #070e1c;
+    --surface: #0d1729;
+    --popover: #101c33;
+    --surface-2: #16253d;
+    --border: rgba(255, 255, 255, 0.09);
+    --hairline: rgba(255, 255, 255, 0.14);
+    --text: #eef2f8;
+    --muted: #8c9bb3;
+    --hover: #172a47;
 
-    /* Тот же порядок «свободно → занято», что и в светлой теме: h0 —
-       самый светлый оттенок этой темы, h5 — самый тёмный. В исходной
-       палитре было наоборот (h5 — самый яркий, «акцентный»), из-за чего
-       в тёмной теме подсказка «темнее — меньше свободных» читалась
-       задом наперёд. */
-    --heat-0: #63b98a;
-    --heat-1: #418059;
-    --heat-2: #336247;
-    --heat-3: #2a4a37;
-    --heat-4: #24352c;
-    --heat-5: #22262a;
-    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.25);
+    --accent: #1b76f2;
+    --accent-deep: #0f66df;
+    --accent-soft: #172a47;
+    --accent-text: #ffffff;
+    --ring: #3b8dff;
+
+    --ink: #ffffff;
+    --ink-text: #0a1628;
+
+    --success: #3ccc5f;
+    --warning: #ffc63d;
+    --danger: #ff5d72;
+
+    --slot-free: #12203a;
+    --slot-free-border: rgba(255, 255, 255, 0.09);
+    --slot-busy: #1b76f2;
+    --mine-stripe: rgba(7, 14, 28, 0.42);
+
+    --heat-0: #6ea8ff;
+    --heat-1: #4d7fcc;
+    --heat-2: #365d99;
+    --heat-3: #274166;
+    --heat-4: #1b2c44;
+    --heat-5: #131f33;
+
+    --shadow-float: 0 10px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35);
   }
 }
 
-/* Тёмная тема, выбранная вручную в панели профиля, — те же токены, что и
-   у системной тёмной темы выше. */
+/* Тёмная тема, выбранная вручную в панели профиля, — те же токены. */
 :root[data-theme="dark"] {
-  --bg: #16181a;
-  --surface: #1e2124;
-  --surface-2: #262a2e;
-  --border: #333940;
-  --text: #e8e6e3;
-  --muted: #9a9791;
-  --accent: #63b98a;
-  --accent-soft: #1f2f27;
-  --accent-text: #10231a;
-  --danger: #e08379;
-  --busy: #7b8794;
-  --busy-text: #10151a;
-  --slot-free: #22262a;
-  --slot-free-border: #333940;
-  --slot-busy: #4a8fe8;
+  --bg: #070e1c;
+  --surface: #0d1729;
+  --popover: #101c33;
+  --surface-2: #16253d;
+  --border: rgba(255, 255, 255, 0.09);
+  --hairline: rgba(255, 255, 255, 0.14);
+  --text: #eef2f8;
+  --muted: #8c9bb3;
+  --hover: #172a47;
 
-  /* Тот же порядок «свободно → занято», что и в светлой теме: h0 —
-     самый светлый оттенок этой темы, h5 — самый тёмный. В исходной
-     палитре было наоборот (h5 — самый яркий, «акцентный»), из-за чего
-     в тёмной теме подсказка «темнее — меньше свободных» читалась
-     задом наперёд. */
-  --heat-0: #63b98a;
-  --heat-1: #418059;
-  --heat-2: #336247;
-  --heat-3: #2a4a37;
-  --heat-4: #24352c;
-  --heat-5: #22262a;
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.25);
+  --accent: #1b76f2;
+  --accent-deep: #0f66df;
+  --accent-soft: #172a47;
+  --accent-text: #ffffff;
+  --ring: #3b8dff;
+
+  --ink: #ffffff;
+  --ink-text: #0a1628;
+
+  --success: #3ccc5f;
+  --warning: #ffc63d;
+  --danger: #ff5d72;
+
+  --slot-free: #12203a;
+  --slot-free-border: rgba(255, 255, 255, 0.09);
+  --slot-busy: #1b76f2;
+  --mine-stripe: rgba(7, 14, 28, 0.42);
+
+  --heat-0: #6ea8ff;
+  --heat-1: #4d7fcc;
+  --heat-2: #365d99;
+  --heat-3: #274166;
+  --heat-4: #1b2c44;
+  --heat-5: #131f33;
+
+  --shadow-float: 0 10px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35);
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
@@ -112,15 +170,19 @@
 @theme inline {
   --color-bg: var(--bg);
   --color-surface: var(--surface);
+  --color-popover: var(--popover);
   --color-surface-2: var(--surface-2);
   --color-border: var(--border);
+  --color-hairline: var(--hairline);
   --color-text: var(--text);
   --color-muted: var(--muted);
   --color-accent: var(--accent);
   --color-accent-soft: var(--accent-soft);
   --color-accent-text: var(--accent-text);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
   --color-danger: var(--danger);
-  --font-mono: var(--mono);
+  --font-sans: var(--sans);
 }
 
 * {
@@ -135,12 +197,151 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font: 400 15px/22px var(--sans);
   -webkit-text-size-adjust: 100%;
+  -webkit-font-smoothing: antialiased;
 }
 
 a {
   color: var(--accent);
+}
+
+/* Одно кольцо фокуса на весь сайт. */
+:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--ring) 40%, transparent);
+  outline-offset: 2px;
+}
+
+/* Tailwind-preflight делает svg блочным. Наши иконки живут в строке текста,
+   поэтому возвращаем им строчное поведение и сажаем на середину строки. */
+.icon {
+  display: inline-block;
+  vertical-align: -0.2em;
+  flex: none;
+}
+
+/* --- типографика: роли из дизайн-кода --- */
+.type-display {
+  font-size: 40px;
+  line-height: 44px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.type-title-1,
+h1 {
+  font-size: 32px;
+  line-height: 36px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0 0 8px;
+}
+.type-title-2 {
+  font-size: 28px;
+  line-height: 34px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.type-title-3 {
+  font-size: 20px;
+  line-height: 26px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.type-headline,
+h2 {
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  margin: 0 0 12px;
+}
+h3 {
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+.type-lead,
+.lead {
+  font-size: 17px;
+  line-height: 26px;
+  font-weight: 400;
+  letter-spacing: -0.005em;
+  color: var(--muted);
+}
+.type-body {
+  font-size: 15px;
+  line-height: 22px;
+}
+.type-secondary {
+  font-size: 14px;
+  line-height: 20px;
+}
+.type-meta,
+.small {
+  font-size: 13px;
+  line-height: 18px;
+}
+.type-caption {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+}
+.eyebrow {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  color: var(--muted);
+}
+p {
+  margin: 0 0 12px;
+}
+.muted {
+  color: var(--muted);
+}
+/* Цифры в колонках не должны прыгать по ширине. Моноширинного шрифта
+   в интерфейсе нет — есть табличные цифры Inter. */
+.mono,
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (min-width: 640px) {
+  .type-display {
+    font-size: 56px;
+    line-height: 60px;
+  }
+  .type-title-1,
+  h1 {
+    font-size: 40px;
+    line-height: 44px;
+  }
+  .type-lead,
+  .lead {
+    font-size: 19px;
+    line-height: 28px;
+  }
+}
+
+/* Заголовок страницы: тихая подпись, заголовок, лид, действие справа. */
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+.page-head > div {
+  min-width: 0;
+}
+.page-head h1 {
+  margin: 2px 0 0;
+}
+.page-head .lead {
+  margin: 8px 0 0;
+  max-width: 62ch;
 }
 
 /* --- шапка --- */
@@ -148,7 +349,7 @@ a {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px max(20px, env(safe-area-inset-right)) 10px max(20px, env(safe-area-inset-left));
+  padding: calc(12px + var(--safe-top)) max(20px, var(--safe-right)) 12px max(20px, var(--safe-left));
   border-bottom: 1px solid var(--border);
   background: var(--surface);
   position: sticky;
@@ -159,8 +360,10 @@ a {
   display: flex;
   align-items: center;
   gap: 9px;
-  font-size: 16px;
-  font-weight: 500;
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
   text-decoration: none;
   color: var(--text);
   min-width: 0;
@@ -169,14 +372,14 @@ a {
   text-overflow: ellipsis;
 }
 .brand b {
-  font-weight: 700;
+  font-weight: 600;
+  color: var(--muted);
 }
 .brand-mark {
-  width: 18px;
-  height: 18px;
-  border-radius: 3px;
-  background: linear-gradient(135deg, var(--heat-2), var(--heat-5));
+  width: 20px;
+  height: 20px;
   flex: none;
+  color: var(--accent);
 }
 .topbar .spacer {
   margin-left: auto;
@@ -190,49 +393,66 @@ a {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 40px;
+  height: 40px;
   flex: none;
-  border-radius: 4px;
+  border-radius: var(--r-full);
   border: 1px solid var(--border);
-  background: var(--surface-2);
+  background: var(--surface);
   color: var(--text);
   cursor: pointer;
+  transition: background-color 150ms var(--ease), border-color 150ms var(--ease), transform 150ms var(--ease);
 }
 .icon-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+  background: var(--hover);
+  border-color: var(--hairline);
+}
+.icon-btn:active {
+  transform: scale(0.94);
+  transition-duration: 75ms;
 }
 
 .wrap {
-  max-width: 1100px;
+  max-width: 1200px;
   margin: 0 auto;
-  padding: 24px max(20px, env(safe-area-inset-right)) 64px max(20px, env(safe-area-inset-left));
+  padding: 32px max(16px, var(--safe-right)) calc(64px + var(--safe-bottom)) max(16px, var(--safe-left));
 }
 .foot {
-  max-width: 1100px;
+  max-width: 1200px;
   margin: 0 auto;
-  padding: 0 max(20px, env(safe-area-inset-right)) 40px max(20px, env(safe-area-inset-left));
+  padding: 0 max(16px, var(--safe-right)) calc(40px + var(--safe-bottom)) max(16px, var(--safe-left));
   color: var(--muted);
   font-size: 13px;
+  line-height: 18px;
 }
 
+@media (min-width: 640px) {
+  .wrap,
+  .foot {
+    padding-left: max(24px, var(--safe-left));
+    padding-right: max(24px, var(--safe-right));
+  }
+}
+@media (min-width: 1024px) {
+  .wrap {
+    padding-top: 48px;
+    padding-left: max(32px, var(--safe-left));
+    padding-right: max(32px, var(--safe-right));
+  }
+  .foot {
+    padding-left: max(32px, var(--safe-left));
+    padding-right: max(32px, var(--safe-right));
+  }
+}
 @media (max-width: 560px) {
   .topbar {
     gap: 8px;
   }
   .brand {
-    font-size: 14px;
+    font-size: 15px;
   }
   .wrap {
-    padding-top: 16px;
-  }
-  .btn {
-    min-height: 40px;
-  }
-  .icon-btn {
-    width: 40px;
-    height: 40px;
+    padding-top: 20px;
   }
 }
 
@@ -246,19 +466,19 @@ a {
 .profile-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.42);
+  background: rgba(10, 22, 40, 0.4);
   z-index: 60;
   display: flex;
   align-items: flex-end;
 }
 .profile-panel {
-  background: var(--surface);
+  background: var(--popover);
   width: 100%;
   max-height: 82vh;
   overflow-y: auto;
-  padding: 18px 18px calc(18px + env(safe-area-inset-bottom));
-  border-radius: 4px 4px 0 0;
-  box-shadow: var(--shadow);
+  padding: 20px 20px calc(20px + var(--safe-bottom));
+  border-radius: var(--r-3xl) var(--r-3xl) 0 0;
+  box-shadow: var(--shadow-float);
 }
 @media (min-width: 720px) {
   .profile-overlay {
@@ -268,8 +488,8 @@ a {
     width: 380px;
     max-height: 100vh;
     height: 100%;
-    border-radius: 0 4px 4px 0;
-    padding: 20px 20px 20px max(20px, env(safe-area-inset-left));
+    border-radius: 0 var(--r-3xl) var(--r-3xl) 0;
+    padding: 24px 24px 24px max(24px, var(--safe-left));
   }
 }
 /* Заголовок с кнопкой «Закрыть» — у всплывающего окна клетки тепловой карты. */
@@ -289,27 +509,31 @@ a {
 .pp-head {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding-bottom: 14px;
+  gap: 12px;
+  padding-bottom: 16px;
   border-bottom: 1px solid var(--border);
 }
 .pp-avatar {
-  width: 38px;
-  height: 38px;
+  width: 40px;
+  height: 40px;
   flex: none;
   display: grid;
   place-items: center;
-  border-radius: 50%;
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-weight: 700;
-  font-size: 16px;
+  border-radius: var(--r-full);
+  background: var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
+  font-size: 15px;
 }
 .pp-who {
   display: flex;
   flex-direction: column;
   min-width: 0;
   flex: 1;
+}
+.pp-who b {
+  font-size: 15px;
+  font-weight: 600;
 }
 .pp-who b,
 .pp-who span {
@@ -322,29 +546,30 @@ a {
   height: 32px;
   flex: none;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--r-full);
   background: transparent;
   color: var(--muted);
-  font-size: 22px;
+  font-size: 20px;
   line-height: 1;
   cursor: pointer;
+  transition: background-color 150ms var(--ease), color 150ms var(--ease);
 }
 .pp-close:hover {
-  background: var(--surface-2);
+  background: var(--hover);
   color: var(--text);
 }
 .pp-section {
-  padding: 14px 0;
+  padding: 16px 0;
   border-bottom: 1px solid var(--border);
 }
 .pp-title {
   display: flex;
   gap: 6px;
   margin: 0 0 8px;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
   color: var(--muted);
 }
 .pp-groups {
@@ -355,10 +580,11 @@ a {
 .pp-groups li {
   display: flex;
   align-items: center;
-  border-radius: 4px;
+  border-radius: var(--r-lg);
+  transition: background-color 150ms var(--ease);
 }
 .pp-groups li:hover {
-  background: var(--surface-2);
+  background: color-mix(in srgb, var(--hover) 60%, transparent);
 }
 .pp-group {
   display: flex;
@@ -366,27 +592,27 @@ a {
   gap: 10px;
   flex: 1;
   min-width: 0;
-  padding: 7px 8px;
+  padding: 8px;
   color: var(--text);
   text-decoration: none;
 }
 .pp-group-mark {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   flex: none;
   display: grid;
   place-items: center;
-  border-radius: 4px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--accent);
+  color: var(--accent-text);
   font-size: 12px;
-  font-weight: 700;
-  color: var(--muted);
+  font-weight: 600;
 }
 .pp-group-title {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 15px;
 }
 .pp-leave {
   width: 32px;
@@ -396,11 +622,12 @@ a {
   display: grid;
   place-items: center;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--r-full);
   background: transparent;
   color: var(--muted);
   cursor: pointer;
   opacity: 0.6;
+  transition: color 150ms var(--ease), opacity 150ms var(--ease);
 }
 .pp-groups li:hover .pp-leave,
 .pp-leave:focus-visible {
@@ -411,7 +638,7 @@ a {
 }
 .pp-join {
   display: flex;
-  gap: 6px;
+  gap: 8px;
 }
 .pp-join input {
   flex: 1;
@@ -429,7 +656,7 @@ a {
   justify-content: space-between;
   gap: 8px;
   margin-top: auto;
-  padding-top: 14px;
+  padding-top: 16px;
 }
 /* Кнопка «кто ты» на главном экране панели — ведёт в аккаунт. */
 .pp-me {
@@ -441,22 +668,22 @@ a {
   margin: -6px 0 -6px -8px;
   padding: 6px 8px;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--r-lg);
   background: transparent;
   color: var(--text);
   font: inherit;
   text-align: left;
   cursor: pointer;
+  transition: background-color 150ms var(--ease);
 }
 .pp-me:hover,
 .pp-me:focus-visible {
-  background: var(--surface-2);
+  background: color-mix(in srgb, var(--hover) 60%, transparent);
 }
 .pp-chevron {
   margin-left: auto;
   color: var(--muted);
-  font-size: 20px;
-  line-height: 1;
+  display: inline-flex;
 }
 img.pp-avatar {
   object-fit: cover;
@@ -465,7 +692,7 @@ img.pp-avatar {
 .pp-avatar-lg {
   width: 88px;
   height: 88px;
-  font-size: 34px;
+  font-size: 32px;
 }
 .pp-photo {
   display: flex;
@@ -475,12 +702,14 @@ img.pp-avatar {
   text-align: center;
 }
 .pp-photo-name {
-  font-size: 16px;
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 600;
   margin-top: 4px;
 }
 .pp-photo-actions {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
   justify-content: center;
   margin-top: 6px;
@@ -502,17 +731,19 @@ img.pp-avatar {
   width: 100%;
   padding: 11px 8px;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--r-lg);
   background: transparent;
   color: var(--text);
   font: inherit;
+  font-size: 15px;
   text-align: left;
   text-decoration: none;
   cursor: pointer;
+  transition: background-color 150ms var(--ease);
 }
 .pp-menu-item:hover,
 .pp-menu-item:focus-visible {
-  background: var(--surface-2);
+  background: color-mix(in srgb, var(--hover) 60%, transparent);
 }
 .pp-menu-sub {
   display: block;
@@ -524,7 +755,6 @@ img.pp-avatar {
 .icon-btn:has(.icon-avatar) {
   padding: 0;
   overflow: hidden;
-  border-radius: 50%;
 }
 .icon-avatar {
   width: 100%;
@@ -538,48 +768,24 @@ img.pp-avatar {
   }
 }
 
-/* --- типографика --- */
-h1 {
-  font-size: 28px;
-  line-height: 1.25;
-  margin: 0 0 12px;
-  letter-spacing: -0.01em;
-}
-h2 {
-  font-size: 19px;
-  margin: 0 0 12px;
-  letter-spacing: -0.005em;
-}
-h3 {
-  font-size: 15px;
-  margin: 0 0 8px;
-}
-p {
-  margin: 0 0 12px;
-}
-.muted {
-  color: var(--muted);
-}
-.small {
-  font-size: 13px;
-}
-.mono {
-  font-family: var(--mono);
-  font-variant-numeric: tabular-nums;
-}
-
-/* --- блоки --- */
+/* --- блоки ---
+   `.card` — это `.surface` из дизайн-кода: обводка и фон карточки, без тени.
+   Две роли: рамка вокруг списка строк и карточка одного объекта. */
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 18px;
-  box-shadow: var(--shadow);
-  margin-bottom: 18px;
+  border-radius: var(--r-xl);
+  padding: 20px;
+  margin-bottom: 20px;
+}
+@media (min-width: 640px) {
+  .card {
+    padding: 24px;
+  }
 }
 .grid-2 {
   display: grid;
-  gap: 18px;
+  gap: 20px;
   grid-template-columns: 1fr;
   align-items: start;
 }
@@ -594,13 +800,100 @@ p {
   }
 }
 
+/* --- подвал редактора расписания --- */
+/* Сохранение идёт само, поэтому внизу не кнопка, а состояние: что уже
+   записано, сколько занято за неделю и как откатить последний шаг. */
+.editor-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px 16px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.savestate {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.savestate .icon.ok {
+  color: var(--success);
+}
+.editor-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+/* Первое заполнение начинается с импорта: руками рисовать всю неделю долго. */
+@media (min-width: 900px) {
+  .grid-2.import-first > :first-child {
+    order: 2;
+  }
+}
+
+/* --- заголовок карточки с кнопкой справа --- */
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.card-head h2 {
+  margin: 0;
+}
+
+/* Пустое состояние: что здесь будет и что для этого сделать. */
+.empty {
+  border: 1px dashed var(--border);
+  border-radius: var(--r-xl);
+  padding: 32px 24px;
+  text-align: center;
+}
+.empty h3 {
+  margin: 0;
+  font-size: 17px;
+  line-height: 22px;
+}
+.empty p {
+  margin: 6px auto 0;
+  max-width: 40ch;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--muted);
+}
+.empty .btn {
+  margin-top: 20px;
+}
+
+/* Скелетон на месте данных, пока они грузятся. */
+.skeleton {
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  animation: skeleton-pulse 1.6s ease-in-out infinite;
+}
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
 /* --- элементы формы --- */
 label,
 .label {
   display: block;
   font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
   color: var(--muted);
-  margin: 0 0 5px;
+  margin: 0 0 6px;
 }
 input[type="text"],
 input[type="number"],
@@ -610,18 +903,20 @@ input[type="password"],
 select,
 textarea {
   width: 100%;
-  padding: 9px 11px;
-  background: var(--bg);
+  min-height: 44px;
+  padding: 11px 14px;
+  background: var(--surface);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 3px;
+  border-radius: var(--r-input);
   font: inherit;
+  transition: border-color 150ms var(--ease);
 }
 textarea {
-  min-height: 120px;
+  min-height: 96px;
   resize: vertical;
-  font-family: var(--mono);
-  font-size: 13px;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
 }
 /* 16px не даёт iOS Safari автоматически зумить страницу при фокусе на поле.
    Идёт после базовых правил выше (включая textarea), иначе они бы
@@ -637,43 +932,74 @@ textarea {
     font-size: 16px;
   }
 }
-input:focus,
-select:focus,
-textarea:focus {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-  border-color: transparent;
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  border-color: var(--accent);
+}
+input:disabled {
+  opacity: 0.5;
 }
 .field {
-  margin-bottom: 12px;
+  margin-bottom: 16px;
 }
 .row {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   flex-wrap: wrap;
 }
 .row > * {
   flex: 1 1 140px;
   min-width: 0;
 }
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 20px;
+  margin: 0 0 12px;
+  cursor: pointer;
+}
+.checkbox input {
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  accent-color: var(--accent);
+}
+input[type="range"] {
+  accent-color: var(--accent);
+  min-height: 0;
+}
 
+/* --- кнопки: только пилюли, вес 600 --- */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  padding: 9px 16px;
-  border-radius: 4px;
+  gap: 8px;
+  height: 40px;
+  padding: 0 18px;
+  border-radius: var(--r-full);
   border: 1px solid var(--border);
-  background: var(--surface-2);
+  background: var(--surface);
   color: var(--text);
   font: inherit;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   text-decoration: none;
+  white-space: nowrap;
+  transition: background-color 150ms var(--ease), border-color 150ms var(--ease),
+    color 150ms var(--ease), transform 150ms var(--ease);
 }
 .btn:hover {
-  border-color: var(--accent);
+  background: var(--hover);
+  border-color: var(--hairline);
+}
+.btn:active {
+  transform: scale(0.97);
+  transition-duration: 75ms;
 }
 .btn-primary {
   background: var(--accent);
@@ -681,21 +1007,40 @@ textarea:focus {
   color: var(--accent-text);
 }
 .btn-primary:hover {
-  filter: brightness(1.07);
+  background: var(--accent-deep);
+  border-color: var(--accent-deep);
 }
 .btn-quiet {
   background: transparent;
+  border-color: transparent;
+}
+.btn-quiet:hover {
+  background: var(--hover);
+  border-color: transparent;
 }
 .btn-danger {
   color: var(--danger);
 }
+.btn-danger:hover {
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+}
 .btn-sm {
-  padding: 5px 10px;
+  height: 32px;
+  padding: 0 14px;
   font-size: 13px;
+  line-height: 18px;
+}
+.btn-lg {
+  height: 44px;
+  padding: 0 22px;
 }
 .btn[disabled] {
   opacity: 0.5;
   cursor: default;
+}
+.btn[disabled]:active {
+  transform: none;
 }
 
 /* --- сетка недели --- */
@@ -705,36 +1050,41 @@ textarea:focus {
 }
 table.week {
   border-collapse: separate;
-  border-spacing: 2px;
+  border-spacing: 3px;
   width: 100%;
   min-width: 560px;
 }
 table.week th {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--muted);
-  padding: 4px 2px;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+  color: var(--text);
+  padding: 4px 2px 8px;
   text-align: center;
   white-space: nowrap;
+}
+table.week th .small {
+  font-weight: 400;
 }
 table.week th.timecol,
 table.week td.timecol {
   width: 52px;
   min-width: 52px;
-  font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12px;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
   color: var(--muted);
   text-align: right;
-  padding-right: 6px;
+  padding-right: 8px;
   white-space: nowrap;
 }
 table.week td.cell {
   height: 22px;
-  border-radius: 2px;
-  background: var(--heat-0);
+  border-radius: var(--r-sm);
+  background: var(--heat-5);
   cursor: pointer;
   position: relative;
-  transition: background 0.08s linear;
+  transition: background-color 150ms var(--ease);
 }
 .h0 {
   background: var(--heat-0) !important;
@@ -755,245 +1105,46 @@ table.week td.cell {
   background: var(--heat-5) !important;
 }
 td.cell.busy {
-  background: var(--busy) !important;
-}
-/* Полоска-«штриховка» отличает занятость от тёмной клетки тепловой карты
-   и остаётся заметной, если человек не различает цвета. */
-td.cell.busy::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: 2px;
-  background-image: repeating-linear-gradient(
-    135deg,
-    transparent 0 4px,
-    rgba(255, 255, 255, 0.28) 4px 6px
-  );
-}
-td.cell:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  background: var(--slot-busy) !important;
 }
 
-input[type="range"] {
-  accent-color: var(--accent);
+/* --- сетка по парам, как на портале университета --- */
+/* Колонки дней одной ширины: подпись встречи в клетке не должна раздвигать свой день. */
+table.week.periods {
+  table-layout: fixed;
 }
-
-/* --- окно с деталями клетки тепловой карты --- */
-.cell-popover-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.42);
-  z-index: 70;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
+table.week.periods td.cell {
+  height: 44px;
+  border-radius: var(--r-md);
 }
-.cell-popover {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  width: min(92vw, 320px);
-  padding: 16px;
+table.week.periods td.timecol.period {
+  width: 68px;
+  min-width: 68px;
+  text-align: left;
+  vertical-align: top;
+  padding: 4px 8px 0 2px;
+  line-height: 1.25;
 }
-.cell-popover .when {
-  margin: 2px 0 4px;
-}
-
-.legend {
-  display: flex;
-  align-items: center;
-  gap: 7px;
+.period-n {
+  display: block;
   font-size: 12px;
-  color: var(--muted);
-  margin-top: 10px;
-  flex-wrap: wrap;
-}
-.legend i {
-  width: 18px;
-  height: 12px;
-  border-radius: 2px;
-  display: inline-block;
-}
-
-/* --- списки --- */
-.people {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: 4px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  font-size: 13px;
-}
-.chip.ok {
-  background: var(--accent-soft);
-  border-color: transparent;
-}
-.chip.warn {
-  border-style: dashed;
-  color: var(--muted);
-}
-
-.windows {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.windows li {
-  padding: 9px 0;
-  border-bottom: 1px solid var(--border);
-}
-.windows li:last-child {
-  border-bottom: 0;
-}
-.windows .when {
-  font-family: var(--mono);
+  line-height: 16px;
   font-weight: 600;
-}
-.daygroup {
-  margin-bottom: 14px;
-}
-.daygroup > h3 {
-  color: var(--muted);
-  font-weight: 500;
-  text-transform: none;
-}
-
-.meeting {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 14px;
-  margin-bottom: 12px;
-}
-.meeting.cancelled {
-  opacity: 0.55;
-}
-.meeting.cancelled .mtitle {
-  text-decoration: line-through;
-}
-.votes {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-top: 10px;
-}
-
-.notice {
-  padding: 11px 14px;
-  border-radius: 4px;
-  background: var(--accent-soft);
-  border: 1px solid transparent;
-  font-size: 14px;
-  margin-bottom: 14px;
-}
-.notice.warn {
-  background: transparent;
-  border-color: var(--border);
-  color: var(--muted);
-}
-
-.hero {
-  padding: 8px 0 6px;
-}
-.hero h1 {
-  font-size: 34px;
-  max-width: 20ch;
-}
-.hero p.lead {
-  font-size: 17px;
-  color: var(--muted);
-  max-width: 62ch;
-}
-@media (max-width: 400px) {
-  .hero h1 {
-    font-size: 28px;
-  }
-}
-.steps {
-  display: grid;
-  gap: 14px;
-  grid-template-columns: 1fr;
-  margin: 22px 0 6px;
-}
-@media (min-width: 760px) {
-  .steps {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-.step {
-  padding: 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-}
-.step .n {
-  width: 24px;
-  height: 24px;
-  border-radius: 3px;
-  background: var(--accent-soft);
-  color: var(--accent);
-  display: grid;
-  place-items: center;
-  font-weight: 700;
-  font-size: 13px;
-  margin-bottom: 9px;
-}
-
-.toast {
-  position: fixed;
-  left: 50%;
-  bottom: max(22px, calc(env(safe-area-inset-bottom) + 12px));
-  transform: translateX(-50%);
-  max-width: calc(100vw - 32px);
-  background: var(--text);
-  color: var(--bg);
-  padding: 9px 16px;
-  border-radius: 4px;
-  font-size: 14px;
-  text-align: center;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.18s;
-  z-index: 50;
-}
-.toast.show {
-  opacity: 1;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  * {
-    transition: none !important;
-  }
-}
-
-input:disabled {
-  opacity: 0.5;
-}
-.checkbox {
-  display: flex;
-  align-items: center;
-  gap: 8px;
   color: var(--text);
-  font-size: 14px;
-  margin: 0 0 12px;
-  cursor: pointer;
 }
-.checkbox input {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--accent);
+.period-time {
+  font-size: 11px;
+  line-height: 15px;
+  font-variant-numeric: tabular-nums;
+}
+table.week tr.break-row td {
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 16px;
+  padding: 4px 10px;
+  border-radius: var(--r-full);
+  text-align: left;
 }
 
 /* --- редактор своего расписания --- */
@@ -1013,17 +1164,258 @@ table.week.editor td.cell.busy {
   background: var(--slot-busy);
 }
 
-/* --- заголовок карточки с кнопкой справа --- */
-.card-head {
+/* --- своя занятость поверх общей карты --- */
+/* Штриховка, а не другой цвет: цвет уже занят шкалой «сколько людей свободно». */
+table.week td.cell.mine::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0 5px,
+    var(--mine-stripe) 5px 7px
+  );
+  pointer-events: none;
+}
+.legend i.swatch-mine {
+  background-color: var(--heat-2);
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0 5px,
+    var(--mine-stripe) 5px 7px
+  );
+}
+
+/* --- назначенные встречи на тепловой карте --- */
+table.week td.cell.meeting,
+.legend i.swatch-meeting {
+  background: var(--danger);
+}
+table.week td.cell.meeting {
+  overflow: hidden;
+}
+.cell-meeting {
+  /* Поверх клетки: подпись не должна увеличивать высоту ряда. */
+  position: absolute;
+  inset: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  padding: 4px 6px;
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 600;
+  color: #ffffff;
+  text-align: left;
+  word-break: break-word;
+  pointer-events: none;
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--muted);
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.legend i {
+  width: 18px;
+  height: 12px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+/* --- окно с деталями клетки тепловой карты --- */
+.cell-popover-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 22, 40, 0.4);
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.cell-popover {
+  background: var(--popover);
+  border: 1px solid var(--border);
+  border-radius: var(--r-3xl);
+  box-shadow: var(--shadow-float);
+  width: min(92vw, 340px);
+  padding: 24px;
+}
+.cell-popover .when {
+  margin: 2px 0 4px;
+}
+.cell-popover-meeting {
+  margin: 0 0 4px;
+  font-weight: 600;
+  color: var(--danger);
+}
+
+/* --- подсказка «кто свободен» при наведении на клетку --- */
+.cell-tooltip {
+  position: fixed;
+  z-index: 60;
+  transform: translate(-50%, calc(-100% - 8px));
+  max-width: min(300px, calc(100vw - 32px));
+  padding: 10px 12px;
+  border-radius: var(--r-lg);
+  background: var(--ink);
+  color: var(--ink-text);
+  box-shadow: var(--shadow-float);
+  pointer-events: none;
+  font-size: 13px;
+  line-height: 18px;
+}
+.cell-tooltip.below {
+  transform: translate(-50%, 8px);
+}
+.cell-tooltip-head {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.cell-tooltip .who-free-label {
+  color: inherit;
+  opacity: 0.7;
+}
+.cell-tooltip .who-free-label.ok {
+  color: inherit;
+  opacity: 1;
+}
+.who-free {
+  display: grid;
+  gap: 4px;
+  margin: 4px 0;
+  overflow-wrap: anywhere;
+}
+.who-free-label {
+  color: var(--muted);
+  font-weight: 600;
+}
+.who-free-label.ok {
+  color: var(--accent);
+}
+
+/* --- списки --- */
+.people {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  border: 1px solid transparent;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background-color 150ms var(--ease);
+}
+.chip:hover {
+  background: var(--hover);
+}
+.chip.ok {
+  background: var(--accent-soft);
+  border-color: transparent;
+}
+.chip.warn {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--muted);
+}
+
+.windows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.windows li {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.windows li:last-child {
+  border-bottom: 0;
+}
+.windows .when {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.daygroup {
+  margin-bottom: 16px;
+}
+.daygroup > h3 {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.meeting {
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 16px;
+  margin-bottom: 12px;
+}
+.meeting.cancelled {
+  opacity: 0.55;
+}
+.meeting.cancelled .mtitle {
+  text-decoration: line-through;
+}
+.mtitle {
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 600;
+}
+.votes {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: var(--r-lg);
+  background: var(--accent-soft);
+  border: 1px solid transparent;
+  font-size: 14px;
+  line-height: 20px;
+  margin-bottom: 12px;
+}
+.notice.warn {
+  background: transparent;
+  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+  color: var(--text);
+}
+.notice-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px 12px;
   flex-wrap: wrap;
-  margin-bottom: 8px;
 }
-.card-head h2 {
-  margin: 0;
+.notice-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 /* --- участники --- */
@@ -1038,7 +1430,7 @@ table.week.editor td.cell.busy {
   justify-content: space-between;
   gap: 8px 12px;
   flex-wrap: wrap;
-  padding: 8px 0;
+  padding: 12px 0;
   border-bottom: 1px solid var(--border);
 }
 .roster-row:last-child {
@@ -1047,87 +1439,189 @@ table.week.editor td.cell.busy {
 .roster-who {
   display: flex;
   align-items: center;
-  gap: 6px 8px;
+  gap: 8px;
   flex-wrap: wrap;
   min-width: 0;
 }
+.roster-who b {
+  font-size: 15px;
+  font-weight: 600;
+}
 .roster-actions {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 .dot {
-  width: 9px;
-  height: 9px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   flex: none;
-  background: var(--accent);
+  background: var(--success);
 }
 .dot.warn {
   background: transparent;
   box-shadow: inset 0 0 0 2px var(--muted);
 }
 .badge {
-  display: inline-block;
-  padding: 1px 7px;
-  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: var(--r-full);
   font-size: 12px;
-  background: var(--accent-soft);
-  color: var(--accent);
+  line-height: 16px;
+  font-weight: 500;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+.badge.ok {
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+  color: var(--success);
 }
 
-/* --- уведомления --- */
-.notice-row {
+/* --- разделы страницы группы --- */
+.tabs {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px 12px;
+  gap: 8px;
+  margin-bottom: 20px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+.tab {
+  height: 36px;
+  padding: 0 16px;
+  flex: none;
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 150ms var(--ease), border-color 150ms var(--ease),
+    color 150ms var(--ease), transform 150ms var(--ease);
+}
+.tab:hover {
+  background: var(--hover);
+}
+.tab:active {
+  transform: scale(0.97);
+  transition-duration: 75ms;
+}
+.tab.active {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--ink-text);
+}
+
+/* --- лучшие окна недели --- */
+.best-list {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+@media (min-width: 760px) {
+  .best-list {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+.best-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+}
+.best-when {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
   flex-wrap: wrap;
 }
-.notice-actions {
+.best-when .type-title-3 {
+  font-variant-numeric: tabular-nums;
+}
+.best-who {
+  margin: 0;
+  flex: 1;
+}
+.best-item .btn {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+
+/* --- переключатель недель --- */
+.weeknav {
   display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.weeknav .btn-quiet {
+  width: 32px;
+  padding: 0;
+}
+.weeknav > .small {
+  min-width: 108px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
 }
 
 /* --- выбор дня и варианты встречи --- */
 .daypicker {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 .daychip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 10px;
-  border-radius: 4px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: var(--r-full);
   border: 1px solid var(--border);
-  background: var(--surface-2);
+  background: var(--surface);
   color: var(--text);
   font: inherit;
   font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
   cursor: pointer;
+  transition: background-color 150ms var(--ease), border-color 150ms var(--ease),
+    color 150ms var(--ease), transform 150ms var(--ease);
+}
+.daychip:hover {
+  background: var(--hover);
+}
+.daychip:active {
+  transform: scale(0.97);
+  transition-duration: 75ms;
 }
 .daychip .count {
-  font-family: var(--mono);
-  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
   color: var(--muted);
 }
 .daychip.empty {
   color: var(--muted);
 }
 .daychip.active {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-text);
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--ink-text);
 }
 .daychip.active .count {
   color: inherit;
-}
-.daychip:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  opacity: 0.7;
 }
 .slotlist {
   max-height: 420px;
@@ -1137,7 +1631,7 @@ table.week.editor td.cell.busy {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 12px;
 }
 .slotinfo {
   min-width: 0;
@@ -1149,9 +1643,125 @@ table.week.editor td.cell.busy {
   opacity: 0.55;
 }
 
+/* --- мета-строка и ответы на встречу --- */
+/* Иконки стоят на базовой линии строки — поднимаем до её середины. */
+.meeting-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-top: 4px;
+}
+.meeting-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.tally {
+  display: flex;
+  gap: 14px;
+  margin-top: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.tally span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+/* Карточка встречи: кто идёт, кто нет, кто молчит. */
+.meeting-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.answers {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+.answer-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.answer-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 132px;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.answer-label.answer-yes {
+  color: var(--success);
+}
+.answer-label.answer-no {
+  color: var(--danger);
+}
+.marks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+/* Кружок с инициалом вместо фото: фотографии есть не у всех, а имя есть всегда. */
+.mark {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+}
+/* Тех, кто идёт, видно и по кружкам: это главная строка карточки. */
+.answer-group.group-yes .mark {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+.comments {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.comments .icon {
+  color: var(--muted);
+}
+.change-details {
+  margin-top: 12px;
+}
+.change-details summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+.past-meetings {
+  margin-top: 16px;
+}
+.past-meetings > summary {
+  cursor: pointer;
+  padding: 8px 0;
+}
+.cell-popover-meeting {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.pp-chevron,
+.pp-ok {
+  display: inline-flex;
+  align-items: center;
+}
+
 /* --- ответы на встречу --- */
 .responses {
-  margin-top: 8px;
+  margin-top: 12px;
 }
 .responses summary {
   cursor: pointer;
@@ -1159,19 +1769,25 @@ table.week.editor td.cell.busy {
 }
 .responses ul {
   list-style: none;
-  margin: 6px 0 0;
+  margin: 8px 0 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 .response-comment {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
   margin-left: 22px;
 }
+.response-comment .icon {
+  margin-top: 2px;
+}
 .change-form {
-  margin-top: 8px;
+  margin-top: 12px;
   display: flex;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 .change-form input {
@@ -1193,7 +1809,7 @@ table.week.editor td.cell.busy {
 .acct-table th,
 .acct-table td {
   text-align: left;
-  padding: 8px 0;
+  padding: 12px 0;
   border-bottom: 1px solid var(--border);
   vertical-align: top;
 }
@@ -1204,17 +1820,106 @@ table.week.editor td.cell.busy {
   padding-right: 12px;
 }
 
+/* --- главная --- */
+.hero {
+  padding: 8px 0 4px;
+}
+.hero h1 {
+  max-width: 18ch;
+}
+.hero p.lead {
+  max-width: 62ch;
+  margin-top: 12px;
+}
+/* «Как это работает»: список строк в одной рамке. Нумерованных плиток
+   и иконок в кружках в системе нет. */
+.steps {
+  list-style: none;
+  margin: 28px 0 20px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  background: var(--surface);
+}
+.step {
+  padding: 20px;
+  border-bottom: 1px solid var(--border);
+}
+.step:last-child {
+  border-bottom: 0;
+}
+.step h3 {
+  margin: 0 0 4px;
+  font-size: 17px;
+  line-height: 22px;
+}
+.step p {
+  margin: 0;
+  max-width: 62ch;
+}
+@media (min-width: 760px) {
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .step {
+    border-bottom: 0;
+    border-right: 1px solid var(--border);
+  }
+  .step:last-child {
+    border-right: 0;
+  }
+}
+
+/* --- вход только через Telegram --- */
+.tg-signin {
+  display: grid;
+  gap: 10px;
+}
+.tg-only-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 14px;
+}
+.tg-only-list li {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.tg-only-list .ico {
+  flex: none;
+  color: var(--muted);
+  margin-top: 1px;
+}
+.login-password {
+  margin-top: 20px;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+.login-password summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+
 /* --- вход через Telegram --- */
 .tg-btn {
   background: #2aabee;
   border-color: #2aabee;
   color: #ffffff;
 }
+.tg-btn:hover {
+  background: #229ed9;
+  border-color: #229ed9;
+}
 .divider {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin: 16px 0;
+  gap: 12px;
+  margin: 20px 0;
+  color: var(--muted);
+  font-size: 13px;
 }
 .divider::before,
 .divider::after {
@@ -1224,18 +1929,18 @@ table.week.editor td.cell.busy {
   background: var(--border);
 }
 .tglogin-steps {
-  margin: 0 0 14px;
+  margin: 0 0 16px;
   padding-left: 18px;
   color: var(--muted);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 .waiting {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin: 14px 0;
+  gap: 10px;
+  margin: 16px 0;
 }
 .spinner {
   width: 14px;
@@ -1255,7 +1960,7 @@ table.week.editor td.cell.busy {
 /* --- настоящее имя и тема в панели профиля --- */
 .pp-name-form {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   width: 100%;
   margin-top: 4px;
 }
@@ -1271,29 +1976,25 @@ table.week.editor td.cell.busy {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 4px;
-  padding: 3px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
+  padding: 4px;
+  border-radius: var(--r-full);
   background: var(--surface-2);
 }
 .pp-theme button {
-  padding: 6px 4px;
+  height: 32px;
   border: 0;
-  border-radius: 3px;
+  border-radius: var(--r-full);
   background: transparent;
   color: var(--muted);
   font: inherit;
   font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
+  transition: background-color 150ms var(--ease), color 150ms var(--ease);
 }
 .pp-theme button[aria-checked="true"] {
-  background: var(--surface);
-  color: var(--text);
-  box-shadow: var(--shadow);
-}
-.pp-theme button:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  background: var(--ink);
+  color: var(--ink-text);
 }
 
 /* --- Telegram в экране аккаунта --- */
@@ -1304,145 +2005,49 @@ table.week.editor td.cell.busy {
   background: transparent;
 }
 .pp-ok {
-  color: var(--accent);
-  font-weight: 700;
-}
-
-/* --- сетка по парам, как на портале университета --- */
-/* Колонки дней одной ширины: подпись встречи в клетке не должна раздвигать свой день. */
-table.week.periods {
-  table-layout: fixed;
-}
-table.week.periods td.cell {
-  height: 44px;
-  border-radius: 6px;
-}
-table.week.periods td.cell.busy::after {
-  border-radius: 6px;
-}
-table.week.periods td.timecol.period {
-  width: 64px;
-  min-width: 64px;
-  text-align: left;
-  vertical-align: top;
-  padding: 4px 6px 0 2px;
-  line-height: 1.25;
-}
-.period-n {
-  display: block;
-  font-family: var(--font, inherit);
-  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--success);
   font-weight: 600;
-  color: var(--text);
-}
-.period-time {
-  font-size: 10.5px;
-}
-table.week tr.break-row td {
-  background: color-mix(in srgb, var(--accent) 9%, transparent);
-  color: var(--muted);
-  font-size: 11px;
-  padding: 3px 8px;
-  border-radius: 4px;
-  text-align: left;
 }
 
-/* --- назначенные встречи на тепловой карте --- */
-table.week td.cell.meeting,
-.legend i.swatch-meeting {
-  background: var(--danger);
-}
-table.week td.cell.meeting {
-  overflow: hidden;
-}
-.cell-meeting {
-  /* Поверх клетки: подпись не должна увеличивать высоту ряда. */
-  position: absolute;
-  inset: 0;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  padding: 3px 5px;
-  font-size: 10.5px;
-  line-height: 1.2;
-  font-weight: 600;
-  color: #fff;
-  text-align: left;
-  word-break: break-word;
-  pointer-events: none;
-}
-.cell-popover-meeting {
-  margin: 0 0 4px;
-  font-weight: 600;
-  color: var(--danger);
+/* Внутри Telegram часть действий берут на себя нативные кнопки
+   (главная кнопка внизу, «назад» в шапке) — свои прячем. */
+html[data-tg] .tg-hide {
+  display: none !important;
 }
 
-/* --- «Моё расписание»: занятые клетки сплошным цветом --- */
-table.week.editor td.cell.busy::after {
-  content: none;
-}
-
-/* --- подсказка «кто свободен» при наведении на клетку --- */
-.cell-tooltip {
+/* --- всплывающее уведомление --- */
+.toast {
   position: fixed;
-  z-index: 60;
-  transform: translate(-50%, calc(-100% - 8px));
-  max-width: min(300px, calc(100vw - 32px));
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: var(--surface);
-  color: var(--text);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow);
+  left: 50%;
+  bottom: max(22px, calc(var(--safe-bottom) + 12px));
+  transform: translateX(-50%);
+  max-width: calc(100vw - 32px);
+  background: var(--ink);
+  color: var(--ink-text);
+  padding: 12px 18px;
+  border-radius: var(--r-full);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  text-align: center;
+  box-shadow: var(--shadow-float);
+  opacity: 0;
   pointer-events: none;
-  font-size: 12px;
-  line-height: 1.35;
+  transition: opacity 150ms var(--ease);
+  z-index: 80;
 }
-.cell-tooltip.below {
-  transform: translate(-50%, 8px);
-}
-.cell-tooltip-head {
-  font-weight: 600;
-  margin-bottom: 4px;
-}
-.who-free {
-  display: grid;
-  gap: 3px;
-  margin: 4px 0;
-  overflow-wrap: anywhere;
-}
-.who-free-label {
-  color: var(--muted);
-  font-weight: 600;
-}
-.who-free-label.ok {
-  color: var(--accent);
+.toast.show {
+  opacity: 1;
 }
 
-/* --- вход только через Telegram --- */
-.tg-signin {
-  display: grid;
-  gap: 8px;
-}
-.tg-only-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: grid;
-  gap: 10px;
-}
-.tg-only-list li {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
-}
-.login-password {
-  margin-top: 16px;
-  border-top: 1px solid var(--border);
-  padding-top: 12px;
-}
-.login-password summary {
-  cursor: pointer;
-  color: var(--muted);
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
 }

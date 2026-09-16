@@ -36,11 +36,21 @@ async function makeGroup(title: string, name: string) {
   });
 }
 
-async function board(slug: string, options: { quorum?: number | null } = {}) {
+async function board(
+  slug: string,
+  options: { quorum?: number | null; week?: number; viewerId?: number } = {},
+) {
   const { repo, group } = await mods();
   const chat = (await repo.getChatBySlug(slug))!;
-  const state = await group.loadGroupState(chat, { quorum: options.quorum ?? null });
-  return { chat, state, payload: group.toBoardPayload(state, chat.lang) };
+  const state = await group.loadGroupState(chat, {
+    quorum: options.quorum ?? null,
+    week: options.week ?? 0,
+  });
+  return {
+    chat,
+    state,
+    payload: group.toBoardPayload(state, chat.lang, options.viewerId),
+  };
 }
 
 describe("создание группы", () => {
@@ -507,5 +517,98 @@ describe("вход из Telegram Mini App", () => {
     expect(await repo.isMember(chat.chatId, 424242)).toBe(true);
     const members = await repo.chatMembers(chat.chatId);
     expect(members.map((member) => member.fullName)).toContain("Нурбек");
+  });
+});
+
+describe("лучшее время и переход по неделям", () => {
+  it("предлагает окна, где свободно больше всего людей, и не предлагает занятое встречей", async () => {
+    const { repo, group } = await mods();
+    const { chat, user } = await makeGroup("Лучшее время", "Амир");
+    const { todayIn, zonedWallToUtc } = await import("@/core/timeutils");
+
+    const guest = await repo.createWebUser({ fullName: "Асель", lang: "ru" });
+    await repo.addMembership(chat.chatId, guest.userId);
+    // Оба свободны везде, кроме утра: у Амира занято до 12:00 каждый день.
+    await repo.replaceWeeklySlots(
+      user.userId,
+      [0, 1, 2, 3, 4, 5, 6],
+      [0, 1, 2, 3, 4, 5, 6].map((weekday) => ({ weekday, start: 0, end: 12 * 60 })),
+      "web",
+    );
+    await repo.replaceWeeklySlots(guest.userId, [0, 1, 2, 3, 4, 5, 6], [], "web");
+
+    const { payload } = await board(chat.slug!, { quorum: 1 });
+    expect(payload.best.length).toBeGreaterThan(0);
+    // Сверху — окна, где свободны оба, а не те, где остался один человек.
+    expect(payload.best[0].count).toBe(2);
+    expect(payload.best[0].start).toBeGreaterThanOrEqual(12 * 60);
+
+    // Назначаем встречу на первое же предложение — больше его предлагать нельзя.
+    const first = payload.best[0];
+    const tz = "Asia/Almaty";
+    await repo.createMeeting({
+      chatId: chat.chatId,
+      initiatorId: user.userId,
+      place: "",
+      whenText: "занято",
+      goal: "Занято",
+      invitees: [user.userId, guest.userId],
+      whenStart: zonedWallToUtc(first.date as ReturnType<typeof todayIn>, first.start, tz),
+    });
+
+    const after = await board(chat.slug!, { quorum: 1 });
+    const sameSlot = after.payload.best.find(
+      (item) => item.date === first.date && item.start === first.start,
+    );
+    expect(sameSlot, "окно под уже назначенной встречей предлагать нельзя").toBeUndefined();
+  });
+
+  it("следующая неделя показывает свои семь дней и свои встречи", async () => {
+    const { group } = await mods();
+    const { chat } = await makeGroup("Недели", "Амир");
+    const { addDays, weekdayOf } = await import("@/core/timeutils");
+
+    const now = await board(chat.slug!);
+    const next = await board(chat.slug!, { week: 1 });
+
+    expect(now.payload.week).toBe(0);
+    expect(next.payload.week).toBe(1);
+    expect(weekdayOf(next.state.weekStart)).toBe(0);
+    expect(next.state.weekStart).toBe(addDays(now.state.weekStart, 7));
+    expect(next.payload.days).toHaveLength(7);
+    expect(next.payload.days[0].date).toBe(next.state.weekStart);
+    // Варианты встречи на будущей неделе считаются с её понедельника.
+    expect(next.payload.slotDays[0].date).toBe(next.state.weekStart);
+    // Номер недели ограничен: мусор в адресе не уводит карту в никуда.
+    expect(group.normalizeWeek("99")).toBe(0);
+    expect(group.normalizeWeek("-1")).toBe(0);
+    expect(group.normalizeWeek("2")).toBe(2);
+  });
+});
+
+describe("своя занятость на общей карте", () => {
+  it("клетки, где занят смотрящий, помечаются только для него", async () => {
+    const { repo } = await mods();
+    const { chat, user } = await makeGroup("Свой слой", "Амир");
+    const guest = await repo.createWebUser({ fullName: "Асель", lang: "ru" });
+    await repo.addMembership(chat.chatId, guest.userId);
+    await repo.replaceWeeklySlots(
+      user.userId,
+      [0, 1, 2, 3, 4, 5, 6],
+      [{ weekday: 0, start: 0, end: 1440 }],
+      "web",
+    );
+    await repo.replaceWeeklySlots(guest.userId, [0, 1, 2, 3, 4, 5, 6], [], "web");
+
+    const mine = await board(chat.slug!, { viewerId: user.userId });
+    const theirs = await board(chat.slug!, { viewerId: guest.userId });
+    const anonymous = await board(chat.slug!);
+
+    expect(mine.payload.days[0].cells[0].mine).toBe(true);
+    expect(theirs.payload.days[0].cells[0].mine).toBe(false);
+    // Вторник свободен у обоих — помечать нечего.
+    expect(mine.payload.days[1].cells[0].mine).toBe(false);
+    // Без смотрящего (и у того, кто не заполнил расписание) слоя нет.
+    expect(anonymous.payload.days[0].cells[0].mine).toBe(false);
   });
 });

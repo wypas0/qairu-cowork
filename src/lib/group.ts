@@ -53,6 +53,15 @@ export function durationOptions(current: number): number[] {
   return [...new Set([...DURATION_OPTIONS, current])].sort((a, b) => a - b);
 }
 
+/** Насколько далеко вперёд можно листать недели. */
+export const MAX_WEEK_AHEAD = 8;
+
+/** Номер показываемой недели: 0 — текущая, 1 — следующая и так далее. */
+export function normalizeWeek(value: unknown): number {
+  const week = typeof value === "string" ? Number(value) : typeof value === "number" ? value : 0;
+  return Number.isInteger(week) && week >= 0 && week <= MAX_WEEK_AHEAD ? week : 0;
+}
+
 /** Если по тексту встречи нельзя понять, когда она заканчивается. */
 export const DEFAULT_MEETING_MIN = 90;
 
@@ -104,13 +113,23 @@ export type GroupState = {
   duration: number;
   /** Назначенные встречи на неделе тепловой карты. */
   weekMeetings: MeetingSpan[];
+  /** Какая неделя показана: 0 — текущая. */
+  week: number;
+  /** Понедельник показанной недели. */
+  weekStart: DateStr;
 };
 
 export async function loadGroupState(
   chat: Chat,
-  options: { quorum?: number | null; duration?: number | null; withMeetings?: boolean } = {},
+  options: {
+    quorum?: number | null;
+    duration?: number | null;
+    withMeetings?: boolean;
+    week?: number;
+  } = {},
 ): Promise<GroupState> {
   const { quorum = null, duration = null, withMeetings = true } = options;
+  const week = normalizeWeek(options.week);
 
   const members = await repo.chatMembers(chat.chatId);
   const people = await repo.buildPersonSchedules(members);
@@ -126,7 +145,10 @@ export async function loadGroupState(
   // всегда первым столбцом, даже если сегодня, скажем, четверг. Варианты
   // встречи ниже по-прежнему считаются вперёд от сегодня — предлагать
   // встречу на прошедший день не нужно.
-  const weekStart = addDays(today, -weekdayOf(today));
+  const weekStart = addDays(today, -weekdayOf(today) + week * 7);
+  // Для текущей недели варианты считаем от сегодня (прошедшие дни не нужны),
+  // для будущей — с её понедельника.
+  const slotsStart = week === 0 ? today : weekStart;
   const periods = gridPeriods(chat.dayStartMin, chat.dayEndMin, SLOT_STEP);
   const tz = chatTz(chat);
   const weekMeetings = (
@@ -149,7 +171,7 @@ export async function loadGroupState(
     rows: periods,
   });
 
-  const slots = slotsOfLength(people, today, {
+  const slots = slotsOfLength(people, slotsStart, {
     daysAhead: DAYS_AHEAD,
     dayStart: chat.dayStartMin,
     dayEnd: chat.dayEndMin,
@@ -177,8 +199,17 @@ export async function loadGroupState(
     responses,
     duration: length,
     weekMeetings,
+    week,
+    weekStart,
   };
 }
+
+/** Одно из предложений блока «Лучшее время». */
+export type BoardBest = BoardSlot & {
+  date: string;
+  label: string;
+  short: string;
+};
 
 export type BoardSlot = {
   start: number;
@@ -194,6 +225,12 @@ export type BoardPayload = {
   quorum: number;
   everyone: boolean;
   duration: number;
+  /** Показанная неделя: 0 — текущая. */
+  week: number;
+  /** Подпись недели вида «14–20 сент». */
+  weekLabel: string;
+  /** Два-три лучших окна недели — главный ответ страницы. */
+  best: BoardBest[];
   /** Ряды тепловой карты: номер пары и перерыв перед ней. */
   periods: Period[];
   /** Назначенные встречи — их клетки на карте красные. */
@@ -201,8 +238,19 @@ export type BoardPayload = {
   days: {
     date: string;
     label: string;
+    /** Подписи столбца: «Ср» и «16.09». */
+    short: string;
+    dm: string;
     /** `free` — кто свободен всю клетку, `missing` — кто занят (для подсказки при наведении). */
-    cells: { start: number; end: number; count: number; free: string[]; missing: string[] }[];
+    cells: {
+      start: number;
+      end: number;
+      count: number;
+      free: string[];
+      missing: string[];
+      /** Занят ли в этой клетке тот, кто смотрит на карту. */
+      mine: boolean;
+    }[];
   }[];
   /** Варианты встречи выбранной длины на ближайшие дни, начиная с сегодня. */
   slotDays: {
@@ -214,7 +262,11 @@ export type BoardPayload = {
   missing: string[];
 };
 
-export function toBoardPayload(state: GroupState, lang: string): BoardPayload {
+export function toBoardPayload(state: GroupState, lang: string, viewerId?: number): BoardPayload {
+  // Свою занятость видно прямо на общей карте: без неё непонятно, ты ли тот
+  // человек, которого не хватает. Если расписание ещё не заполнено, помечать нечего.
+  const viewerHasData =
+    viewerId !== undefined && state.participants.some((person) => person.userId === viewerId);
   const freeNames = (freeIds: readonly number[]) =>
     state.participants
       .filter((person) => freeIds.includes(person.userId))
@@ -229,17 +281,23 @@ export function toBoardPayload(state: GroupState, lang: string): BoardPayload {
     quorum: state.quorum,
     everyone: state.everyone,
     duration: state.duration,
+    week: state.week,
+    weekLabel: `${formatDM(state.weekStart)} – ${formatDM(addDays(state.weekStart, 6))}`,
+    best: bestSlots(state, lang),
     periods: state.periods,
     meetings: state.weekMeetings,
     days: state.grid.map((day) => ({
       date: day.day,
       label: formatDay(lang, day.day),
+      short: weekdayShort(lang, weekdayOf(day.day)),
+      dm: formatDM(day.day),
       cells: day.cells.map((cell) => ({
         start: cell.startMin,
         end: cell.endMin,
         count: cell.freeIds.length,
         free: freeNames(cell.freeIds),
         missing: missingNames(cell.freeIds),
+        mine: viewerHasData && !cell.freeIds.includes(viewerId!),
       })),
     })),
     slotDays: state.slotDays.map((day) => ({
@@ -256,4 +314,63 @@ export function toBoardPayload(state: GroupState, lang: string): BoardPayload {
     })),
     missing: state.missing.map((member) => displayName(member)),
   };
+}
+
+/** Сколько предложений показываем в блоке «Лучшее время». */
+const BEST_LIMIT = 3;
+
+/**
+ * Лучшие окна недели: по одному на день, дальше — самые «полные» и ранние.
+ *
+ * Страница существует ради ответа «когда мы можем встретиться», поэтому его
+ * нужно назвать вслух, а не заставлять человека вычитывать тепловую карту.
+ * Окна, на которые уже назначена встреча, из выдачи убираем: предлагать время,
+ * которое группа только что заняла, — худший вид совета.
+ */
+export function bestSlots(state: GroupState, lang: string): BoardBest[] {
+  const missingNames = (freeIds: readonly number[]) =>
+    state.participants
+      .filter((person) => !freeIds.includes(person.userId))
+      .map((person) => state.names.get(person.userId) ?? "?");
+
+  // Середина рабочего дня группы — по её же сетке пар.
+  const noon =
+    state.periods.length > 0
+      ? (state.periods[0].start + state.periods[state.periods.length - 1].end) / 2
+      : 13 * 60;
+  const distanceToNoon = (start: number) => Math.abs(start - noon);
+
+  const candidates: BoardBest[] = [];
+  for (const day of state.slotDays) {
+    const free = day.slots.filter(
+      (slot) =>
+        !state.weekMeetings.some(
+          (meeting) =>
+            meeting.date === day.day &&
+            meeting.start < slot.interval[1] &&
+            slot.interval[0] < meeting.end,
+        ),
+    );
+    if (free.length === 0) continue;
+    // Из окон с одинаковым числом людей берём то, что ближе к середине дня:
+    // иначе «лучшим» всегда оказывается 8 утра — просто потому, что оно первое.
+    const best = free.reduce((a, b) => {
+      if (b.freeIds.length !== a.freeIds.length) return b.freeIds.length > a.freeIds.length ? b : a;
+      return distanceToNoon(b.interval[0]) < distanceToNoon(a.interval[0]) ? b : a;
+    });
+    candidates.push({
+      date: day.day,
+      label: formatDay(lang, day.day),
+      short: `${weekdayShort(lang, weekdayOf(day.day))} ${formatDM(day.day)}`,
+      start: best.interval[0],
+      end: best.interval[1],
+      text: fmtInterval(best.interval),
+      count: best.freeIds.length,
+      missing: missingNames(best.freeIds),
+    });
+  }
+
+  return candidates
+    .sort((a, b) => b.count - a.count || a.date.localeCompare(b.date) || a.start - b.start)
+    .slice(0, BEST_LIMIT);
 }

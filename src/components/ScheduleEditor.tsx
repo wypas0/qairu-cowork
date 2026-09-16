@@ -5,17 +5,25 @@ import { useRouter } from "next/navigation";
 
 import type { Period } from "@/core/grid";
 import { periodOverlaps } from "@/core/grid";
+import { haptic, whenReady } from "@/lib/telegram";
+import { IconCheck } from "./icons";
 import { BreakRow, PeriodTime, hhmm } from "./PeriodRow";
+import { TelegramMainButton } from "./TelegramButtons";
 import { toast } from "./toast";
 
 export type EditorLabels = {
   paintHint: string;
-  save: string;
   saved: string;
-  unsaved: string;
+  saving: string;
   saveError: string;
+  saveRetry: string;
+  done: string;
+  undo: string;
   clear: string;
+  busyTotal: string; // «Занято {h} ч в неделю»
+  importFirst: string;
   importTitle: string;
+  importTitleFirst: string;
   importHint: string;
   importBtn: string;
   importParsed: string;
@@ -131,6 +139,7 @@ export function ScheduleEditor({
   slug,
   periods,
   initialBusy,
+  backHref,
   weekdayNames,
   weekdayShort,
   photoEnabled,
@@ -140,6 +149,8 @@ export function ScheduleEditor({
   /** Ряды сетки — пары. Занятость хранится по началу пары. */
   periods: Period[];
   initialBusy: string[];
+  /** Куда ведёт главная кнопка Telegram, когда всё сохранено. */
+  backHref: string;
   weekdayNames: string[];
   weekdayShort: string[];
   photoEnabled: boolean;
@@ -149,6 +160,9 @@ export function ScheduleEditor({
   const [busy, setBusy] = useState<Set<string>>(() => new Set(initialBusy));
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [failedSave, setFailedSave] = useState(false);
+  // Шаги для отмены: один шаг — один мазок или одно целое действие.
+  const [history, setHistory] = useState<Set<string>[]>([]);
   const [importText, setImportText] = useState("");
   const [importing, setImporting] = useState(false);
   const [preview, setPreview] = useState<{ slots: ParsedSlot[]; errors: string[] } | null>(null);
@@ -156,9 +170,34 @@ export function ScheduleEditor({
   const [photoWorking, setPhotoWorking] = useState(false);
   const photoRef = useRef<HTMLInputElement>(null);
 
+  // Первый раз расписание заполняют импортом: с пустой сеткой он идёт первым.
+  const startedEmpty = useRef(initialBusy.length === 0);
   const painting = useRef(false);
   const paintTo = useRef(true);
   const rootRef = useRef<HTMLDivElement>(null);
+  // Последняя клетка под пальцем: тактильный отклик даём на каждую новую, а не на каждое событие.
+  const lastPainted = useRef<string | null>(null);
+
+  // Текущая сетка для обработчиков, которым нужно её значение, а не перерисовка.
+  const busyRef = useRef(busy);
+  useEffect(() => {
+    busyRef.current = busy;
+  }, [busy]);
+
+  /** Запомнить состояние перед изменением. Глубина ограничена — это отмена, а не журнал. */
+  const pushHistory = useCallback(() => {
+    setHistory((previous) => [...previous.slice(-19), new Set(busyRef.current)]);
+  }, []);
+
+  const undo = useCallback(() => {
+    setHistory((previous) => {
+      if (previous.length === 0) return previous;
+      setBusy(previous[previous.length - 1]);
+      setDirty(true);
+      haptic("press");
+      return previous.slice(0, -1);
+    });
+  }, []);
 
   const apply = useCallback((keys: string[], value: boolean) => {
     if (keys.length === 0) return;
@@ -189,6 +228,17 @@ export function ScheduleEditor({
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, [dirty]);
 
+  // То же самое внутри Telegram: свайп вниз закрывает мини-апп мгновенно.
+  useEffect(
+    () =>
+      whenReady((app) => {
+        if (dirty) app.enableClosingConfirmation?.();
+        else app.disableClosingConfirmation?.();
+        return () => app.disableClosingConfirmation?.();
+      }),
+    [dirty],
+  );
+
   useEffect(() => {
     function stop() {
       painting.current = false;
@@ -207,8 +257,12 @@ export function ScheduleEditor({
     const cell = (event.target as HTMLElement).closest<HTMLElement>("td.cell");
     if (!cell?.dataset.key) return;
     event.preventDefault();
+    // Один мазок — один шаг отмены, поэтому запоминаем состояние в начале.
+    pushHistory();
     painting.current = true;
     paintTo.current = !busy.has(cell.dataset.key);
+    lastPainted.current = cell.dataset.key;
+    haptic("select");
     apply([cell.dataset.key], paintTo.current);
     rootRef.current?.setPointerCapture(event.pointerId);
   }
@@ -219,7 +273,12 @@ export function ScheduleEditor({
     // клетку под пальцем ищем по координатам — так работает и протяжка мышью.
     const node = document.elementFromPoint(event.clientX, event.clientY);
     const cell = node instanceof Element ? node.closest<HTMLElement>("td.cell") : null;
-    if (cell?.dataset.key) apply([cell.dataset.key], paintTo.current);
+    if (!cell?.dataset.key) return;
+    if (cell.dataset.key !== lastPainted.current) {
+      lastPainted.current = cell.dataset.key;
+      haptic("select");
+    }
+    apply([cell.dataset.key], paintTo.current);
   }
 
   function onKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
@@ -227,16 +286,19 @@ export function ScheduleEditor({
     const cell = (event.target as HTMLElement).closest<HTMLElement>("td.cell");
     if (!cell?.dataset.key) return;
     event.preventDefault();
+    pushHistory();
     apply([cell.dataset.key], !busy.has(cell.dataset.key));
   }
 
   function toggleDay(weekday: number) {
+    pushHistory();
     const keys = periods.map((period) => cellKey(weekday, period.start));
     const allBusy = keys.every((key) => busy.has(key));
     apply(keys, !allBusy);
   }
 
   function clearAll() {
+    pushHistory();
     apply(
       weekdayNames.flatMap((_, weekday) => periods.map((period) => cellKey(weekday, period.start))),
       false,
@@ -263,7 +325,7 @@ export function ScheduleEditor({
     return slots;
   }
 
-  async function save() {
+  const save = useCallback(async () => {
     setSaving(true);
     try {
       const response = await fetch(`/api/g/${slug}/schedule`, {
@@ -274,14 +336,40 @@ export function ScheduleEditor({
       });
       if (!response.ok) throw new Error(String(response.status));
       setDirty(false);
-      toast(labels.saved);
+      setFailedSave(false);
       router.refresh();
     } catch {
+      // Тост только на ошибку: подтверждение успеха живёт строкой состояния,
+      // иначе при автосохранении он всплывал бы после каждого мазка.
+      setFailedSave(true);
+      haptic("error");
       toast(labels.saveError);
     } finally {
       setSaving(false);
     }
-  }
+    // collect() читает busy и periods, поэтому пересобираем при их смене.
+  }, [busy, periods, router, slug, labels.saveError]);
+
+  // Сетку не сохраняют кнопкой: ждём паузы в рисовании и сохраняем сами.
+  useEffect(() => {
+    // После неудачи ждём нажатия «Повторить»: иначе автосохранение будет
+    // молча долбить сервер по кругу.
+    if (!dirty || saving || failedSave) return;
+    const timer = setTimeout(() => void save(), 800);
+    return () => clearTimeout(timer);
+  }, [dirty, saving, failedSave, save]);
+
+  // Отмена последнего действия с клавиатуры — привычное сочетание.
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") {
+        event.preventDefault();
+        undo();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [undo]);
 
   /**
    * Раскрасить сетку по распознанным парам, ничего не сохраняя: человек
@@ -295,6 +383,7 @@ export function ScheduleEditor({
         if (periodOverlaps(period, slot.start, slot.end)) next.add(cellKey(slot.weekday, period.start));
       }
     }
+    pushHistory();
     setBusy(next);
     setDirty(true);
     setPreview({ slots, errors });
@@ -395,8 +484,20 @@ export function ScheduleEditor({
     }
   }
 
+  // Часы занятости за неделю: страховка от главной ошибки — закрасить наоборот.
+  const busyHours =
+    Math.round(
+      ([...busy].reduce((sum, key) => {
+        const start = Number(key.split(":")[1]);
+        const period = periods.find((entry) => entry.start === start);
+        return sum + (period ? period.end - period.start : 0);
+      }, 0) /
+        60) *
+        10,
+    ) / 10;
+
   return (
-    <div className="grid-2">
+    <div className={`grid-2${startedEmpty.current ? " import-first" : ""}`}>
       <section className="card">
         <p className="small muted">{labels.paintHint}</p>
 
@@ -464,30 +565,56 @@ export function ScheduleEditor({
           <span>{labels.legendBusy}</span>
         </div>
 
-        <div className="row" style={{ marginTop: 14 }}>
-          <button
-            className="btn btn-primary"
-            type="button"
-            style={{ flex: "0 0 auto" }}
-            disabled={saving}
-            onClick={save}
-          >
-            {dirty ? labels.unsaved : labels.save}
-          </button>
-          <button
-            className="btn btn-quiet"
-            type="button"
-            style={{ flex: "0 0 auto" }}
-            onClick={clearAll}
-          >
-            {labels.clear}
-          </button>
+        {/* Сохранять руками нечего — главная кнопка просто возвращает в группу. */}
+        <TelegramMainButton
+          text={labels.done}
+          onClick={() => router.push(backHref)}
+          disabled={saving || dirty}
+          progress={saving}
+        />
+
+        <div className="editor-foot">
+          <span className="small muted savestate" role="status" aria-live="polite">
+            {failedSave ? (
+              <>
+                {labels.saveError}{" "}
+                <button type="button" className="btn btn-sm" onClick={() => setFailedSave(false)}>
+                  {labels.saveRetry}
+                </button>
+              </>
+            ) : saving || dirty ? (
+              <>
+                <span className="spinner" aria-hidden="true" /> {labels.saving}
+              </>
+            ) : (
+              <>
+                <IconCheck className="ok" /> {labels.saved}
+              </>
+            )}
+          </span>
+          <span className="small muted">
+            {labels.busyTotal.replace("{h}", String(busyHours))}
+          </span>
+          <span className="editor-actions">
+            <button
+              className="btn btn-sm"
+              type="button"
+              disabled={history.length === 0}
+              onClick={undo}
+            >
+              {labels.undo}
+            </button>
+            <button className="btn btn-sm btn-quiet" type="button" onClick={clearAll}>
+              {labels.clear}
+            </button>
+          </span>
         </div>
       </section>
 
       <div>
         {photoEnabled && (
           <section className="card">
+            {startedEmpty.current && <p className="eyebrow">{labels.importFirst}</p>}
             <h2>{labels.photoTitle}</h2>
             <p className="small muted">{labels.photoHint}</p>
             <input
@@ -515,7 +642,13 @@ export function ScheduleEditor({
         )}
 
         <section className="card">
-          <h2>{labels.importTitle}</h2>
+          {startedEmpty.current && !photoEnabled && (
+            <p className="eyebrow">{labels.importFirst}</p>
+          )}
+          {/* Заголовок «Или…» уместен, только когда блок идёт вторым. */}
+          <h2>
+            {startedEmpty.current && !photoEnabled ? labels.importTitleFirst : labels.importTitle}
+          </h2>
           <p className="small muted">{labels.importHint}</p>
           <textarea
             value={importText}

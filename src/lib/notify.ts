@@ -163,7 +163,9 @@ export async function notifyVote(
 
   if (voter.userId === meeting.initiatorId) return;
   if (answer === "change") await notifyChangeProposal(chat, meeting, voter, comment);
-  else if (answer === "yes" || answer === "no") await notifyOrganizerAnswer(chat, meeting, voter, answer);
+  else if (answer === "yes" || answer === "maybe" || answer === "no") {
+    await notifyOrganizerAnswer(chat, meeting, voter, answer);
+  }
 }
 
 /**
@@ -175,7 +177,7 @@ export async function notifyOrganizerAnswer(
   chat: Chat,
   meeting: Meeting,
   voter: Pick<User, "userId" | "fullName" | "username" | "realName">,
-  answer: "yes" | "no",
+  answer: "yes" | "maybe" | "no",
 ): Promise<boolean> {
   if (voter.userId === meeting.initiatorId) return false;
   const initiator = await repo.getUser(meeting.initiatorId);
@@ -183,7 +185,9 @@ export async function notifyOrganizerAnswer(
 
   const responses = await repo.meetingResponsesFor(meeting.id);
   const lang = initiator.lang || chat.lang;
-  const text = t(lang, answer === "yes" ? "notify_answer_yes" : "notify_answer_no", {
+  const key =
+    answer === "yes" ? "notify_answer_yes" : answer === "maybe" ? "notify_answer_maybe" : "notify_answer_no";
+  const text = t(lang, key, {
     name: escapeHtml(displayName(voter)),
     goal: escapeHtml(meeting.goal || meeting.whenText || "—"),
     yes: responses.filter((row) => row.answer === "yes").length,

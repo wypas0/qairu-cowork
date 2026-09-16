@@ -23,11 +23,14 @@ export async function GET(request: NextRequest, context: { params: Promise<{ slu
   // `min` — прежнее имя параметра; оставлено, чтобы не сломать открытые вкладки.
   const rawDuration = search.get("duration") ?? search.get("min");
 
+  const rawWeek = search.get("week");
+
   const state = await loadGroupState(chat, {
     quorum: rawQuorum && /^\d+$/.test(rawQuorum) ? Number(rawQuorum) : null,
     duration: rawDuration && /^\d+$/.test(rawDuration) ? Number(rawDuration) : null,
+    week: rawWeek && /^\d+$/.test(rawWeek) ? Number(rawWeek) : 0,
     withMeetings: false,
   });
 
-  return Response.json(toBoardPayload(state, chat.lang));
+  return Response.json(toBoardPayload(state, chat.lang, user.userId));
 }
