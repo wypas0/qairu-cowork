@@ -1147,6 +1147,37 @@ table.week tr.break-row td {
   text-align: left;
 }
 
+/* На телефоне неделя должна помещаться целиком: иначе сетку приходится
+   таскать вбок пальцем, а палец здесь занят закрашиванием клеток. */
+@media (max-width: 560px) {
+  table.week {
+    /* Неделя целиком помещается в экран: остаются лишние 2-3 px от
+       border-spacing, их добирает обычная прокрутка внутри .gridwrap. */
+    min-width: 0;
+    border-spacing: 2px;
+  }
+  table.week th {
+    font-size: 12px;
+    line-height: 16px;
+  }
+  table.week th.timecol,
+  table.week td.timecol,
+  table.week.periods td.timecol.period {
+    width: 46px;
+    min-width: 46px;
+    padding-right: 4px;
+  }
+  table.week.periods td.cell {
+    height: 40px;
+  }
+  .period-n {
+    font-size: 11px;
+  }
+  .period-time {
+    font-size: 10px;
+  }
+}
+
 /* --- редактор своего расписания --- */
 table.week.editor td.cell {
   background: var(--slot-free);

@@ -182,7 +182,7 @@ export const EN: Strings = {
   w_me_title: "My schedule",
   w_me_lead:
     "Mark when you're busy: classes, work, training. The free time is worked out for you.",
-  w_paint_hint: "Drag with the mouse or your finger. Click a day to fill or clear the whole column.",
+  w_paint_hint: "Tap a cell to mark it busy or free. Hold and drag to paint several in a row. Tap a weekday to fill or clear the whole day.",
   w_save: "Save",
   w_saved: "Saved",
   w_saving: "Saving…",

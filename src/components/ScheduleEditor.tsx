@@ -52,6 +52,10 @@ export type EditorLabels = {
   photoEmptyOne: string; // «{n}»
 };
 
+/** Сколько держать палец на клетке, чтобы начать мазок, и сколько ему можно сместиться. */
+const HOLD_MS = 320;
+const HOLD_SLOP = 8;
+
 /** Не больше 2 файлов за раз, каждый до 1 МБ — те же лимиты проверяет сервер. */
 const MAX_PHOTOS = 2;
 const FILE_MAX_BYTES = 1024 * 1024;
@@ -177,6 +181,10 @@ export function ScheduleEditor({
   const rootRef = useRef<HTMLDivElement>(null);
   // Последняя клетка под пальцем: тактильный отклик даём на каждую новую, а не на каждое событие.
   const lastPainted = useRef<string | null>(null);
+  // Касание, по которому ещё не решено, что это: прокрутка, тап или мазок.
+  const pending = useRef<{ key: string; x: number; y: number; pointerId: number } | null>(null);
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
 
   // Текущая сетка для обработчиков, которым нужно её значение, а не перерисовка.
   const busyRef = useRef(busy);
@@ -239,9 +247,48 @@ export function ScheduleEditor({
     [dirty],
   );
 
+  /** Начать мазок от клетки: дальше он тянется за указателем. */
+  const startPainting = useCallback(
+    (key: string, pointerId: number) => {
+      // Прокрутку забираем у браузера ровно на время мазка и делаем это сразу,
+      // а не через состояние: перерисовка случится на кадр позже, и палец
+      // успеет увести страницу.
+      if (rootRef.current) rootRef.current.style.touchAction = "none";
+      // Один мазок — один шаг отмены, поэтому запоминаем состояние в начале.
+      pushHistory();
+      painting.current = true;
+      paintTo.current = !busyRef.current.has(key);
+      lastPainted.current = key;
+      haptic("select");
+      apply([key], paintTo.current);
+      try {
+        rootRef.current?.setPointerCapture(pointerId);
+      } catch {
+        // Указателя может уже не быть (палец отпустили в момент удержания) —
+        // мазок тогда просто закончится на первой клетке.
+      }
+    },
+    [apply, pushHistory],
+  );
+
+  const cancelHold = useCallback(() => {
+    if (holdTimer.current) clearTimeout(holdTimer.current);
+    holdTimer.current = null;
+    pending.current = null;
+  }, []);
+
   useEffect(() => {
     function stop() {
+      // Короткое касание без движения — это тап по одной клетке.
+      const tap = pending.current;
+      cancelHold();
+      if (tap) {
+        pushHistory();
+        haptic("select");
+        apply([tap.key], !busyRef.current.has(tap.key));
+      }
       painting.current = false;
+      if (rootRef.current) rootRef.current.style.touchAction = "";
     }
     window.addEventListener("pointerup", stop);
     window.addEventListener("pointercancel", stop);
@@ -251,23 +298,40 @@ export function ScheduleEditor({
       window.removeEventListener("pointercancel", stop);
       window.removeEventListener("blur", stop);
     };
-  }, []);
+  }, [apply, cancelHold, pushHistory]);
 
   function onPointerDown(event: React.PointerEvent<HTMLDivElement>) {
     const cell = (event.target as HTMLElement).closest<HTMLElement>("td.cell");
     if (!cell?.dataset.key) return;
+
+    if (event.pointerType !== "mouse") {
+      // Пальцем сначала листают страницу, и только потом красят. Поэтому здесь
+      // не запрещаем прокрутку: мазок начинается после удержания на месте,
+      // а короткое касание переключает одну клетку.
+      const key = cell.dataset.key;
+      pending.current = { key, x: event.clientX, y: event.clientY, pointerId: event.pointerId };
+      holdTimer.current = setTimeout(() => {
+        const held = pending.current;
+        cancelHold();
+        if (!held) return;
+        startPainting(held.key, held.pointerId);
+      }, HOLD_MS);
+      return;
+    }
+
     event.preventDefault();
-    // Один мазок — один шаг отмены, поэтому запоминаем состояние в начале.
-    pushHistory();
-    painting.current = true;
-    paintTo.current = !busy.has(cell.dataset.key);
-    lastPainted.current = cell.dataset.key;
-    haptic("select");
-    apply([cell.dataset.key], paintTo.current);
-    rootRef.current?.setPointerCapture(event.pointerId);
+    startPainting(cell.dataset.key, event.pointerId);
   }
 
   function onPointerMove(event: React.PointerEvent<HTMLDivElement>) {
+    if (pending.current) {
+      // Палец поехал раньше, чем сработало удержание, — значит это прокрутка.
+      const moved =
+        Math.abs(event.clientX - pending.current.x) > HOLD_SLOP ||
+        Math.abs(event.clientY - pending.current.y) > HOLD_SLOP;
+      if (moved) cancelHold();
+      return;
+    }
     if (!painting.current) return;
     // При захвате указателя события идут только на контейнер, поэтому
     // клетку под пальцем ищем по координатам — так работает и протяжка мышью.
@@ -507,7 +571,6 @@ export function ScheduleEditor({
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onKeyDown={onKeyDown}
-          style={{ touchAction: "none" }}
         >
           <table className="week editor periods">
             <thead>
