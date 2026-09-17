@@ -1,12 +1,11 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
+import { AppShell } from "@/components/AppShell";
 import { ConfirmSubmit } from "@/components/ConfirmSubmit";
 import { DatedTimeFields } from "@/components/DatedTimeFields";
 import { ScrollToAnchor } from "@/components/ScrollToAnchor";
 import { ScheduleEditor } from "@/components/ScheduleEditor";
 import { TelegramBackButton } from "@/components/TelegramButtons";
-import { Topbar } from "@/components/Topbar";
 import { gridPeriods, periodOverlaps } from "@/core/grid";
 import { fmtMinutes } from "@/core/intervals";
 import { chatTz, compareDates, formatDM, formatDMY, todayIn } from "@/core/timeutils";
@@ -74,14 +73,9 @@ export default async function MySchedulePage({
   return (
     <>
       <ScrollToAnchor id={typeof query.at === "string" ? query.at : null} />
-      {/* В Telegram назад ведёт нативная кнопка в шапке — своя тогда лишняя. */}
+      {/* В Telegram назад ведёт нативная кнопка в шапке. */}
       <TelegramBackButton href={`/g/${slug}`} />
-      <Topbar lang={lang}>
-        <Link className="btn btn-sm tg-hide" href={`/g/${slug}`}>
-          {t("w_back")}
-        </Link>
-      </Topbar>
-
+      <AppShell lang={lang} slug={slug} title={chat.title} section="me">
       <main className="wrap">
         <header className="page-head">
           <div>
@@ -238,6 +232,7 @@ export default async function MySchedulePage({
           </div>
         </section>
       </main>
+      </AppShell>
     </>
   );
 }

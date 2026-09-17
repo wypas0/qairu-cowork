@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
+import { AppShell } from "@/components/AppShell";
 import { Board } from "@/components/Board";
 import { ConfirmSubmit } from "@/components/ConfirmSubmit";
 import { GroupTabs, type GroupTabKey } from "@/components/GroupTabs";
@@ -8,7 +9,7 @@ import { CopyButton } from "@/components/CopyButton";
 import { MeetingCard } from "@/components/MeetingCard";
 import { MeetingForm } from "@/components/MeetingForm";
 import { ScrollToAnchor } from "@/components/ScrollToAnchor";
-import { Topbar } from "@/components/Topbar";
+import { StartChecklist } from "@/components/StartChecklist";
 import { fmtMinutes } from "@/core/intervals";
 import { chatTz } from "@/core/timeutils";
 import * as repo from "@/db/repo";
@@ -113,18 +114,15 @@ export default async function GroupPage({
   return (
     <>
       <ScrollToAnchor id={typeof query.at === "string" ? query.at : null} />
-      {/* Действие страницы живёт в её заголовке — в шапке его не дублируем. */}
-      <Topbar lang={lang} />
-
+      <AppShell lang={lang} slug={slug} title={chat.title} section="group">
       <main className="wrap">
+        {/* «Моё расписание» живёт в навигации — сайдбаре и нижней панели,
+            поэтому в заголовке кнопку не дублируем. */}
         <header className="page-head">
           <div>
             <p className="eyebrow">{t("w_eyebrow_group")}</p>
             <h1>{chat.title}</h1>
           </div>
-          <Link className="btn btn-primary" href={`/g/${slug}/me`}>
-            {t("w_edit_mine")}
-          </Link>
         </header>
 
         {/* ============ сообщения о результате действия ============ */}
@@ -169,14 +167,14 @@ export default async function GroupPage({
           </div>
         ))}
 
-        {!state.filledIds.has(user.userId) && notices.every((n) => n.kind !== "fill_schedule") && (
-          <div className="notice">
-            {t("w_no_schedule_yet")}
-            <Link className="btn btn-sm" href={`/g/${slug}/me`}>
-              {t("w_fill_now")}
-            </Link>
-          </div>
-        )}
+        <StartChecklist
+          slug={slug}
+          lang={lang}
+          inviteUrl={inviteUrl}
+          scheduleFilled={state.filledIds.has(user.userId)}
+          hasOthers={roster.length > 1}
+          hasMeetings={state.meetings.length > 0}
+        />
 
         <GroupTabs
           initial={initialTab}
@@ -494,6 +492,7 @@ export default async function GroupPage({
           }}
         />
       </main>
+      </AppShell>
     </>
   );
 }

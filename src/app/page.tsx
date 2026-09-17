@@ -2,6 +2,7 @@ import Link from "next/link";
 import { headers } from "next/headers";
 
 import { IconBell, IconPhone, IconUser } from "@/components/icons";
+import { ProductDemo } from "@/components/ProductDemo";
 import { TelegramSignIn } from "@/components/TelegramSignIn";
 import { Topbar } from "@/components/Topbar";
 import * as repo from "@/db/repo";
@@ -32,8 +33,12 @@ export default async function LandingPage() {
       <Topbar />
       <main className="wrap">
         <section className="hero">
-          <h1 className="type-display">{t("w_hero_title")}</h1>
-          <p className="lead">{t("w_hero_lead")}</p>
+          <div className="hero-text">
+            <h1 className="type-display">{t("w_hero_title")}</h1>
+            <p className="lead">{t("w_hero_lead")}</p>
+          </div>
+          {/* Сразу показываем сам продукт, а не рассказ о нём. */}
+          <ProductDemo lang={lang} />
         </section>
 
         {/* Как это работает — строки с волосяными линиями, без нумерованных плиток. */}

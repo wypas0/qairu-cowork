@@ -134,20 +134,16 @@ function Avatar({ name, url, className }: { name: string; url: string | null; cl
  *
  * На узких экранах панель — шторка снизу, на широких — выезжает слева.
  */
-export function ProfilePanel({
-  user,
-  groups,
-  theme,
-  botEnabled,
-  labels,
-}: {
+export type ProfilePanelProps = {
   user: ProfileUser | null;
   groups: ProfileGroup[];
   theme: Theme;
   /** Бот настроен — подключить Telegram можно. */
   botEnabled: boolean;
   labels: ProfileLabels;
-}) {
+};
+
+export function ProfilePanel({ user, groups, theme, botEnabled, labels }: ProfilePanelProps) {
   const pathname = usePathname();
   const [nameState, saveName, savingName] = useActionState<RealNameState, FormData>(
     saveRealNameAction,

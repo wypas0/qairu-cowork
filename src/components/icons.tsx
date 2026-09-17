@@ -184,3 +184,23 @@ export function IconMeeting(props: IconProps) {
     </Icon>
   );
 }
+
+/** Своё расписание — календарь с человеком. */
+export function IconCalendarUser(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="3" y="5" width="18" height="16" rx="3" />
+      <path d="M8 3v4M16 3v4M3 11h18" />
+      <circle cx="12" cy="15" r="1.6" />
+      <path d="M9.5 19c.6-1.2 1.5-1.8 2.5-1.8s1.9.6 2.5 1.8" />
+    </Icon>
+  );
+}
+
+export function IconPlus(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M12 5v14M5 12h14" />
+    </Icon>
+  );
+}

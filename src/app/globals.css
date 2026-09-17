@@ -456,6 +456,144 @@ p {
   }
 }
 
+/* --- оболочка: сайдбар слева, нижняя панель на телефоне ---
+   До 1024px работает прежняя схема: липкая шапка сверху и панель разделов
+   внизу, под большой палец. От 1024px шапка уступает место сайдбару. */
+.sidebar {
+  display: none;
+}
+.shell-main {
+  min-width: 0;
+}
+
+.bottomnav {
+  position: sticky;
+  bottom: 0;
+  z-index: 15;
+  display: flex;
+  gap: 4px;
+  padding: 6px 8px calc(6px + var(--safe-bottom));
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  border-top: 1px solid var(--border);
+  backdrop-filter: blur(8px);
+}
+.bottomnav-link {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 4px;
+  border-radius: var(--r-lg);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background-color 150ms var(--ease), color 150ms var(--ease);
+}
+.bottomnav-link.active {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+@media (min-width: 1024px) {
+  .shell {
+    display: grid;
+    grid-template-columns: 256px minmax(0, 1fr);
+    align-items: start;
+  }
+  .shell .topbar,
+  .bottomnav {
+    display: none;
+  }
+  .sidebar {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 20px 12px calc(20px + var(--safe-bottom)) max(12px, var(--safe-left));
+    border-right: 1px solid var(--border);
+    background: var(--surface);
+    overflow-y: auto;
+  }
+  .shell .wrap {
+    padding-left: 32px;
+    padding-right: max(32px, var(--safe-right));
+  }
+}
+
+.sidebar-brand {
+  padding: 4px 8px 12px;
+}
+.sidebar-eyebrow {
+  margin: 12px 8px 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sidebar-nav {
+  display: grid;
+  gap: 2px;
+}
+.sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 8px;
+  border-radius: var(--r-lg);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background-color 150ms var(--ease), color 150ms var(--ease);
+}
+.sidebar-link:hover {
+  background: color-mix(in srgb, var(--hover) 60%, transparent);
+}
+.sidebar-link.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+.sidebar-mark {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+.sidebar-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sidebar-create {
+  margin-top: 8px;
+  color: var(--muted);
+}
+.sidebar-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.sidebar-me {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* --- панель профиля ---
    Слева-сверху экрана открывается кнопка профиля, поэтому и сама панель
    растёт из того же угла: на широких экранах — шторка слева, заподлицо с
@@ -1449,6 +1587,66 @@ table.week td.cell.meeting {
   flex-wrap: wrap;
 }
 
+/* --- «С чего начать» --- */
+.start-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.start-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.start-step:last-child {
+  border-bottom: 0;
+}
+.start-mark {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+.start-step.done .start-mark {
+  background: color-mix(in srgb, var(--success) 16%, transparent);
+  color: var(--success);
+}
+.start-text {
+  flex: 1;
+  min-width: 0;
+}
+.start-text b {
+  font-size: 15px;
+  font-weight: 600;
+}
+.start-text p {
+  margin: 2px 0 0;
+}
+.start-step.done .start-text b {
+  color: var(--muted);
+  font-weight: 500;
+}
+/* На узком экране кнопка шага уходит под его текст, а не сжимает его в столбик. */
+@media (max-width: 560px) {
+  .start-step {
+    flex-wrap: wrap;
+  }
+  .start-text {
+    flex-basis: calc(100% - 40px);
+  }
+  .start-step .btn {
+    margin-left: 40px;
+  }
+}
+
 /* --- участники --- */
 .roster {
   list-style: none;
@@ -1864,6 +2062,46 @@ table.week td.cell.meeting {
 }
 /* «Как это работает»: список строк в одной рамке. Нумерованных плиток
    и иконок в кружках в системе нет. */
+/* --- окно продукта на лендинге --- */
+.demo {
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  background: var(--surface);
+  padding: 16px;
+}
+.demo-best {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.demo-best .type-title-3 {
+  font-variant-numeric: tabular-nums;
+}
+table.week.demo-week {
+  min-width: 0;
+}
+table.week.demo-week td.cell {
+  height: 28px;
+  cursor: default;
+}
+table.week.demo-week td.timecol.period {
+  width: 52px;
+  min-width: 52px;
+}
+.hero-text {
+  min-width: 0;
+}
+@media (min-width: 900px) {
+  .hero {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap: 40px;
+    align-items: center;
+  }
+}
+
 .steps {
   list-style: none;
   margin: 28px 0 20px;

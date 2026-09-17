@@ -6,10 +6,12 @@ export function CopyButton({
   value,
   label,
   copiedLabel,
+  small = false,
 }: {
   value: string;
   label: string;
   copiedLabel: string;
+  small?: boolean;
 }) {
   async function copy() {
     try {
@@ -22,7 +24,12 @@ export function CopyButton({
   }
 
   return (
-    <button className="btn" type="button" style={{ flex: "0 0 auto" }} onClick={copy}>
+    <button
+      className={`btn${small ? " btn-sm" : ""}`}
+      type="button"
+      style={{ flex: "0 0 auto" }}
+      onClick={copy}
+    >
       {label}
     </button>
   );
