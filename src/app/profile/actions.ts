@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 
 import * as repo from "@/db/repo";
 import { currentTelegramUser } from "@/lib/auth";
+import { normalizeCode } from "@/lib/invite";
 
 export type RealNameState = { status: "idle" | "saved" | "cleared" | "unauthorized" };
 
@@ -33,16 +34,7 @@ export async function leaveGroupAction(slug: string): Promise<void> {
   revalidatePath("/", "layout");
 }
 
-/** Достать слаг из полной ссылки-приглашения или принять его как есть. */
-function extractSlug(input: string): string | null {
-  const trimmed = input.trim();
-  if (!trimmed) return null;
-  const match = /\/g\/([a-z0-9]{3,24})/i.exec(trimmed);
-  const candidate = (match ? match[1] : trimmed).toLowerCase();
-  return /^[a-z0-9]{3,24}$/.test(candidate) ? candidate : null;
-}
-
 export async function joinByLinkAction(formData: FormData): Promise<void> {
-  const slug = extractSlug(String(formData.get("link") ?? ""));
-  redirect(slug ? `/g/${slug}/join` : "/");
+  const slug = normalizeCode(String(formData.get("link") ?? ""));
+  redirect(slug ? `/g/${slug}/join` : "/?join=bad#join");
 }

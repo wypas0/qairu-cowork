@@ -15,6 +15,7 @@ import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, or, sql } 
 import { PersonSchedule } from "@/core/availability";
 import type { Interval } from "@/core/intervals";
 import type { DateStr } from "@/core/timeutils";
+import { CODE_ALPHABET } from "@/lib/invite";
 import { type Db, getDb } from "./client";
 import {
   type BusySlot,
@@ -716,7 +717,9 @@ export async function meetingsDueForReminder(
 // Веб-версия: слаги групп, синтетические пользователи, сессии-ссылки
 // --------------------------------------------------------------------------
 
-const SLUG_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
+// Алфавит кода группы: без символов, которые путают на слух и глазами
+// (см. src/lib/invite.ts). Старые слаги из полного алфавита продолжают работать.
+const SLUG_ALPHABET = CODE_ALPHABET;
 // Синтетические id для сущностей, созданных на сайте. Telegram выдаёт
 // положительные id пользователям и id вида -100… чатам, поэтому диапазон
 // ниже -10^15 гарантированно свободен.

@@ -7,6 +7,7 @@ import * as repo from "@/db/repo";
 import { ROLE_ADMIN } from "@/db/schema";
 import { normalizeLang } from "@/i18n";
 import { requireTelegramUser } from "@/lib/gate";
+import { normalizeCode } from "@/lib/invite";
 
 /** Создание группы на сайте. Только для вошедших через Telegram; создатель — администратор группы. */
 export async function createGroup(formData: FormData): Promise<void> {
@@ -25,4 +26,18 @@ export async function createGroup(formData: FormData): Promise<void> {
   });
 
   redirect(`/g/${slug}/me`);
+}
+
+/**
+ * Вход в группу по коду с главной.
+ *
+ * Код принимается как угодно: заглавными, с пробелом посередине, целой
+ * ссылкой-приглашением. Несуществующий код — не ошибка ввода, а чаще всего
+ * опечатка при диктовке, поэтому о нём говорим прямо на главной.
+ */
+export async function joinByCodeAction(formData: FormData): Promise<void> {
+  const code = normalizeCode(String(formData.get("code") ?? ""));
+  if (!code) redirect("/?join=bad#join");
+  if (!(await repo.getChatBySlug(code))) redirect("/?join=notfound#join");
+  redirect(`/g/${code}/join`);
 }

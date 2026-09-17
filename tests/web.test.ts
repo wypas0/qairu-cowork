@@ -612,3 +612,29 @@ describe("своя занятость на общей карте", () => {
     expect(anonymous.payload.days[0].cells[0].mine).toBe(false);
   });
 });
+
+describe("код группы", () => {
+  it("разбирает код как угодно набранным и отличает мусор", async () => {
+    const { normalizeCode, formatCode } = await import("@/lib/invite");
+
+    expect(normalizeCode("7kq4mzpd")).toBe("7kq4mzpd");
+    expect(normalizeCode("  7KQ4 MZPD ")).toBe("7kq4mzpd");
+    expect(normalizeCode("7kq4-mzpd")).toBe("7kq4mzpd");
+    expect(normalizeCode("https://qairu.example/g/7kq4mzpd")).toBe("7kq4mzpd");
+    expect(normalizeCode("https://qairu.example/g/7kq4mzpd/me")).toBe("7kq4mzpd");
+    expect(normalizeCode("")).toBeNull();
+    expect(normalizeCode("не код")).toBeNull();
+    expect(normalizeCode("ab")).toBeNull();
+
+    // Показываем код с пробелом посередине — так его проще продиктовать.
+    expect(formatCode("7kq4mzpd")).toBe("7KQ4 MZPD");
+  });
+
+  it("новые коды не содержат символов, которые путают", async () => {
+    const { repo } = await mods();
+    const banned = /[01ilou]/;
+    for (let i = 0; i < 50; i += 1) {
+      expect(repo.newSlug()).not.toMatch(banned);
+    }
+  });
+});

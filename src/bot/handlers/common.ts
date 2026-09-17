@@ -14,6 +14,7 @@ import {
   type TgCallbackQuery,
   type TgMessage,
 } from "../api";
+import { normalizeCode } from "@/lib/invite";
 import { isChatAdmin, resolveLang, syncUser } from "../context";
 import { groupPath, joinViaBotButton, sitePage, webAppButton } from "../site";
 import { startWebLogin } from "./weblogin";
@@ -91,6 +92,24 @@ export async function cmdMovedToSite(message: TgMessage): Promise<void> {
       reply_markup: url
         ? keyboard([[{ text: t(lang, "btn_open_group_site"), url }]])
         : keyboard([[await joinViaBotButton(lang, message.chat.id, "btn_open_bot")]]),
+    });
+    return;
+  }
+
+  // Код группы, присланный сообщением: «7KQ4 MZPD» или целая ссылка с сайта.
+  // Так в группу попадают те, кому код продиктовали в аудитории.
+  const code = normalizeCode(message.text ?? "");
+  const byCode = code ? await repo.getChatBySlug(code) : null;
+  if (byCode && message.from) {
+    await syncUser(message.from);
+    await repo.addMembership(byCode.chatId, message.from.id);
+    await sendMessage({
+      chat_id: message.chat.id,
+      text: t(lang, "start_linked", { chat: byCode.title || String(byCode.chatId) }),
+      parse_mode: "HTML",
+      reply_markup: rows(
+        webAppButton(t(lang, "btn_fill_schedule"), groupPath(byCode, "/me")),
+      ),
     });
     return;
   }

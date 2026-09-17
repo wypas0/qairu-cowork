@@ -1647,6 +1647,36 @@ table.week td.cell.meeting {
   }
 }
 
+/* --- код группы --- */
+/* Код читают вслух и переписывают с доски, поэтому он крупный, с разрядкой
+   и разбит пробелом пополам. */
+.invite-code {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 8px 0 6px;
+}
+.invite-code .code {
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+}
+.join-code input {
+  flex: 1 1 220px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.join-code .btn {
+  flex: 0 0 auto;
+}
+.join-code input::placeholder {
+  text-transform: none;
+  letter-spacing: normal;
+}
+
 /* --- участники --- */
 .roster {
   list-style: none;

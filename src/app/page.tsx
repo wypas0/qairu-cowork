@@ -8,7 +8,7 @@ import { Topbar } from "@/components/Topbar";
 import * as repo from "@/db/repo";
 import { LANG_NAMES, normalizeLang, translator } from "@/i18n";
 import { pageUser } from "@/lib/gate";
-import { createGroup } from "./actions";
+import { createGroup, joinByCodeAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -21,12 +21,19 @@ const TIMEZONES = [
   ["UTC", "UTC"],
 ];
 
-export default async function LandingPage() {
+export default async function LandingPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const query = await searchParams;
   const requestHeaders = await headers();
   const user = await pageUser("/");
   const lang = user?.lang ?? normalizeLang((requestHeaders.get("accept-language") ?? "").split(",")[0]);
   const t = translator(lang);
   const groups = user ? await repo.userChats(user.userId) : [];
+  const joinError =
+    query.join === "bad" ? "w_join_err_bad" : query.join === "notfound" ? "w_join_err_notfound" : null;
 
   return (
     <>
@@ -83,6 +90,31 @@ export default async function LandingPage() {
             </ul>
           </div>
         )}
+
+        <div className="card" id="join" style={{ scrollMarginTop: 72 }}>
+          <h2>{t("w_join_code_title")}</h2>
+          <p className="small muted">{t("w_join_code_lead")}</p>
+          {joinError && (
+            <div className="notice warn" role="alert">
+              {t(joinError)}
+            </div>
+          )}
+          <form action={joinByCodeAction} className="row join-code">
+            <input
+              type="text"
+              name="code"
+              required
+              maxLength={40}
+              autoComplete="off"
+              spellCheck={false}
+              placeholder={t("w_join_code_ph")}
+              aria-label={t("w_join_code_title")}
+            />
+            <button className="btn" type="submit">
+              {t("w_join_code_btn")}
+            </button>
+          </form>
+        </div>
 
         <div className="card" id="create" style={{ scrollMarginTop: 72 }}>
           <h2>{t("w_create")}</h2>

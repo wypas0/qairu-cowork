@@ -18,6 +18,7 @@ import { LANG_NAMES, translator } from "@/i18n";
 import { type AdminSource, adminSources } from "@/lib/admin";
 import { pageUser } from "@/lib/gate";
 import { durationOptions, loadGroupState, normalizeWeek, toBoardPayload } from "@/lib/group";
+import { formatCode } from "@/lib/invite";
 import { baseUrl } from "@/lib/url";
 import {
   cancelMeetingAction,
@@ -380,6 +381,18 @@ export default async function GroupPage({
                       );
                     })}
                   </ul>
+
+                  <h3 style={{ marginTop: 16 }}>{t("w_code_title")}</h3>
+                  <div className="invite-code">
+                    <b className="code">{formatCode(slug)}</b>
+                    <CopyButton
+                      value={formatCode(slug)}
+                      label={t("w_copy")}
+                      copiedLabel={t("w_copied")}
+                      small
+                    />
+                  </div>
+                  <p className="small muted">{t("w_code_hint")}</p>
 
                   <h3 style={{ marginTop: 16 }}>{t("w_invite")}</h3>
                   <p className="small muted">{t("w_invite_hint")}</p>

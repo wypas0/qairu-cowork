@@ -460,6 +460,34 @@ describe("настройки и язык", () => {
   });
 });
 
+describe("код группы в личке", () => {
+  it("присланный код добавляет человека в группу", async () => {
+    const repo = await import("@/db/repo");
+    const chat = (await repo.getChat(GROUP_ID))!;
+    const slug = await repo.ensureSlug(chat);
+    const stranger = { id: 777001, first_name: "Новенький" };
+
+    stub.reset();
+    // Код диктуют вслух, поэтому принимаем его как угодно: с пробелом и заглавными.
+    const spaced = `${slug.slice(0, 4).toUpperCase()} ${slug.slice(4).toUpperCase()}`;
+    await handleUpdate(text({ id: stranger.id, type: "private" as const }, stranger, spaced));
+
+    expect(await repo.isMember(GROUP_ID, stranger.id)).toBe(true);
+    expect(stub.lastText()).toContain("Ты в группе");
+  });
+
+  it("случайный текст остаётся приглашением открыть сайт", async () => {
+    const repo = await import("@/db/repo");
+    const stranger = { id: 777002, first_name: "Мимо" };
+
+    stub.reset();
+    await handleUpdate(text({ id: stranger.id, type: "private" as const }, stranger, "qwertyui"));
+
+    expect(await repo.isMember(GROUP_ID, stranger.id)).toBe(false);
+    expect(stub.lastText()).toContain("на сайте");
+  });
+});
+
 describe("напоминания", () => {
   it("уходят один раз и зовут тех, кто согласился", async () => {
     const repo = await import("@/db/repo");
