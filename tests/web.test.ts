@@ -613,6 +613,23 @@ describe("своя занятость на общей карте", () => {
   });
 });
 
+describe("смена кода группы", () => {
+  it("выдаёт новый код, старый перестаёт находиться", async () => {
+    const { repo } = await mods();
+    const { chat } = await makeGroup("Смена кода", "Амир");
+    const before = chat.slug!;
+
+    const after = await repo.regenerateSlug(chat.chatId);
+    expect(after).not.toBe(before);
+    expect(after).toMatch(/^[a-z0-9]{8}$/);
+
+    expect(await repo.getChatBySlug(after)).not.toBeNull();
+    expect(await repo.getChatBySlug(before), "старый код больше не работает").toBeNull();
+    // Участники и встречи остаются на месте: меняется только код.
+    expect((await repo.chatMembers(chat.chatId)).length).toBe(1);
+  });
+});
+
 describe("код группы", () => {
   it("разбирает код как угодно набранным и отличает мусор", async () => {
     const { normalizeCode, formatCode } = await import("@/lib/invite");

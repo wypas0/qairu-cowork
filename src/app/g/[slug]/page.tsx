@@ -22,6 +22,7 @@ import { formatCode } from "@/lib/invite";
 import { baseUrl } from "@/lib/url";
 import {
   cancelMeetingAction,
+  changeCodeAction,
   createMeetingAction,
   dismissNoticeAction,
   pingNonRespondersAction,
@@ -140,6 +141,11 @@ export default async function GroupPage({
         {savedSettings && (
           <div className="notice" role="status">
             {t("w_saved_settings")}
+          </div>
+        )}
+        {query.code === "changed" && (
+          <div className="notice" role="status">
+            {t("w_code_changed")}
           </div>
         )}
 
@@ -391,6 +397,16 @@ export default async function GroupPage({
                       copiedLabel={t("w_copied")}
                       small
                     />
+                    {isAdmin && (
+                      <form action={changeCodeAction.bind(null, slug)}>
+                        <ConfirmSubmit
+                          className="btn btn-sm btn-quiet"
+                          confirm={t("w_code_change_confirm")}
+                        >
+                          {t("w_code_change")}
+                        </ConfirmSubmit>
+                      </form>
+                    )}
                   </div>
                   <p className="small muted">{t("w_code_hint")}</p>
 

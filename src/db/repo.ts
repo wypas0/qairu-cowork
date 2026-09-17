@@ -744,9 +744,13 @@ export function newToken(): string {
   return crypto.randomBytes(32).toString("base64url");
 }
 
-/** Выдать группе публичный слаг, если его ещё нет. */
-export async function ensureSlug(chat: Chat, exec?: Exec): Promise<string> {
-  if (chat.slug) return chat.slug;
+/**
+ * Выдать группе новый свободный код, заменив прежний.
+ *
+ * Старый код и собранная на нём ссылка перестают работать — это и есть смысл
+ * смены: код мог разойтись дальше группы.
+ */
+export async function regenerateSlug(chatId: number, exec?: Exec): Promise<string> {
   const db = ex(exec);
   for (let attempt = 0; attempt < 10; attempt += 1) {
     const candidate = newSlug();
@@ -756,11 +760,17 @@ export async function ensureSlug(chat: Chat, exec?: Exec): Promise<string> {
       .where(eq(chats.slug, candidate))
       .limit(1);
     if (!taken) {
-      await db.update(chats).set({ slug: candidate }).where(eq(chats.chatId, chat.chatId));
+      await db.update(chats).set({ slug: candidate }).where(eq(chats.chatId, chatId));
       return candidate;
     }
   }
   throw new Error("Не удалось подобрать свободный слаг");
+}
+
+/** Выдать группе публичный слаг, если его ещё нет. */
+export async function ensureSlug(chat: Chat, exec?: Exec): Promise<string> {
+  if (chat.slug) return chat.slug;
+  return regenerateSlug(chat.chatId, exec);
 }
 
 /** Группа, созданная на сайте, без Telegram-чата. */

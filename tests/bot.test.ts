@@ -465,7 +465,7 @@ describe("код группы в личке", () => {
     const repo = await import("@/db/repo");
     const chat = (await repo.getChat(GROUP_ID))!;
     const slug = await repo.ensureSlug(chat);
-    const stranger = { id: 777001, first_name: "Новенький" };
+    const stranger = { id: 777001, is_bot: false, first_name: "Новенький", username: "new", language_code: "ru" };
 
     stub.reset();
     // Код диктуют вслух, поэтому принимаем его как угодно: с пробелом и заглавными.
@@ -478,7 +478,7 @@ describe("код группы в личке", () => {
 
   it("случайный текст остаётся приглашением открыть сайт", async () => {
     const repo = await import("@/db/repo");
-    const stranger = { id: 777002, first_name: "Мимо" };
+    const stranger = { id: 777002, is_bot: false, first_name: "Мимо", username: "mimo", language_code: "ru" };
 
     stub.reset();
     await handleUpdate(text({ id: stranger.id, type: "private" as const }, stranger, "qwertyui"));

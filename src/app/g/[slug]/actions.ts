@@ -141,6 +141,18 @@ export async function voteAction(
   back(slug, {}, `#meeting-${meetingId}`);
 }
 
+/**
+ * Сменить код группы. Старый код и ссылка на нём перестают работать, поэтому
+ * возвращаемся уже на новый адрес.
+ */
+export async function changeCodeAction(slug: string): Promise<void> {
+  const { chat } = await requireAdmin(slug);
+  const next = await repo.regenerateSlug(chat.chatId);
+  revalidatePath(`/g/${slug}`);
+  revalidatePath("/", "layout");
+  redirect(`/g/${next}?code=changed&at=members`);
+}
+
 /** Отменить встречу может организатор или администратор группы. */
 export async function cancelMeetingAction(slug: string, meetingId: number): Promise<void> {
   const { chat, user } = await requireMember(slug);
