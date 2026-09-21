@@ -553,12 +553,12 @@ describe("лучшее время и переход по неделям", () => 
       whenText: "занято",
       goal: "Занято",
       invitees: [user.userId, guest.userId],
-      whenStart: zonedWallToUtc(first.date as ReturnType<typeof todayIn>, first.start, tz),
+      whenStart: zonedWallToUtc(first.dates[0].date as ReturnType<typeof todayIn>, first.start, tz),
     });
 
     const after = await board(chat.slug!, { quorum: 1 });
     const sameSlot = after.payload.best.find(
-      (item) => item.date === first.date && item.start === first.start,
+      (item) => item.start === first.start && item.dates.some((d) => d.date === first.dates[0].date),
     );
     expect(sameSlot, "окно под уже назначенной встречей предлагать нельзя").toBeUndefined();
   });
@@ -721,5 +721,25 @@ describe("после вступления в группу", () => {
     // Расписание одно на все группы: уже заполнено — редактор не нужен.
     await repo.replaceWeeklySlots(newcomer.userId, [0, 1, 2, 3, 4, 5, 6], [], "web");
     expect(await afterJoinPath(slug, named)).toBe(`/g/${slug}?welcome=schedule`);
+  });
+});
+
+describe("окна склеиваются в диапазоны", () => {
+  it("подряд идущие варианты с одним составом — одна строка", async () => {
+    const { group } = await mods();
+    // Встреча на 30 минут, шаг полчаса: 8:00, 8:30, 9:00 — все свободны; 9:30 — без Болата.
+    const runs = group.mergeRuns([
+      { interval: [480, 510], freeIds: [1, 2, 3] },
+      { interval: [510, 540], freeIds: [1, 2, 3] },
+      { interval: [540, 570], freeIds: [3, 2, 1] },
+      { interval: [570, 600], freeIds: [1, 2] },
+      { interval: [720, 750], freeIds: [1, 2] },
+    ]);
+    expect(runs).toEqual([
+      { interval: [480, 570], freeIds: [1, 2, 3] },
+      { interval: [570, 600], freeIds: [1, 2] },
+      // Разрыв во времени — отдельное окно, даже с тем же составом.
+      { interval: [720, 750], freeIds: [1, 2] },
+    ]);
   });
 });

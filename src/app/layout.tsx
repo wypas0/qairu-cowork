@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { cookies, headers } from "next/headers";
+import { Suspense } from "react";
 
+import { NavProgress } from "@/components/NavProgress";
 import { TelegramAuth } from "@/components/TelegramAuth";
 import { TelegramChrome } from "@/components/TelegramChrome";
 import { normalizeLang, t } from "@/i18n";
@@ -52,6 +54,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body>
         <TelegramAuth />
         <TelegramChrome />
+        {/* useSearchParams требует своей границы — она охватывает только полоску, не страницу. */}
+        <Suspense fallback={null}>
+          <NavProgress />
+        </Suspense>
         {children}
         <footer className="foot">
           <span>{t(lang, "w_footer")}</span>

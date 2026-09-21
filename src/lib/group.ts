@@ -222,10 +222,13 @@ export async function loadGroupState(
 }
 
 /** Одно из предложений блока «Лучшее время». */
+/**
+ * Одно из предложений блока «Лучшее время». Если в несколько дней лучшим
+ * оказывается одно и то же время, это одна строка с несколькими днями, а не
+ * три одинаковые карточки подряд.
+ */
 export type BoardBest = BoardSlot & {
-  date: string;
-  label: string;
-  short: string;
+  dates: { date: string; label: string; short: string }[];
 };
 
 export type BoardSlot = {
@@ -338,12 +341,12 @@ export function toBoardPayload(state: GroupState, lang: string, viewerId?: numbe
       date: day.day,
       label: formatDay(lang, day.day),
       short: `${weekdayShort(lang, weekdayOf(day.day))} ${formatDM(day.day)}`,
-      items: day.slots.map((slot) => ({
-        start: slot.interval[0],
-        end: slot.interval[1],
-        text: fmtInterval(slot.interval),
-        count: slot.freeIds.length,
-        missing: slotMissing(slot.freeIds),
+      items: mergeRuns(day.slots).map((run) => ({
+        start: run.interval[0],
+        end: run.interval[1],
+        text: fmtInterval(run.interval),
+        count: run.freeIds.length,
+        missing: slotMissing(run.freeIds),
       })),
     })),
     missing: state.missing.map((member) => displayName(member)),
@@ -374,7 +377,7 @@ export function bestSlots(state: GroupState, lang: string): BoardBest[] {
       : 13 * 60;
   const distanceToNoon = (start: number) => Math.abs(start - noon);
 
-  const candidates: BoardBest[] = [];
+  const candidates: (BoardSlot & { date: string; label: string; short: string })[] = [];
   for (const day of state.slotDays) {
     const free = day.slots.filter(
       (slot) =>
@@ -404,7 +407,55 @@ export function bestSlots(state: GroupState, lang: string): BoardBest[] {
     });
   }
 
-  return candidates
-    .sort((a, b) => b.count - a.count || a.date.localeCompare(b.date) || a.start - b.start)
-    .slice(0, BEST_LIMIT);
+  candidates.sort((a, b) => b.count - a.count || a.date.localeCompare(b.date) || a.start - b.start);
+
+  // Одинаковое время с одинаковым составом в разные дни — одна строка.
+  const groups: BoardBest[] = [];
+  for (const candidate of candidates) {
+    const same = groups.find(
+      (group) =>
+        group.start === candidate.start &&
+        group.end === candidate.end &&
+        group.count === candidate.count &&
+        group.missing.join("|") === candidate.missing.join("|"),
+    );
+    const day = { date: candidate.date, label: candidate.label, short: candidate.short };
+    if (same) same.dates.push(day);
+    else {
+      groups.push({
+        start: candidate.start,
+        end: candidate.end,
+        text: candidate.text,
+        count: candidate.count,
+        missing: candidate.missing,
+        dates: [day],
+      });
+    }
+  }
+  return groups.slice(0, BEST_LIMIT);
+}
+
+/**
+ * Склеить окна, идущие подряд с одним и тем же составом, в один диапазон.
+ *
+ * Варианты считаются с шагом в полчаса, и раньше день выглядел как 28 строк
+ * «08:00–08:30», «08:30–09:00»… с одними и теми же людьми. Человеку нужен
+ * ответ «с 8 до 10:30 свободны все», а не перечень всех стартов.
+ */
+export function mergeRuns(
+  slots: readonly { interval: readonly [number, number]; freeIds: readonly number[] }[],
+): { interval: [number, number]; freeIds: number[] }[] {
+  const runs: { interval: [number, number]; freeIds: number[] }[] = [];
+  const sameIds = (a: readonly number[], b: readonly number[]) =>
+    a.length === b.length && a.every((id) => b.includes(id));
+  for (const slot of slots) {
+    const last = runs[runs.length - 1];
+    // Соседние варианты перекрываются: следующий начинается раньше, чем кончился прошлый.
+    if (last && slot.interval[0] <= last.interval[1] && sameIds(last.freeIds, slot.freeIds)) {
+      last.interval[1] = Math.max(last.interval[1], slot.interval[1]);
+    } else {
+      runs.push({ interval: [slot.interval[0], slot.interval[1]], freeIds: [...slot.freeIds] });
+    }
+  }
+  return runs;
 }

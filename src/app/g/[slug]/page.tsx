@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { Board } from "@/components/Board";
 import { ConfirmSubmit } from "@/components/ConfirmSubmit";
+import { FlashToast } from "@/components/FlashToast";
 import { GroupTabs, type GroupTabKey } from "@/components/GroupTabs";
 import { CopyButton } from "@/components/CopyButton";
 import { MeetingCard } from "@/components/MeetingCard";
@@ -127,30 +128,25 @@ export default async function GroupPage({
           </div>
         </header>
 
-        {/* ============ сообщения о результате действия ============ */}
-        {sent && (
-          <div className="notice" role="status">
-            {t("w_sent", { tg: sent[1], site: sent[2] })}
-          </div>
-        )}
-        {errorKey && (
-          <div className="notice warn" role="alert">
-            {t(errorKey)}
-          </div>
-        )}
-        {savedSettings && (
-          <div className="notice" role="status">
-            {t("w_saved_settings")}
-          </div>
-        )}
+        {/* ============ итог только что сделанного действия — тостом ============ */}
+        <FlashToast
+          message={
+            sent
+              ? t("w_sent", { tg: sent[1], site: sent[2] })
+              : savedSettings
+                ? t("w_saved_settings")
+                : query.code === "changed"
+                  ? t("w_code_changed")
+                  : null
+          }
+          params={["sent", "saved", "code"]}
+        />
+        <FlashToast message={errorKey ? t(errorKey) : null} tone="error" params={["err"]} />
+
+        {/* Приветствие — не итог действия, а объяснение: остаётся на странице. */}
         {query.welcome === "schedule" && (
           <div className="notice" role="status">
             {t("w_welcome_schedule")}
-          </div>
-        )}
-        {query.code === "changed" && (
-          <div className="notice" role="status">
-            {t("w_code_changed")}
           </div>
         )}
 
@@ -208,6 +204,7 @@ export default async function GroupPage({
                     bestLead: t("w_best_lead"),
                     bestEmpty: t("w_best_empty"),
                     bestAll: t("w_best_all"),
+                    moreDays: t("w_more_days", { n: "{n}" }),
                     bestCount: t("w_best_count", { n: "{n}", total: "{total}" }),
                     weekPrev: t("w_week_prev"),
                     weekNext: t("w_week_next"),
@@ -246,6 +243,22 @@ export default async function GroupPage({
               <>
                 <section className="card">
                   <h2>{t("w_meetings")}</h2>
+
+                  {/* Новая встреча — наверху, свёрнутой кнопкой: раньше форма была под всеми встречами. */}
+                  <MeetingForm
+                    action={createMeetingAction.bind(null, slug)}
+                    labels={{
+                      newMeeting: t("w_new_meeting"),
+                      place: t("w_place"),
+                      placePh: t("w_place_ph"),
+                      goal: t("w_goal"),
+                      goalPh: t("w_goal_ph"),
+                      when: t("w_when"),
+                      whenHint: t("w_when_hint"),
+                      create: t("w_create_meeting"),
+                      cancel: t("w_cancel"),
+                    }}
+                  />
 
                   {upcomingMeetings.length === 0 && (
                     <div className="empty">
@@ -292,20 +305,6 @@ export default async function GroupPage({
                       ))}
                     </details>
                   )}
-
-                  <MeetingForm
-                    action={createMeetingAction.bind(null, slug)}
-                    labels={{
-                      newMeeting: t("w_new_meeting"),
-                      place: t("w_place"),
-                      placePh: t("w_place_ph"),
-                      goal: t("w_goal"),
-                      goalPh: t("w_goal_ph"),
-                      when: t("w_when"),
-                      whenHint: t("w_when_hint"),
-                      create: t("w_create_meeting"),
-                    }}
-                  />
                 </section>
               </>
             ),
@@ -450,27 +449,33 @@ export default async function GroupPage({
                       </ul>
                   </>
                 ) : (
-                  <form action={saveSettingsAction.bind(null, slug)}>
-                    <div className="row">
-                      <div className="field">
-                        <label htmlFor="day_start">{t("w_hours")}</label>
-                        <input
-                          id="day_start"
-                          name="day_start"
-                          type="text"
-                          defaultValue={fmtMinutes(chat.dayStartMin)}
-                        />
+                  <form action={saveSettingsAction.bind(null, slug)} className="settings-form">
+                    {/* У каждого поля своя подпись: раньше у «до» её не было вовсе. */}
+                    <fieldset className="field">
+                      <legend className="label">{t("w_hours")}</legend>
+                      <div className="row">
+                        <div className="field">
+                          <label htmlFor="day_start">{t("w_hours_from")}</label>
+                          <input
+                            id="day_start"
+                            name="day_start"
+                            type="time"
+                            step={600}
+                            defaultValue={fmtMinutes(chat.dayStartMin)}
+                          />
+                        </div>
+                        <div className="field">
+                          <label htmlFor="day_end">{t("w_hours_to")}</label>
+                          <input
+                            id="day_end"
+                            name="day_end"
+                            type="time"
+                            step={600}
+                            defaultValue={fmtMinutes(Math.min(chat.dayEndMin, 23 * 60 + 59))}
+                          />
+                        </div>
                       </div>
-                      <div className="field">
-                        <label htmlFor="day_end">&nbsp;</label>
-                        <input
-                          id="day_end"
-                          name="day_end"
-                          type="text"
-                          defaultValue={fmtMinutes(chat.dayEndMin)}
-                        />
-                      </div>
-                    </div>
+                    </fieldset>
                     <div className="row">
                       <div className="field">
                         <label htmlFor="min_slot">{t("w_min_slot")}</label>
@@ -495,6 +500,9 @@ export default async function GroupPage({
                         />
                       </div>
                     </div>
+                    <p className="small muted" style={{ marginTop: -6 }}>
+                      {t("w_buffer_hint")}
+                    </p>
                     <div className="field">
                       <label htmlFor="semester">{t("w_semester")}</label>
                       <input

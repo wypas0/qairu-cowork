@@ -16,6 +16,7 @@ export type BoardLabels = {
   bestLead: string;
   bestEmpty: string;
   bestAll: string;
+  moreDays: string; // «и ещё {n}»
   bestCount: string; // «свободны {n} из {total}»
   weekPrev: string;
   weekNext: string;
@@ -229,28 +230,25 @@ export function Board({
           </div>
         ) : (
           <ul className="best-list">
-            {payload.best.map((item) => (
-              <li className="best-item" key={`${item.date}-${item.start}`}>
-                <div className="best-when">
-                  <span className="type-title-3">{item.text}</span>
-                  <span className="small muted">{item.short}</span>
-                </div>
-                <p className="small muted best-who">
-                  {item.missing.length === 0
-                    ? labels.bestAll
-                    : `${labels.bestCount
-                        .replace("{n}", String(item.count))
-                        .replace("{total}", String(payload.selectedTotal))} — ${labels.missingShort} ${item.missing.join(", ")}`}
-                </p>
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => pick(item.date, item.start, item.end, `${item.label} · ${item.text}`)}
-                >
-                  {labels.pick}
-                </button>
-              </li>
-            ))}
+            {payload.best.map((item) => {
+              const first = item.dates[0];
+              return (
+                <li className="best-item" key={`${first.date}-${item.start}`}>
+                  <span className="type-title-3 best-time">{item.text}</span>
+                  <div className="best-text">
+                    <b className="best-days">{daysText(item.dates, labels)}</b>
+                    <span className="small muted">{whoText(item, payload.selectedTotal, labels)}</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    onClick={() => pick(first.date, item.start, item.end, `${first.label} · ${item.text}`)}
+                  >
+                    {labels.pick}
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
@@ -402,7 +400,6 @@ export function Board({
                   title={entry.label}
                 >
                   <span>{entry.short}</span>
-                  <span className="count">{entry.items.length}</span>
                 </button>
               );
             })}
@@ -480,18 +477,16 @@ export function Board({
                 <li key={`${day.date}-${item.start}`} className="slotrow">
                   <div className="slotinfo">
                     <span className="when">{item.text}</span>{" "}
-                    <span className="small muted">
-                      {item.count}/{payload.selectedTotal}
-                      {item.missing.length > 0 &&
-                        ` — ${labels.missingShort} ${item.missing.join(", ")}`}
-                    </span>
+                    <span className="small muted">{whoText(item, payload.selectedTotal, labels)}</span>
                   </div>
                   <button
                     type="button"
                     className="btn btn-sm"
-                    onClick={() =>
-                      pick(day.date, item.start, item.end, `${day.label} · ${item.text}`)
-                    }
+                    onClick={() => {
+                      // Окно может быть длиннее встречи — ставим её в начало окна.
+                      const end = item.start + payload.duration;
+                      pick(day.date, item.start, end, `${day.label} · ${hhmm(item.start)}–${hhmm(end)}`);
+                    }}
                   >
                     {labels.pick}
                   </button>
@@ -597,4 +592,22 @@ const MAX_WEEK = 8;
 /** Сравнимый вид выбора участников: порядок щелчков значения не имеет. */
 function selectionKey(selected: number[] | null): string {
   return selected === null ? "all" : [...selected].sort((a, b) => a - b).join(",");
+}
+
+/** «Пн 21.09, Вт 22.09, Ср 23.09» — не больше трёх дней, дальше «и ещё N». */
+function daysText(dates: { short: string }[], labels: BoardLabels): string {
+  const shown = dates.slice(0, 3).map((date) => date.short).join(", ");
+  const rest = dates.length - 3;
+  return rest > 0 ? `${shown} ${labels.moreDays.replace("{n}", String(rest))}` : shown;
+}
+
+/** «свободны все» или «свободны 7 из 9 — нет Асель, Болат». */
+function whoText(
+  item: { count: number; missing: string[] },
+  total: number,
+  labels: BoardLabels,
+): string {
+  if (item.missing.length === 0) return labels.bestAll;
+  const count = labels.bestCount.replace("{n}", String(item.count)).replace("{total}", String(total));
+  return `${count} — ${labels.missingShort} ${item.missing.join(", ")}`;
 }

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { PICK_EVENT, type PickDetail } from "./Board";
+import { IconPlus } from "./icons";
 
 export type MeetingFormLabels = {
   newMeeting: string;
@@ -13,14 +14,19 @@ export type MeetingFormLabels = {
   when: string;
   whenHint: string;
   create: string;
+  cancel: string;
 };
 
 /**
  * Форма новой встречи.
  *
- * Слушает событие от доски: кнопка «Назначить» под окном подставляет сюда
- * машинное время и человекочитаемую подпись, чтобы организатору не пришлось
- * переписывать час руками.
+ * Стоит наверху раздела «Встречи», свёрнутая в одну кнопку: раньше она была
+ * в самом низу, под всеми встречами, и до неё приходилось листать. Кнопка
+ * «Назначить» у окна разворачивает форму сама и подставляет время.
+ *
+ * Выбранное время уходит на сервер в машинном виде («2026-09-16T15:00|30»),
+ * а человек видит его словами. Раньше машинная строка показывалась прямо
+ * в поле; если начать печатать своё, выбор сбрасывается и уходит текст.
  */
 export function MeetingForm({
   action,
@@ -29,51 +35,79 @@ export function MeetingForm({
   action: (formData: FormData) => void;
   labels: MeetingFormLabels;
 }) {
-  const [when, setWhen] = useState("");
-  const [whenLabel, setWhenLabel] = useState("—");
+  const [open, setOpen] = useState(false);
+  const [picked, setPicked] = useState<PickDetail | null>(null);
+  const [typed, setTyped] = useState("");
   const formRef = useRef<HTMLFormElement>(null);
+  const goalRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     function onPick(event: Event) {
       const { detail } = event as CustomEvent<PickDetail>;
-      setWhen(detail.value);
-      setWhenLabel(detail.text);
-      formRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      setPicked(detail);
+      setTyped("");
+      setOpen(true);
+      // Ждём кадр: форма только что развернулась.
+      requestAnimationFrame(() => {
+        formRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+        goalRef.current?.focus({ preventScroll: true });
+      });
     }
     window.addEventListener(PICK_EVENT, onPick);
     return () => window.removeEventListener(PICK_EVENT, onPick);
   }, []);
 
+  if (!open) {
+    return (
+      <button type="button" className="btn new-meeting" onClick={() => setOpen(true)}>
+        <IconPlus size={18} /> {labels.newMeeting}
+      </button>
+    );
+  }
+
   return (
-    <form ref={formRef} action={action} style={{ marginTop: 14 }}>
+    <form ref={formRef} action={action} className="meeting-form">
       <h3>{labels.newMeeting}</h3>
+      <input type="hidden" name="when" value={picked ? picked.value : typed} />
+      <div className="field">
+        <label htmlFor="goal">{labels.goal}</label>
+        <input
+          ref={goalRef}
+          id="goal"
+          name="goal"
+          type="text"
+          maxLength={300}
+          placeholder={labels.goalPh}
+        />
+      </div>
       <div className="field">
         <label htmlFor="place">{labels.place}</label>
         <input id="place" name="place" type="text" maxLength={200} placeholder={labels.placePh} />
       </div>
       <div className="field">
-        <label htmlFor="goal">{labels.goal}</label>
-        <input id="goal" name="goal" type="text" maxLength={300} placeholder={labels.goalPh} />
-      </div>
-      <div className="field">
-        <label htmlFor="when">
-          {labels.when} — <span className="muted">{whenLabel}</span>
-        </label>
+        <label htmlFor="when-text">{labels.when}</label>
         <input
-          id="when"
-          name="when"
+          id="when-text"
           type="text"
           maxLength={200}
-          value={when}
-          onChange={(event) => setWhen(event.target.value)}
+          value={picked ? picked.text : typed}
+          onChange={(event) => {
+            setPicked(null);
+            setTyped(event.target.value);
+          }}
         />
         <p className="small muted" style={{ marginTop: 5 }}>
           {labels.whenHint}
         </p>
       </div>
-      <button className="btn" type="submit">
-        {labels.create}
-      </button>
+      <div className="dated-actions">
+        <button className="btn btn-primary" type="submit">
+          {labels.create}
+        </button>
+        <button type="button" className="btn btn-quiet" onClick={() => setOpen(false)}>
+          {labels.cancel}
+        </button>
+      </div>
     </form>
   );
 }

@@ -14,6 +14,7 @@ import { toast } from "./toast";
 export type EditorLabels = {
   paintHint: string;
   saved: string;
+  notFilledYet: string;
   saving: string;
   saveError: string;
   saveRetry: string;
@@ -176,6 +177,9 @@ export function ScheduleEditor({
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [failedSave, setFailedSave] = useState(false);
+  // Было ли расписание хоть раз сохранено: иначе «✓ Сохранено» у пустой
+  // сетки новичка звучит как «всё готово», хотя он ещё ничего не сделал.
+  const [savedOnce, setSavedOnce] = useState(initialBusy.length > 0);
   // Шаги для отмены: один шаг — один мазок или одно целое действие.
   const [history, setHistory] = useState<Set<string>[]>([]);
   const [importText, setImportText] = useState("");
@@ -422,6 +426,7 @@ export function ScheduleEditor({
       if (!response.ok) throw new Error(String(response.status));
       setDirty(false);
       setFailedSave(false);
+      setSavedOnce(true);
       router.refresh();
     } catch {
       // Тост только на ошибку: подтверждение успеха живёт строкой состояния,
@@ -704,7 +709,7 @@ export function ScheduleEditor({
                       style={{ padding: "2px 6px" }}
                       onClick={() => toggleDay(weekday)}
                     >
-                      {name.slice(0, 3)}
+                      {weekdayShort[weekday]}
                     </button>
                   </th>
                 ))}
@@ -767,6 +772,8 @@ export function ScheduleEditor({
               </>
             ) : reviewing ? (
               <>{labels.importPending}</>
+            ) : !savedOnce && !dirty && !saving ? (
+              <>{labels.notFilledYet}</>
             ) : saving || dirty ? (
               <>
                 <span className="spinner" aria-hidden="true" /> {labels.saving}

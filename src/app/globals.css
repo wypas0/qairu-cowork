@@ -109,8 +109,8 @@
     --warning: #ffc63d;
     --danger: #ff5d72;
 
-    --slot-free: #12203a;
-    --slot-free-border: rgba(255, 255, 255, 0.09);
+    --slot-free: #17263f;
+    --slot-free-border: rgba(255, 255, 255, 0.16);
     --slot-busy: #1b76f2;
     --mine-stripe: rgba(7, 14, 28, 0.42);
 
@@ -150,8 +150,8 @@
   --warning: #ffc63d;
   --danger: #ff5d72;
 
-  --slot-free: #12203a;
-  --slot-free-border: rgba(255, 255, 255, 0.09);
+  --slot-free: #17263f;
+  --slot-free-border: rgba(255, 255, 255, 0.16);
   --slot-busy: #1b76f2;
   --mine-stripe: rgba(7, 14, 28, 0.42);
 
@@ -1423,6 +1423,27 @@ table.week tr.break-row td {
   }
 }
 
+/* На телефоне таблица длиннее экрана, и строка с днями уезжала вверх —
+   становилось непонятно, какой это день. Прилипает под шапкой сайта.
+   overflow: clip вместо auto: скролл-контейнер ломает прилипание, а неделя
+   на телефоне и так помещается в ширину. */
+@media (max-width: 560px) {
+  .gridwrap {
+    overflow-x: clip;
+  }
+  table.week thead th {
+    position: sticky;
+    top: calc(65px + var(--safe-top));
+    z-index: 2;
+    background: var(--surface);
+  }
+  /* «21.09» в колонке шириной ~40px слипалось с соседней датой. */
+  table.week thead th .small {
+    font-size: 10px;
+    letter-spacing: -0.02em;
+  }
+}
+
 /* --- редактор своего расписания --- */
 table.week.editor td.cell {
   background: var(--slot-free);
@@ -1694,6 +1715,17 @@ table.week td.cell.meeting {
   flex-wrap: wrap;
 }
 
+/* --- новая встреча: наверху раздела, свёрнутой кнопкой --- */
+.new-meeting {
+  margin-bottom: 16px;
+}
+.meeting-form {
+  margin-bottom: 20px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+}
+
 /* --- «С чего начать» --- */
 .start-list {
   list-style: none;
@@ -1884,44 +1916,55 @@ table.week td.cell.meeting {
   border-color: var(--ink);
   color: var(--ink-text);
 }
+/* На телефоне четыре вкладки должны помещаться целиком: «Настройки»
+   обрезались справа, и не было видно, что вкладки можно листать. */
+@media (max-width: 560px) {
+  .tabs {
+    gap: 6px;
+  }
+  .tab {
+    height: 34px;
+    padding: 0 11px;
+    font-size: 13px;
+  }
+}
 
-/* --- лучшие окна недели --- */
+/* --- лучшие окна недели ---
+   Строки в одной рамке, а не высокие карточки: на телефоне три карточки
+   занимали весь первый экран, а таблица уезжала на три экрана вниз. */
 .best-list {
   list-style: none;
   margin: 16px 0 0;
   padding: 0;
-  display: grid;
-  gap: 12px;
-}
-@media (min-width: 760px) {
-  .best-list {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-.best-item {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 16px;
   border: 1px solid var(--border);
   border-radius: var(--r-xl);
 }
-.best-when {
+.best-item {
   display: flex;
-  align-items: baseline;
-  gap: 10px;
+  align-items: center;
+  gap: 8px 16px;
   flex-wrap: wrap;
+  padding: 12px 16px;
 }
-.best-when .type-title-3 {
+.best-item + .best-item {
+  border-top: 1px solid var(--border);
+}
+.best-time {
+  min-width: 132px;
   font-variant-numeric: tabular-nums;
 }
-.best-who {
-  margin: 0;
+.best-text {
   flex: 1;
+  min-width: 160px;
+  display: grid;
+  gap: 2px;
+}
+.best-days {
+  font-size: 15px;
+  font-weight: 600;
 }
 .best-item .btn {
-  align-self: flex-start;
-  margin-top: 4px;
+  flex: none;
 }
 
 /* --- «кто должен прийти» --- */
@@ -2226,6 +2269,23 @@ table.week td.cell.meeting {
   color: var(--muted);
 }
 
+/* --- настройки группы: узкая форма под короткие значения --- */
+.settings-form {
+  max-width: 560px;
+}
+fieldset.field {
+  border: 0;
+  margin: 0 0 16px;
+  padding: 0;
+  min-width: 0;
+}
+fieldset.field > legend {
+  padding: 0;
+}
+fieldset.field .field {
+  margin-bottom: 0;
+}
+
 /* --- аккаунт --- */
 .acct-table {
   width: 100%;
@@ -2259,6 +2319,57 @@ table.week td.cell.meeting {
 }
 /* «Как это работает»: список строк в одной рамке. Нумерованных плиток
    и иконок в кружках в системе нет. */
+/* --- главная вошедшего: его группы первым блоком --- */
+.group-list {
+  list-style: none;
+  margin: 0 0 20px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  background: var(--surface);
+  overflow: hidden;
+}
+.group-list li + li {
+  border-top: 1px solid var(--border);
+}
+.group-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 20px;
+  color: var(--text);
+  text-decoration: none;
+  transition: background-color 150ms var(--ease);
+}
+.group-row:hover {
+  background: color-mix(in srgb, var(--hover) 60%, transparent);
+}
+.group-row:active {
+  background: var(--hover);
+  transition-duration: 0ms;
+}
+.group-mark {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-full);
+  background: var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+.group-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* --- окно продукта на лендинге --- */
 .demo {
   border: 1px solid var(--border);
@@ -2484,6 +2595,34 @@ html[data-tg] .tg-hide {
   display: none !important;
 }
 
+/* --- полоска загрузки при переходе между страницами --- */
+.nav-progress {
+  position: fixed;
+  top: var(--safe-top);
+  left: 0;
+  z-index: 100;
+  height: 3px;
+  width: 0;
+  background: var(--accent);
+  pointer-events: none;
+}
+.nav-progress.loading {
+  animation: nav-progress 8s cubic-bezier(0.1, 0.7, 0.2, 1) forwards;
+}
+.nav-progress.done {
+  width: 100%;
+  opacity: 0;
+  transition: width 150ms var(--ease), opacity 250ms var(--ease) 100ms;
+}
+@keyframes nav-progress {
+  from {
+    width: 0;
+  }
+  to {
+    width: 90%;
+  }
+}
+
 /* --- всплывающее уведомление --- */
 .toast {
   position: fixed;
@@ -2507,6 +2646,16 @@ html[data-tg] .tg-hide {
 }
 .toast.show {
   opacity: 1;
+}
+.toast.error {
+  background: var(--danger);
+  color: #ffffff;
+}
+/* На страницах группы снизу нижняя панель разделов — тост встаёт над ней. */
+@media (max-width: 1023px) {
+  body:has(.bottomnav) .toast {
+    bottom: calc(80px + var(--safe-bottom));
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

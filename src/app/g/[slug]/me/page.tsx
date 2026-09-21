@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { ConfirmSubmit } from "@/components/ConfirmSubmit";
 import { DatedQuickForm } from "@/components/DatedQuickForm";
+import { FlashToast } from "@/components/FlashToast";
 import { ScrollToAnchor } from "@/components/ScrollToAnchor";
 import { ScheduleEditor } from "@/components/ScheduleEditor";
 import { TelegramBackButton } from "@/components/TelegramButtons";
@@ -99,6 +100,7 @@ export default async function MySchedulePage({
           labels={{
             paintHint: t("w_paint_hint"),
             saved: t("w_saved"),
+            notFilledYet: t("w_not_filled_yet"),
             saving: t("w_saving"),
             saveError: t("w_save_error"),
             saveRetry: t("w_save_retry"),
@@ -159,11 +161,7 @@ export default async function MySchedulePage({
               {t(errorKey)}
             </div>
           )}
-          {added && !errorKey && (
-            <div className="notice" role="status">
-              {t("w_dated_added")}
-            </div>
-          )}
+          <FlashToast message={added && !errorKey ? t("w_dated_added") : null} params={["added"]} />
 
           {/* Сначала добавить (это делают чаще), потом список уже добавленного. */}
           <DatedQuickForm

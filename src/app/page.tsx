@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 
-import { IconBell, IconPhone, IconUser } from "@/components/icons";
+import { IconBell, IconChevronRight, IconPhone, IconUser } from "@/components/icons";
 import { ProductDemo } from "@/components/ProductDemo";
 import { TelegramSignIn } from "@/components/TelegramSignIn";
 import { Topbar } from "@/components/Topbar";
 import * as repo from "@/db/repo";
+import { displayName } from "@/db/schema";
 import { LANG_NAMES, normalizeLang, translator } from "@/i18n";
 import { pageUser } from "@/lib/gate";
 import { createGroup, joinByCodeAction } from "./actions";
@@ -39,56 +40,70 @@ export default async function LandingPage({
     <>
       <Topbar />
       <main className="wrap">
-        <section className="hero">
-          <div className="hero-text">
-            <h1 className="type-display">{t("w_hero_title")}</h1>
-            <p className="lead">{t("w_hero_lead")}</p>
-          </div>
-          {/* Сразу показываем сам продукт, а не рассказ о нём. */}
-          <ProductDemo lang={lang} />
-        </section>
+        {user ? (
+          /* Вернувшемуся рассказ о продукте не нужен — сразу его группы. */
+          <header className="page-head">
+            <div>
+              <p className="eyebrow">{displayName(user)}</p>
+              <h1>{groups.length > 0 ? t("w_my_groups") : t("w_home_start")}</h1>
+              {groups.length === 0 && <p className="lead">{t("w_home_start_lead")}</p>}
+            </div>
+          </header>
+        ) : (
+          <>
+          <section className="hero">
+            <div className="hero-text">
+              <h1 className="type-display">{t("w_hero_title")}</h1>
+              <p className="lead">{t("w_hero_lead")}</p>
+            </div>
+            {/* Сразу показываем сам продукт, а не рассказ о нём. */}
+            <ProductDemo lang={lang} />
+          </section>
 
-        {/* Как это работает — строки с волосяными линиями, без нумерованных плиток. */}
-        <ol className="steps">
-          {([1, 2, 3] as const).map((n) => (
-            <li className="step" key={n}>
-              <h3>{t(`w_step${n}_t`)}</h3>
-              <p className="small muted">{t(`w_step${n}_d`)}</p>
-            </li>
-          ))}
-        </ol>
+          {/* Как это работает — строки с волосяными линиями, без нумерованных плиток. */}
+          <ol className="steps">
+            {([1, 2, 3] as const).map((n) => (
+              <li className="step" key={n}>
+                <h3>{t(`w_step${n}_t`)}</h3>
+                <p className="small muted">{t(`w_step${n}_d`)}</p>
+              </li>
+            ))}
+          </ol>
 
-        <section className="card tg-only" aria-labelledby="tg-only-title">
-          <h2 id="tg-only-title">{t("w_tg_only_title")}</h2>
-          <ul className="tg-only-list">
-            <li>
-              <IconUser size={20} className="ico" />
-              <span>{t("w_tg_only_1")}</span>
-            </li>
-            <li>
-              <IconPhone size={20} className="ico" />
-              <span>{t("w_tg_only_2")}</span>
-            </li>
-            <li>
-              <IconBell size={20} className="ico" />
-              <span>{t("w_tg_only_3")}</span>
-            </li>
-          </ul>
-        </section>
+          <section className="card tg-only" aria-labelledby="tg-only-title">
+            <h2 id="tg-only-title">{t("w_tg_only_title")}</h2>
+            <ul className="tg-only-list">
+              <li>
+                <IconUser size={20} className="ico" />
+                <span>{t("w_tg_only_1")}</span>
+              </li>
+              <li>
+                <IconPhone size={20} className="ico" />
+                <span>{t("w_tg_only_2")}</span>
+              </li>
+              <li>
+                <IconBell size={20} className="ico" />
+                <span>{t("w_tg_only_3")}</span>
+              </li>
+            </ul>
+          </section>
+          </>
+        )}
 
         {groups.length > 0 && (
-          <div className="card">
-            <h2>{t("w_my_groups")}</h2>
-            <ul className="people">
-              {groups.map((group) => (
-                <li key={group.chatId}>
-                  <Link className="chip ok" href={`/g/${group.slug}`}>
-                    {group.title}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
+          <ul className="group-list">
+            {groups.map((group) => (
+              <li key={group.chatId}>
+                <Link className="group-row" href={`/g/${group.slug}`}>
+                  <span className="group-mark" aria-hidden="true">
+                    {group.title.trim()[0]?.toUpperCase() ?? "?"}
+                  </span>
+                  <span className="group-name">{group.title}</span>
+                  <IconChevronRight className="muted" />
+                </Link>
+              </li>
+            ))}
+          </ul>
         )}
 
         <div className="card" id="join" style={{ scrollMarginTop: 72 }}>
