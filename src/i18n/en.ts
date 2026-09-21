@@ -160,7 +160,7 @@ export const EN: Strings = {
   w_tab_members: "Members",
   w_tab_settings: "Settings",
   w_heat_title: "The whole week",
-  w_heat_hint: "The stronger the colour, the more people are free. Hover to see who.",
+  w_heat_hint: "The colour shows how many people are free — see the scale under the table, from “everyone” to “nobody”. Hover a cell to see who.",
   w_legend_none: "nobody",
   w_legend_all: "everyone",
   w_min_slot: "Default meeting length, min",
