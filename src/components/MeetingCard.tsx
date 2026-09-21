@@ -5,6 +5,9 @@ import {
 } from "@/app/g/[slug]/actions";
 import type { Meeting, MeetingResponse } from "@/db/schema";
 import { translator } from "@/i18n";
+import { weeklyRule } from "@/core/recurrence";
+import { type DateStr, formatDM, utcToZonedWall, weekdayOf } from "@/core/timeutils";
+import { weekdayShort } from "@/i18n";
 import { meetingSpan } from "@/lib/group";
 import { ConfirmSubmit } from "./ConfirmSubmit";
 import {
@@ -42,6 +45,8 @@ function googleCalendarUrl(meeting: Meeting, tz: string): string | null {
     dates: `${stamp(meeting.whenStart)}/${stamp(end)}`,
   });
   if (meeting.place) params.set("location", meeting.place);
+  // Серия — одно повторяющееся событие в календаре, а не одна встреча.
+  if (meeting.repeatUntil) params.set("recur", `RRULE:${weeklyRule(meeting.repeatUntil as DateStr, tz)}`);
   return `https://calendar.google.com/calendar/render?${params}`;
 }
 
@@ -109,7 +114,7 @@ export function MeetingCard({
           <IconPlace /> {meeting.place || "—"}
         </span>
         <span>
-          <IconClock /> {meeting.whenText || "—"}
+          <IconClock /> {whenLabel(meeting, tz, lang, t) || "—"}
         </span>
         <span>
           <IconUser /> {names.get(meeting.initiatorId) ?? "—"}
@@ -216,4 +221,27 @@ export function MeetingCard({
       )}
     </article>
   );
+}
+
+/**
+ * Когда встреча — так, как её надо читать. Для разовой это текст времени из
+ * формы. Для серии текст хранит только первую дату, поэтому собираем
+ * «каждую неделю: ср 15:00–16:30, до 16.12».
+ */
+function whenLabel(
+  meeting: Meeting,
+  tz: string,
+  lang: string,
+  t: ReturnType<typeof translator>,
+): string {
+  const span = meeting.repeatUntil ? meetingSpan(meeting, tz) : null;
+  if (!span || !meeting.whenStart) return meeting.whenText;
+  const hhmm = (minutes: number) =>
+    `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+  const day = utcToZonedWall(meeting.whenStart, tz).day;
+  return t("w_repeat_meta", {
+    day: weekdayShort(lang, weekdayOf(day)),
+    time: `${hhmm(span.start)}–${hhmm(span.end)}`,
+    until: formatDM(meeting.repeatUntil as DateStr),
+  });
 }

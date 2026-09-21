@@ -140,13 +140,18 @@ postgresql://postgres.abcdefgh:ПАРОЛЬ@aws-0-eu-central-1.pooler.supabase.c
 **SQL Editor → New query** → вставить целиком содержимое файла
 [`drizzle/0000_init.sql`](drizzle/0000_init.sql) из проекта → **Run**.
 Затем так же, отдельными запросами, — [`drizzle/0001_admin_login.sql`](drizzle/0001_admin_login.sql)
-[`drizzle/0002_avatars.sql`](drizzle/0002_avatars.sql) и [`drizzle/0003_real_name.sql`](drizzle/0003_real_name.sql).
+[`drizzle/0002_avatars.sql`](drizzle/0002_avatars.sql), [`drizzle/0003_real_name.sql`](drizzle/0003_real_name.sql)
+и [`drizzle/0004_recurring_meetings.sql`](drizzle/0004_recurring_meetings.sql).
 
 Миграции выполняются **по порядку номеров** и **каждая один раз**. Если база уже
 работает на прошлой версии (`0000` выполнен давно), при обновлении нужно выполнить
 только `0001_admin_login.sql`: он добавит роли участников, вход по паролю и
 уведомления на сайте, а создателем каждой старой группы с сайта сделает её
-первого участника. `0002_avatars.sql` добавляет таблицу фото профиля, `0003_real_name.sql` — колонку настоящего имени.
+первого участника. `0002_avatars.sql` добавляет таблицу фото профиля, `0003_real_name.sql` — колонку настоящего имени,
+`0004_recurring_meetings.sql` — повторяющиеся встречи (колонки `repeat_until` и `reminded_start` у `meetings`).
+
+> **Миграцию выполнять до того, как новый код попадёт на Vercel.** Код с новыми
+> колонками на старой базе падает на любой странице со встречами.
 
 ✅ **Готово, когда:** в **Table Editor** появились таблицы `users`, `chats`,
 `memberships`, `busy_slots`, `meetings`, `credentials`, `notices`, `avatars` и остальные.
@@ -331,6 +336,7 @@ DNS-записи, которые покажет Vercel. После этого д
 | Страница группы падает с ошибкой про `role`, `created_by`, `credentials` или `notices` | Не выполнена миграция `0001_admin_login.sql` |
 | Фото профиля не сохраняется («Не удалось загрузить фото») | Не выполнена миграция `0002_avatars.sql` |
 | Сайт падает с ошибкой про `real_name` | Не выполнена миграция `0003_real_name.sql` |
+| Страница группы или бот падают с ошибкой про `repeat_until` или `reminded_start` | Не выполнена миграция `0004_recurring_meetings.sql` |
 | `too many connections` в логах | Взято прямое подключение (5432) вместо пулера (6543). Заменить строку и сделать Redeploy |
 | Бот молчит на `/start` | Вебхук не зарегистрирован: `BOT_TOKEN` добавлен, но Redeploy не сделан. Проверить: `https://api.telegram.org/botТОКЕН/getWebhookInfo` — там должен быть ваш адрес и пустой `last_error_message` |
 | Бота нельзя добавить в группу | Не сделан `/setjoingroups → Enable` у BotFather |
@@ -365,7 +371,7 @@ Vercel соберёт и выкатит сам, вебхук перерегис�
 
 - [ ] 0. `npm test` и `npm run build` локально — зелено
 - [ ] 1. `git init` → коммит → пуш на GitHub
-- [ ] 2. Supabase: проект → пулер-строка (6543) → выполнить `drizzle/0000_init.sql`, затем `0001_admin_login.sql`, `0002_avatars.sql` и `0003_real_name.sql`
+- [ ] 2. Supabase: проект → пулер-строка (6543) → выполнить `drizzle/0000_init.sql`, затем `0001_admin_login.sql`, `0002_avatars.sql`, `0003_real_name.sql` и `0004_recurring_meetings.sql`
 - [ ] 3. Vercel: импорт репозитория → `DATABASE_URL` → Deploy
 - [ ] 4. Проверить `/api/healthz` и создание группы
 - [ ] 5. BotFather: `/newbot` → токен → `/setjoingroups` Enable

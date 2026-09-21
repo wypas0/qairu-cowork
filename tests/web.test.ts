@@ -743,3 +743,105 @@ describe("окна склеиваются в диапазоны", () => {
     ]);
   });
 });
+
+describe("новый семестр", () => {
+  it("расписание, сохранённое до начала семестра, считается устаревшим", async () => {
+    const { repo, group } = await mods();
+    const { todayIn } = await import("@/core/timeutils");
+    const { chat, user } = await makeGroup("Семестр", "Амир");
+    await repo.replaceWeeklySlots(user.userId, [0, 1, 2, 3, 4, 5, 6], [], "web");
+
+    const updated = await repo.scheduleUpdatedAt([user.userId]);
+    const savedAt = updated.get(user.userId)!;
+    expect(savedAt).toBeInstanceOf(Date);
+
+    // Будущий семестр ещё ничего не делает устаревшим.
+    expect(group.semesterCutoff({ ...chat, semesterStart: "2999-01-01" })).toBeNull();
+    expect(group.semesterCutoff({ ...chat, semesterStart: null })).toBeNull();
+
+    // Семестр начался сегодня: сохранённое сегодня — актуально, прошлогоднее — нет.
+    const cutoff = group.semesterCutoff({ ...chat, semesterStart: todayIn("Asia/Almaty") });
+    expect(cutoff).toBeInstanceOf(Date);
+    expect(group.isOutdated(savedAt, cutoff)).toBe(false);
+    expect(group.isOutdated(new Date("2020-01-01T00:00:00Z"), cutoff)).toBe(true);
+    // Кто не заполнял вовсе — не «устарел», а просто не заполнил.
+    expect(group.isOutdated(undefined, cutoff)).toBe(false);
+  });
+});
+
+describe("подписка на календарь", () => {
+  it("ссылка подписана: чужой id с чужой подписью не проходит", async () => {
+    const { feedToken, verifyFeedToken, feedPath } = await import("@/lib/calendarFeed");
+    const token = feedToken(-1000000000000222);
+    expect(verifyFeedToken(token)).toBe(-1000000000000222);
+    // Подменили id — подпись от другого человека не подходит.
+    expect(verifyFeedToken(token.replace("-1000000000000222", "501"))).toBeNull();
+    expect(verifyFeedToken("501_" + "A".repeat(24))).toBeNull();
+    expect(verifyFeedToken("мусор")).toBeNull();
+    expect(feedPath(501, "abcd2345")).toMatch(/^\/api\/calendar\/501_[A-Za-z0-9_-]{24}\.ics\?g=abcd2345$/);
+  });
+
+  it("лента — один календарь со всеми встречами и названием", async () => {
+    const { buildFeed } = await import("@/core/calendar");
+    const feed = buildFeed({
+      name: "QairuCowork · ИС-21",
+      events: [
+        { uid: "meeting-1", summary: "Разбор задач", start: new Date("2026-09-24T08:10:00Z"), durationMin: 110 },
+        { uid: "meeting-2", summary: "Проект", start: new Date("2026-09-25T09:00:00Z"), location: "Библиотека" },
+      ],
+    });
+    expect(feed.startsWith("BEGIN:VCALENDAR")).toBe(true);
+    expect(feed).toContain("X-WR-CALNAME:QairuCowork · ИС-21");
+    expect(feed.match(/BEGIN:VEVENT/g)).toHaveLength(2);
+    expect(feed).toContain("DTEND:20260924T100000Z");
+    expect(feed).toContain("LOCATION:Библиотека");
+    // RFC 5545: строки разделены CRLF.
+    expect(feed).toContain(String.fromCharCode(13, 10) + "END:VCALENDAR");
+  });
+});
+
+describe("повторяющиеся встречи на карте", () => {
+  it("серия занимает свои клетки в каждой неделе до конца, разовая — только в своей", async () => {
+    const { repo } = await mods();
+    const { addDays, todayIn, weekdayOf, zonedWallToUtc } = await import("@/core/timeutils");
+    const { chat, user } = await makeGroup("Серия", "Амир");
+    const tz = "Asia/Almaty";
+    const today = todayIn(tz);
+    const monday = addDays(today, -weekdayOf(today));
+
+    const series = await repo.createMeeting({
+      chatId: chat.chatId,
+      initiatorId: user.userId,
+      place: "",
+      whenText: "11:10–12:00",
+      goal: "Консультация",
+      invitees: [user.userId],
+      whenStart: zonedWallToUtc(addDays(monday, 2), 670, tz),
+      repeatUntil: addDays(monday, 2 + 14),
+    });
+    await repo.createMeeting({
+      chatId: chat.chatId,
+      initiatorId: user.userId,
+      place: "",
+      whenText: "разово",
+      goal: "Разовая",
+      invitees: [user.userId],
+      whenStart: zonedWallToUtc(addDays(monday, 3), 780, tz),
+    });
+
+    const titles = async (week: number) =>
+      (await board(chat.slug!, { week })).payload.meetings.map((span) => `${span.title}@${span.date}`);
+
+    expect(await titles(0)).toEqual(
+      expect.arrayContaining([`Консультация@${addDays(monday, 2)}`, `Разовая@${addDays(monday, 3)}`]),
+    );
+    expect(await titles(1)).toEqual([`Консультация@${addDays(monday, 9)}`]);
+    expect(await titles(2)).toEqual([`Консультация@${addDays(monday, 16)}`]);
+    // Серия кончилась — на четвёртой неделе её нет.
+    expect(await titles(3)).toEqual([]);
+    // Каждый повтор — те же 11:10–12:00.
+    const week1 = (await board(chat.slug!, { week: 1 })).payload.meetings[0];
+    expect([week1.start, week1.end]).toEqual([670, 720]);
+    expect(series.repeatUntil).toBe(addDays(monday, 16));
+  });
+});

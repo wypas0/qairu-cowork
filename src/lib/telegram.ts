@@ -50,6 +50,9 @@ export type TelegramWebApp = {
   disableVerticalSwipes?(): void;
   enableVerticalSwipes?(): void;
   showConfirm?(message: string, callback: (ok: boolean) => void): void;
+  /** Bot API 8.0: ярлык мини-аппа на главном экране телефона. */
+  addToHomeScreen?(): void;
+  checkHomeScreenStatus?(callback: (status: "unsupported" | "unknown" | "added" | "missed") => void): void;
   onEvent?(event: string, handler: () => void): void;
   offEvent?(event: string, handler: () => void): void;
   MainButton?: NativeButton;

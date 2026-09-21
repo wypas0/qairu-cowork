@@ -3,6 +3,8 @@ import { headers } from "next/headers";
 
 import { IconBell, IconChevronRight, IconPhone, IconUser } from "@/components/icons";
 import { ProductDemo } from "@/components/ProductDemo";
+import { OpenLastGroup } from "@/components/TelegramHome";
+import { userGroups } from "@/components/profilePanelProps";
 import { TelegramSignIn } from "@/components/TelegramSignIn";
 import { Topbar } from "@/components/Topbar";
 import * as repo from "@/db/repo";
@@ -32,13 +34,15 @@ export default async function LandingPage({
   const user = await pageUser("/");
   const lang = user?.lang ?? normalizeLang((requestHeaders.get("accept-language") ?? "").split(",")[0]);
   const t = translator(lang);
-  const groups = user ? await repo.userChats(user.userId) : [];
+  const groups = user ? await userGroups(user.userId, lang) : [];
   const joinError =
     query.join === "bad" ? "w_join_err_bad" : query.join === "notfound" ? "w_join_err_notfound" : null;
 
   return (
     <>
       <Topbar />
+      {/* Группы уже отсортированы по свежести — первая и есть последняя открытая. */}
+      <OpenLastGroup slug={groups[0]?.slug ?? null} />
       <main className="wrap">
         {user ? (
           /* Вернувшемуся рассказ о продукте не нужен — сразу его группы. */
@@ -99,6 +103,7 @@ export default async function LandingPage({
                     {group.title.trim()[0]?.toUpperCase() ?? "?"}
                   </span>
                   <span className="group-name">{group.title}</span>
+                  {group.pending ? <span className="count-badge">{group.pending}</span> : null}
                   <IconChevronRight className="muted" />
                 </Link>
               </li>

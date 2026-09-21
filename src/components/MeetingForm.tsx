@@ -15,6 +15,9 @@ export type MeetingFormLabels = {
   whenHint: string;
   create: string;
   cancel: string;
+  repeat: string;
+  repeatUntil: string;
+  repeatHint: string;
 };
 
 /**
@@ -38,6 +41,7 @@ export function MeetingForm({
   const [open, setOpen] = useState(false);
   const [picked, setPicked] = useState<PickDetail | null>(null);
   const [typed, setTyped] = useState("");
+  const [repeat, setRepeat] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const goalRef = useRef<HTMLInputElement>(null);
 
@@ -100,6 +104,36 @@ export function MeetingForm({
           {labels.whenHint}
         </p>
       </div>
+      {/* Повторять можно только встречу с точным временем: иначе неясно, когда повтор. */}
+      {picked ? (
+        <div className="field">
+          <label className="checkbox">
+            <input
+              type="checkbox"
+              name="repeat"
+              checked={repeat}
+              onChange={(event) => setRepeat(event.target.checked)}
+            />
+            <span>{labels.repeat}</span>
+          </label>
+          {repeat && (
+            <div className="repeat-until">
+              <label htmlFor="repeat_until">{labels.repeatUntil}</label>
+              <input
+                id="repeat_until"
+                name="repeat_until"
+                type="date"
+                min={pickedDate(picked)}
+                defaultValue={addWeeks(pickedDate(picked), 12)}
+                required
+              />
+            </div>
+          )}
+        </div>
+      ) : (
+        <p className="small muted">{labels.repeatHint}</p>
+      )}
+
       <div className="dated-actions">
         <button className="btn btn-primary" type="submit">
           {labels.create}
@@ -110,4 +144,16 @@ export function MeetingForm({
       </div>
     </form>
   );
+}
+
+/** Дата выбранного окна из машинной строки «2026-09-16T15:00|30». */
+function pickedDate(picked: PickDetail): string {
+  return picked.value.slice(0, 10);
+}
+
+/** Та же дата через `weeks` недель — по умолчанию серия идёт около семестра. */
+function addWeeks(date: string, weeks: number): string {
+  const moment = new Date(`${date}T12:00:00Z`);
+  moment.setUTCDate(moment.getUTCDate() + weeks * 7);
+  return moment.toISOString().slice(0, 10);
 }

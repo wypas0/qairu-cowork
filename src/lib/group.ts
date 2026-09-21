@@ -18,6 +18,7 @@ import {
   slotsOfLength,
 } from "@/core/availability";
 import { type Period, gridPeriods } from "@/core/grid";
+import { occurrencesBetween } from "@/core/recurrence";
 import { fmtInterval } from "@/core/intervals";
 import {
   type DateStr,
@@ -37,6 +38,23 @@ import { DAYS_AHEAD, SLOT_STEP } from "./config";
 
 export function parityOfChat(chat: Chat): ParityOf | null {
   return chat.semesterStart ? parityFromSemesterStart(chat.semesterStart) : null;
+}
+
+/**
+ * С какого момента расписание считается актуальным: начало семестра, если оно
+ * уже наступило. Кто сохранял расписание раньше — заполнял его под прошлый
+ * семестр, и его пары, скорее всего, уже другие.
+ */
+export function semesterCutoff(chat: Pick<Chat, "semesterStart" | "tz">): Date | null {
+  if (!chat.semesterStart) return null;
+  const tz = chatTz(chat as Chat);
+  if (chat.semesterStart > todayIn(tz)) return null;
+  return zonedWallToUtc(chat.semesterStart as DateStr, 0, tz);
+}
+
+/** Расписание сохранено до начала текущего семестра. */
+export function isOutdated(updatedAt: Date | undefined, cutoff: Date | null): boolean {
+  return Boolean(updatedAt && cutoff && updatedAt < cutoff);
 }
 
 /** Длительности встречи в выпадающем списке, минуты. */
@@ -159,15 +177,18 @@ export async function loadGroupState(
   const slotsStart = week === 0 ? today : weekStart;
   const periods = gridPeriods(chat.dayStartMin, chat.dayEndMin, SLOT_STEP);
   const tz = chatTz(chat);
-  const weekMeetings = (
-    await repo.openMeetingsBetween(
-      chat.chatId,
-      zonedWallToUtc(weekStart, 0, tz),
-      zonedWallToUtc(addDays(weekStart, DAYS_AHEAD), 0, tz),
-    )
-  )
-    .map((meeting) => meetingSpan(meeting, tz))
-    .filter((span): span is MeetingSpan => span !== null);
+  const weekFrom = zonedWallToUtc(weekStart, 0, tz);
+  const weekTo = zonedWallToUtc(addDays(weekStart, DAYS_AHEAD), 0, tz);
+  const oneOff = (await repo.openMeetingsBetween(chat.chatId, weekFrom, weekTo)).map((meeting) =>
+    meetingSpan(meeting, tz),
+  );
+  // Повторяющаяся встреча занимает свои клетки в каждой неделе серии.
+  const repeated = (await repo.recurringMeetings(chat.chatId, weekStart, weekTo)).flatMap((meeting) =>
+    occurrencesBetween(meeting.whenStart!, meeting.repeatUntil, tz, weekFrom, weekTo).map((start) =>
+      meetingSpan({ ...meeting, whenStart: start }, tz),
+    ),
+  );
+  const weekMeetings = [...oneOff, ...repeated].filter((span): span is MeetingSpan => span !== null);
 
   const grid = heatmap(people, weekStart, {
     daysAhead: DAYS_AHEAD,

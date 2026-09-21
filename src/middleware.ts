@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { COOKIE_MAX_AGE, COOKIE_NAME } from "@/lib/cookies";
+import { COOKIE_MAX_AGE, COOKIE_NAME, RECENT_COOKIE, RECENT_LIMIT, parseRecent } from "@/lib/cookies";
 
 /** Вызовы, которые приходят не из браузера сайта: у них своя проверка подлинности. */
 const EXTERNAL_API = ["/api/telegram/", "/api/cron/", "/api/healthz"];
@@ -34,14 +34,36 @@ export function middleware(request: NextRequest) {
   }
 
   const token = request.nextUrl.searchParams.get("t");
-  if (!token) return NextResponse.next();
+  const secure = request.nextUrl.protocol === "https:";
+  if (!token) return rememberGroup(request, NextResponse.next(), secure);
 
   const url = request.nextUrl.clone();
   url.searchParams.delete("t");
   const response = NextResponse.redirect(url, 303);
-  const secure = request.nextUrl.protocol === "https:";
   response.cookies.set(COOKIE_NAME, token, {
     httpOnly: true,
+    sameSite: secure ? "none" : "lax",
+    secure,
+    path: "/",
+    maxAge: COOKIE_MAX_AGE,
+  });
+  return rememberGroup(request, response, secure);
+}
+
+/**
+ * 3. Последние открытые группы. Запоминаем код группы при каждом заходе на её
+ *    страницы: по нему группы стоят в списках, а мини-апп открывается сразу
+ *    в последней. SameSite=None на https — по той же причине, что и у сессии:
+ *    внутри Telegram сайт открыт во фрейме.
+ */
+function rememberGroup(request: NextRequest, response: NextResponse, secure: boolean): NextResponse {
+  const match = /^\/g\/([a-z0-9]{3,24})(?:\/|$)/i.exec(request.nextUrl.pathname);
+  if (!match) return response;
+  const code = match[1].toLowerCase();
+  const previous = parseRecent(request.cookies.get(RECENT_COOKIE)?.value);
+  if (previous[0] === code) return response;
+  const next = [code, ...previous.filter((item) => item !== code)].slice(0, RECENT_LIMIT);
+  response.cookies.set(RECENT_COOKIE, next.join("."), {
     sameSite: secure ? "none" : "lax",
     secure,
     path: "/",

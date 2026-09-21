@@ -279,6 +279,8 @@ export async function notifyFillSchedule(
   chat: Chat,
   from: User,
   targets: readonly User[],
+  /** «semester» — начался новый семестр: расписание есть, но устарело. */
+  reason: "fill" | "semester" = "fill",
 ): Promise<Delivery> {
   const delivery: Delivery = { telegram: 0, site: 0 };
   if (targets.length === 0) return delivery;
@@ -290,7 +292,9 @@ export async function notifyFillSchedule(
     try {
       await sendMessage({
         chat_id: chat.chatId,
-        text: t(chat.lang, "remind_text", { names: mentionList(viaTelegram) }),
+        text: t(chat.lang, reason === "semester" ? "remind_semester_text" : "remind_text", {
+          names: mentionList(viaTelegram),
+        }),
         parse_mode: "HTML",
         reply_markup: await setupKeyboard(chat.chatId, chat.lang),
       });
@@ -300,7 +304,7 @@ export async function notifyFillSchedule(
       siteOnly.push(...viaTelegram);
     }
   } else if (viaTelegram.length > 0) {
-    const text = t(chat.lang, "notify_fill_dm", {
+    const text = t(chat.lang, reason === "semester" ? "notify_semester_dm" : "notify_fill_dm", {
       name: escapeHtml(displayName(from)),
       chat: escapeHtml(chat.title),
     });
@@ -318,6 +322,8 @@ export async function notifyFillSchedule(
       userId: user.userId,
       kind: "fill_schedule",
       fromUserId: from.userId,
+      // Текст уведомления на сайте зависит от причины.
+      text: reason === "semester" ? "semester" : "",
     })),
   );
   delivery.site = siteOnly.length;

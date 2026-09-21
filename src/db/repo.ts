@@ -480,6 +480,16 @@ export async function filledIds(ids: number[], exec?: Exec): Promise<Set<number>
   return new Set(rows.filter((row) => row.filled).map((row) => row.userId));
 }
 
+/** Когда каждый из людей последний раз сохранял расписание. */
+export async function scheduleUpdatedAt(ids: number[], exec?: Exec): Promise<Map<number, Date>> {
+  if (ids.length === 0) return new Map();
+  const rows = await ex(exec)
+    .select({ userId: scheduleState.userId, updatedAt: scheduleState.updatedAt })
+    .from(scheduleState)
+    .where(and(inArray(scheduleState.userId, ids), eq(scheduleState.filled, true)));
+  return new Map(rows.map((row) => [row.userId, row.updatedAt]));
+}
+
 /** Собрать доменные объекты PersonSchedule для движка availability. */
 export async function buildPersonSchedules(
   people: readonly User[],
@@ -550,6 +560,8 @@ export async function createMeeting(
     goal: string;
     invitees: number[];
     whenStart?: Date | null;
+    /** Повторять каждую неделю до этой даты включительно. */
+    repeatUntil?: DateStr | null;
   },
   exec?: Exec,
 ): Promise<Meeting> {
@@ -563,9 +575,85 @@ export async function createMeeting(
       goal: args.goal,
       invitees: args.invitees.join(","),
       whenStart: args.whenStart ?? null,
+      // Повторять можно только встречу с точным временем.
+      repeatUntil: args.whenStart ? (args.repeatUntil ?? null) : null,
     })
     .returning();
   return row;
+}
+
+/**
+ * Сколько в каждой группе ждёт человека: встречи, на которые он приглашён и
+ * ещё не ответил, плюс непрочитанные уведомления (просьба заполнить
+ * расписание, предложение перенести встречу). Приглашение на встречу — это
+ * и уведомление тоже, поэтому уведомления о встречах не считаем дважды.
+ */
+export async function pendingCounts(userId: number, exec?: Exec): Promise<Map<number, number>> {
+  const db = ex(exec);
+  const counts = new Map<number, number>();
+  const bump = (chatId: number) => counts.set(chatId, (counts.get(chatId) ?? 0) + 1);
+
+  const open = await db
+    .select({ id: meetings.id, chatId: meetings.chatId, invitees: meetings.invitees })
+    .from(meetings)
+    .innerJoin(
+      memberships,
+      and(eq(memberships.chatId, meetings.chatId), eq(memberships.userId, userId)),
+    )
+    .where(
+      and(
+        eq(meetings.status, "open"),
+        or(
+          isNull(meetings.whenStart),
+          gt(meetings.whenStart, new Date()),
+          // Серия ещё идёт, даже если первая встреча уже была.
+          gte(meetings.repeatUntil, new Date().toISOString().slice(0, 10)),
+        ),
+      ),
+    );
+  const invited = open.filter((meeting) => inviteeIds(meeting).includes(userId));
+  if (invited.length > 0) {
+    const answered = await db
+      .select({ meetingId: meetingResponses.meetingId })
+      .from(meetingResponses)
+      .where(
+        and(
+          eq(meetingResponses.userId, userId),
+          inArray(
+            meetingResponses.meetingId,
+            invited.map((meeting) => meeting.id),
+          ),
+        ),
+      );
+    const done = new Set(answered.map((row) => row.meetingId));
+    for (const meeting of invited) if (!done.has(meeting.id)) bump(meeting.chatId);
+  }
+
+  const unread = await db
+    .select({ chatId: notices.chatId, kind: notices.kind })
+    .from(notices)
+    .where(and(eq(notices.userId, userId), isNull(notices.readAt)));
+  for (const notice of unread) if (notice.kind !== "meeting") bump(notice.chatId);
+
+  return counts;
+}
+
+/** Открытые встречи с точным временем в этих группах, начиная с `since`, — для ленты календаря. */
+export async function feedMeetings(chatIds: number[], since: Date, exec?: Exec): Promise<Meeting[]> {
+  if (chatIds.length === 0) return [];
+  return ex(exec)
+    .select()
+    .from(meetings)
+    .where(
+      and(
+        inArray(meetings.chatId, chatIds),
+        eq(meetings.status, "open"),
+        isNotNull(meetings.whenStart),
+        or(gte(meetings.whenStart, since), gte(meetings.repeatUntil, since.toISOString().slice(0, 10))),
+      ),
+    )
+    .orderBy(asc(meetings.whenStart))
+    .limit(300);
 }
 
 export function inviteeIds(meeting: Pick<Meeting, "invitees">): number[] {
@@ -660,11 +748,38 @@ export async function openMeetingsBetween(
         eq(meetings.chatId, chatId),
         eq(meetings.status, "open"),
         isNotNull(meetings.whenStart),
+        isNull(meetings.repeatUntil),
         gte(meetings.whenStart, from),
         lt(meetings.whenStart, to),
       ),
     )
     .orderBy(asc(meetings.whenStart))
+    .limit(100);
+}
+
+/**
+ * Повторяющиеся встречи группы, у которых могут быть повторы в [с дня `fromDay`, до `to`):
+ * серия началась раньше `to` и ещё не закончилась к `fromDay`.
+ */
+export async function recurringMeetings(
+  chatId: number,
+  fromDay: DateStr,
+  to: Date,
+  exec?: Exec,
+): Promise<Meeting[]> {
+  return ex(exec)
+    .select()
+    .from(meetings)
+    .where(
+      and(
+        eq(meetings.chatId, chatId),
+        eq(meetings.status, "open"),
+        isNotNull(meetings.whenStart),
+        isNotNull(meetings.repeatUntil),
+        gte(meetings.repeatUntil, fromDay),
+        lt(meetings.whenStart, to),
+      ),
+    )
     .limit(100);
 }
 
@@ -703,12 +818,36 @@ export async function meetingsDueForReminder(
         eq(meetings.status, "open"),
         eq(meetings.reminderSent, false),
         isNotNull(meetings.whenStart),
+        isNull(meetings.repeatUntil),
         sql`${chats.reminderMin} > 0`,
         gt(meetings.whenStart, now),
         // Внутри sql-фрагмента момент передаётся строкой с явным приведением:
         // «голый» Date здесь — параметр без типа, и драйвер postgres.js на нём падает.
         sql`${meetings.whenStart} <= ${now.toISOString()}::timestamptz
             + make_interval(mins => ${chats.reminderMin})`,
+      ),
+    );
+}
+
+/**
+ * Живые серии повторяющихся встреч в группах с напоминаниями. Какой повтор
+ * ближайший и пора ли о нём напомнить, решает вызывающий: это зависит от пояса группы.
+ */
+export async function recurringReminderCandidates(
+  today: DateStr,
+  exec?: Exec,
+): Promise<{ meeting: Meeting; chat: Chat }[]> {
+  return ex(exec)
+    .select({ meeting: meetings, chat: chats })
+    .from(meetings)
+    .innerJoin(chats, eq(chats.chatId, meetings.chatId))
+    .where(
+      and(
+        eq(meetings.status, "open"),
+        isNotNull(meetings.whenStart),
+        isNotNull(meetings.repeatUntil),
+        gte(meetings.repeatUntil, today),
+        sql`${chats.reminderMin} > 0`,
       ),
     );
 }

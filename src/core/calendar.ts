@@ -1,6 +1,7 @@
 /** Генерация .ics — встречу можно положить в любой календарь. */
 
 const BACKSLASH = "\\";
+const CRLF = String.fromCharCode(13, 10);
 
 function escapeIcs(value: string): string {
   // RFC 5545: обратный слэш, точка с запятой, запятая и перевод строки экранируются.
@@ -36,6 +37,8 @@ export type IcsInput = {
   durationMin?: number;
   location?: string;
   description?: string;
+  /** RRULE без префикса, например «FREQ=WEEKLY;UNTIL=20261216T185900Z». */
+  rrule?: string;
 };
 
 /**
@@ -44,21 +47,22 @@ export type IcsInput = {
  * Всё время переводится в UTC — так файл открывается одинаково
  * в Google Calendar, Apple Calendar и Outlook без VTIMEZONE.
  */
-export function buildIcs({
+export function buildIcs(input: IcsInput): string {
+  return buildFeed({ events: [input] });
+}
+
+/** Строки одного VEVENT. */
+function eventLines({
   uid,
   summary,
   start,
   durationMin = 90,
   location = "",
   description = "",
-}: IcsInput): string {
+  rrule = "",
+}: IcsInput): string[] {
   const end = new Date(start.getTime() + Math.max(15, durationMin) * 60_000);
   const lines = [
-    "BEGIN:VCALENDAR",
-    "VERSION:2.0",
-    "PRODID:-//QairuCowork//RU",
-    "CALSCALE:GREGORIAN",
-    "METHOD:PUBLISH",
     "BEGIN:VEVENT",
     `UID:${uid}@qairucowork`,
     `DTSTAMP:${stamp(new Date())}`,
@@ -66,9 +70,31 @@ export function buildIcs({
     `DTEND:${stamp(end)}`,
     `SUMMARY:${escapeIcs(summary)}`,
   ];
+  if (rrule) lines.push(`RRULE:${rrule}`);
   if (location) lines.push(`LOCATION:${escapeIcs(location)}`);
   if (description) lines.push(`DESCRIPTION:${escapeIcs(description)}`);
-  lines.push("END:VEVENT", "END:VCALENDAR");
+  lines.push("END:VEVENT");
+  return lines;
+}
+
+/**
+ * Календарь из нескольких встреч — для подписки. Календарь человека сам
+ * перечитывает ссылку, поэтому новые встречи появляются у него без действий,
+ * а отменённые (их в ленте больше нет) исчезают.
+ */
+export function buildFeed({ name, events }: { name?: string; events: IcsInput[] }): string {
+  const lines = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//QairuCowork//RU",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+  ];
+  if (name) lines.push(`X-WR-CALNAME:${escapeIcs(name)}`);
+  // Как часто перечитывать ленту — подсказка календарям, которые её понимают.
+  lines.push("REFRESH-INTERVAL;VALUE=DURATION:PT1H", "X-PUBLISHED-TTL:PT1H");
+  for (const event of events) lines.push(...eventLines(event));
+  lines.push("END:VCALENDAR");
   // RFC 5545 требует CRLF
-  return lines.join("\r\n") + "\r\n";
+  return lines.join(CRLF) + CRLF;
 }

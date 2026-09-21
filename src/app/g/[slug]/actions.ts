@@ -4,7 +4,15 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
 import { fmtMinutes } from "@/core/intervals";
-import { chatTz, isDateStr, zonedWallToUtc } from "@/core/timeutils";
+import {
+  type DateStr,
+  addDays,
+  chatTz,
+  isDateStr,
+  todayIn,
+  utcToZonedWall,
+  zonedWallToUtc,
+} from "@/core/timeutils";
 import * as repo from "@/db/repo";
 import { type Chat, ROLE_ADMIN, ROLE_MEMBER, type User } from "@/db/schema";
 import { formatDay, normalizeLang } from "@/i18n";
@@ -19,6 +27,7 @@ import {
   notifyVote,
 } from "@/lib/notify";
 import { afterJoinPath, afterNamePath } from "@/lib/afterJoin";
+import { isOutdated, semesterCutoff } from "@/lib/group";
 
 /** Не чаще раза в 10 минут на одного адресата — напоминание не должно становиться спамом. */
 const REMIND_WINDOW_MS = 10 * 60 * 1000;
@@ -118,6 +127,15 @@ export async function createMeetingAction(slug: string, formData: FormData): Pro
     }
   }
 
+  // Каждую неделю до выбранной даты — не дальше года и не раньше самой встречи.
+  let repeatUntil: string | null = null;
+  const rawUntil = String(formData.get("repeat_until") ?? "");
+  if (whenStart && formData.get("repeat") === "on" && isDateStr(rawUntil)) {
+    const first = utcToZonedWall(whenStart, chatTz(chat)).day;
+    const limit = addDays(first, 366);
+    if (rawUntil >= first) repeatUntil = rawUntil > limit ? limit : rawUntil;
+  }
+
   const members = await repo.chatMembers(chat.chatId);
   const meeting = await repo.createMeeting({
     chatId: chat.chatId,
@@ -127,6 +145,7 @@ export async function createMeetingAction(slug: string, formData: FormData): Pro
     goal: goal.slice(0, 500),
     invitees: members.map((member) => member.userId),
     whenStart,
+    repeatUntil: repeatUntil as DateStr | null,
   });
   // Организатор, очевидно, согласен со своей встречей.
   await repo.setResponse({ meetingId: meeting.id, userId: user.userId, answer: "yes" });
@@ -245,8 +264,14 @@ export async function remindFillAction(slug: string, formData: FormData): Promis
   const rawTarget = String(formData.get("user_id") ?? "").trim();
 
   const members = await repo.chatMembers(chat.chatId);
-  const filled = await repo.filledIds(members.map((member) => member.userId));
-  let targets = members.filter((member) => !filled.has(member.userId) && member.userId !== user.userId);
+  const updated = await repo.scheduleUpdatedAt(members.map((member) => member.userId));
+  const cutoff = semesterCutoff(chat);
+  // Напоминаем и тем, кто не заполнял, и тем, у кого расписание с прошлого семестра.
+  let targets = members.filter(
+    (member) =>
+      member.userId !== user.userId &&
+      (!updated.has(member.userId) || isOutdated(updated.get(member.userId), cutoff)),
+  );
   if (rawTarget) {
     const targetId = Number(rawTarget);
     targets = targets.filter((member) => member.userId === targetId);
@@ -262,6 +287,29 @@ export async function remindFillAction(slug: string, formData: FormData): Promis
 
   const delivery = await notifyFillSchedule(chat, user, fresh);
   back(slug, deliveryParams(delivery), "#members");
+}
+
+/**
+ * Начался новый семестр. Начало семестра становится сегодняшним днём: все
+ * расписания, сохранённые раньше, помечаются устаревшими, а бот просит
+ * каждого обновить своё. Сами расписания не удаляются — по ним считаем,
+ * пока человек не обновит, это лучше пустой карты.
+ */
+export async function newSemesterAction(slug: string): Promise<void> {
+  const { chat, user } = await requireAdmin(slug);
+  const today = todayIn(chatTz(chat));
+  await repo.updateChat(chat.chatId, { semesterStart: today });
+
+  const members = await repo.chatMembers(chat.chatId);
+  const fresh: User[] = [];
+  for (const target of members) {
+    if (target.userId === user.userId) continue;
+    const count = await repo.bumpCounter(`remind:${chat.chatId}:${target.userId}`, REMIND_WINDOW_MS);
+    if (count === 1) fresh.push(target);
+  }
+  const delivery = await notifyFillSchedule({ ...chat, semesterStart: today }, user, fresh, "semester");
+  revalidatePath(`/g/${slug}`);
+  back(slug, { ...deliveryParams(delivery), saved: "semester" }, "#members");
 }
 
 /** Назначить или снять администратора сайта. */

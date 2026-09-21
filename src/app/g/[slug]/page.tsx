@@ -12,18 +12,27 @@ import { MeetingForm } from "@/components/MeetingForm";
 import { ScrollToAnchor } from "@/components/ScrollToAnchor";
 import { StartChecklist } from "@/components/StartChecklist";
 import { fmtMinutes } from "@/core/intervals";
-import { chatTz } from "@/core/timeutils";
+import { chatTz, formatDM, todayIn, utcToZonedWall } from "@/core/timeutils";
 import * as repo from "@/db/repo";
 import { ROLE_ADMIN, displayName, telegramName } from "@/db/schema";
 import { LANG_NAMES, translator } from "@/i18n";
 import { type AdminSource, adminSources } from "@/lib/admin";
 import { pageUser } from "@/lib/gate";
-import { durationOptions, loadGroupState, normalizeWeek, toBoardPayload } from "@/lib/group";
+import {
+  durationOptions,
+  isOutdated,
+  loadGroupState,
+  normalizeWeek,
+  semesterCutoff,
+  toBoardPayload,
+} from "@/lib/group";
+import { feedPath } from "@/lib/calendarFeed";
 import { formatCode } from "@/lib/invite";
 import { baseUrl } from "@/lib/url";
 import {
   cancelMeetingAction,
   changeCodeAction,
+  newSemesterAction,
   createMeetingAction,
   dismissNoticeAction,
   pingNonRespondersAction,
@@ -67,7 +76,11 @@ export default async function GroupPage({
   const t = translator(lang);
   const state = await loadGroupState(chat, { week: normalizeWeek(query.week) });
   const payload = toBoardPayload(state, lang, user.userId);
-  const inviteUrl = `${await baseUrl()}/g/${slug}`;
+  const base = await baseUrl();
+  const inviteUrl = `${base}/g/${slug}`;
+  // Личная лента встреч этой группы для подписки в календаре.
+  const feedUrl = `${base}${feedPath(user.userId, slug)}`;
+  const webcalUrl = feedUrl.replace(/^https?:/, "webcal:");
 
   const roster = await repo.chatRoster(chat.chatId);
   const sources = await adminSources(chat, roster);
@@ -76,13 +89,34 @@ export default async function GroupPage({
   const openMeetings = new Map(state.meetings.map((meeting) => [meeting.id, meeting]));
 
   // Встреча уходит в архив, когда началась: голосовать за прошедшее нечего.
+  const today = todayIn(chatTz(chat));
   const startedAlready = (meeting: (typeof state.meetings)[number]) =>
-    meeting.status === "cancelled" || (meeting.whenStart !== null && meeting.whenStart.getTime() < Date.now());
+    meeting.status === "cancelled" ||
+    (meeting.repeatUntil
+      ? meeting.repeatUntil < today
+      : meeting.whenStart !== null && meeting.whenStart.getTime() < Date.now());
   const upcomingMeetings = state.meetings.filter((meeting) => !startedAlready(meeting));
   const archivedMeetings = state.meetings.filter(startedAlready);
+  // Встречи, на которые тебя позвали, а ты ещё не ответил, — счётчик на вкладке.
+  const awaitingMyAnswer = upcomingMeetings.filter(
+    (meeting) =>
+      meeting.status === "open" &&
+      repo.inviteeIds(meeting).includes(user.userId) &&
+      !(state.responses.get(meeting.id) ?? []).some((answer) => answer.userId === user.userId),
+  ).length;
+
+  // Когда каждый сохранял расписание: старосте видно, кому пора обновить.
+  const updatedAt = await repo.scheduleUpdatedAt(roster.map((entry) => entry.user.userId));
+  const cutoff = semesterCutoff(chat);
+  const outdated = (id: number) => isOutdated(updatedAt.get(id), cutoff);
+  const upToDate = (id: number) => state.filledIds.has(id) && !outdated(id);
+  const updatedLabel = (id: number) => {
+    const at = updatedAt.get(id);
+    return at ? formatDM(utcToZonedWall(at, chatTz(chat)).day) : "";
+  };
 
   const unfilledOthers = roster.filter(
-    (entry) => !state.filledIds.has(entry.user.userId) && entry.user.userId !== user.userId,
+    (entry) => !upToDate(entry.user.userId) && entry.user.userId !== user.userId,
   );
 
   const sent = typeof query.sent === "string" ? /^(\d+)-(\d+)$/.exec(query.sent) : null;
@@ -111,7 +145,9 @@ export default async function GroupPage({
     if (notice.kind === "meeting_change") {
       return t("w_notice_change", { name: from, goal, text: notice.text || "—" });
     }
-    return t("w_notice_fill", { name: from });
+    return notice.text === "semester"
+      ? t("w_notice_semester", { name: from })
+      : t("w_notice_fill", { name: from });
   };
 
   return (
@@ -131,10 +167,13 @@ export default async function GroupPage({
         {/* ============ итог только что сделанного действия — тостом ============ */}
         <FlashToast
           message={
-            sent
-              ? t("w_sent", { tg: sent[1], site: sent[2] })
-              : savedSettings
-                ? t("w_saved_settings")
+            // «Новый семестр» тоже рассылает — но важнее сказать, что именно произошло.
+            query.saved === "semester"
+              ? t("w_semester_started")
+              : sent
+                ? t("w_sent", { tg: sent[1], site: sent[2] })
+                : savedSettings
+                  ? t("w_saved_settings")
                 : query.code === "changed"
                   ? t("w_code_changed")
                   : null
@@ -142,6 +181,15 @@ export default async function GroupPage({
           params={["sent", "saved", "code"]}
         />
         <FlashToast message={errorKey ? t(errorKey) : null} tone="error" params={["err"]} />
+
+        {state.filledIds.has(user.userId) && outdated(user.userId) && (
+          <div className="notice notice-row" role="status">
+            <span>{t("w_my_schedule_stale")}</span>
+            <Link className="btn btn-sm" href={`/g/${slug}/me`}>
+              {t("w_update_schedule")}
+            </Link>
+          </div>
+        )}
 
         {/* Приветствие — не итог действия, а объяснение: остаётся на странице. */}
         {query.welcome === "schedule" && (
@@ -179,13 +227,14 @@ export default async function GroupPage({
           slug={slug}
           lang={lang}
           inviteUrl={inviteUrl}
-          scheduleFilled={state.filledIds.has(user.userId)}
+          scheduleFilled={upToDate(user.userId)}
           hasOthers={roster.length > 1}
           hasMeetings={state.meetings.length > 0}
         />
 
         <GroupTabs
           initial={initialTab}
+          badges={{ meetings: awaitingMyAnswer }}
           labels={{
             time: t("w_tab_time"),
             meetings: t("w_tab_meetings"),
@@ -257,6 +306,9 @@ export default async function GroupPage({
                       whenHint: t("w_when_hint"),
                       create: t("w_create_meeting"),
                       cancel: t("w_cancel"),
+                      repeat: t("w_repeat"),
+                      repeatUntil: t("w_repeat_until"),
+                      repeatHint: t("w_repeat_hint"),
                     }}
                   />
 
@@ -305,6 +357,26 @@ export default async function GroupPage({
                       ))}
                     </details>
                   )}
+
+                  {/* Подписка: встречи сами появляются в календаре и обновляются. */}
+                  <div className="calendar-sub">
+                    <h3>{t("w_cal_title")}</h3>
+                    <p className="small muted">{t("w_cal_lead")}</p>
+                    <div className="dated-actions">
+                      <a
+                        className="btn btn-sm"
+                        href={`https://calendar.google.com/calendar/render?cid=${encodeURIComponent(webcalUrl)}`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {t("w_cal_google")}
+                      </a>
+                      <a className="btn btn-sm" href={webcalUrl}>
+                        {t("w_cal_apple")}
+                      </a>
+                      <CopyButton value={feedUrl} label={t("w_cal_copy")} copiedLabel={t("w_copied")} small />
+                    </div>
+                  </div>
                 </section>
               </>
             ),
@@ -316,7 +388,10 @@ export default async function GroupPage({
                     <h2>
                       {t("w_members")}{" "}
                       <span className="small muted">
-                        {t("w_members_count", { filled: state.filledIds.size, n: roster.length })}
+                        {t("w_members_count", {
+                          filled: roster.filter((entry) => upToDate(entry.user.userId)).length,
+                          n: roster.length,
+                        })}
                       </span>
                     </h2>
                     {isAdmin && unfilledOthers.length > 0 && (
@@ -332,14 +407,15 @@ export default async function GroupPage({
                   <ul className="roster">
                     {roster.map((entry) => {
                       const member = entry.user;
-                      const filled = state.filledIds.has(member.userId);
+                      const filled = upToDate(member.userId);
+                      const stale = state.filledIds.has(member.userId) && outdated(member.userId);
                       const source = sources.get(member.userId);
                       const self = member.userId === user.userId;
                       const siteAdmin = entry.role === ROLE_ADMIN;
                       return (
                         <li className="roster-row" key={member.userId}>
                           <div className="roster-who">
-                            <span className={`dot ${filled ? "ok" : "warn"}`} aria-hidden="true" />
+                            <span className={`dot ${filled ? "ok" : stale ? "stale" : "warn"}`} aria-hidden="true" />
                             <b>{displayName(member)}</b>
                             {/* Главное имя — то, что человек указал сам; рядом
                                 Telegram, чтобы его можно было найти и написать. */}
@@ -348,9 +424,18 @@ export default async function GroupPage({
                             )}
                             {self && <span className="small muted">({t("w_you")})</span>}
                             {source && <span className="badge">{roleLabel(source)}</span>}
-                            <span className="small muted">
-                              {filled ? t("w_filled") : t("w_not_filled")}
-                            </span>
+                            {stale ? (
+                              <span className="badge stale">{t("w_schedule_stale")}</span>
+                            ) : (
+                              <span className="small muted">
+                                {filled ? t("w_filled") : t("w_not_filled")}
+                              </span>
+                            )}
+                            {updatedLabel(member.userId) && (
+                              <span className="small muted">
+                                {t("w_updated_on", { date: updatedLabel(member.userId) })}
+                              </span>
+                            )}
                           </div>
 
                           {isAdmin && !self && (
@@ -449,6 +534,7 @@ export default async function GroupPage({
                       </ul>
                   </>
                 ) : (
+                  <>
                   <form action={saveSettingsAction.bind(null, slug)} className="settings-form">
                     {/* У каждого поля своя подпись: раньше у «до» её не было вовсе. */}
                     <fieldset className="field">
@@ -529,6 +615,18 @@ export default async function GroupPage({
                       {t("w_save_settings")}
                     </button>
                   </form>
+
+                  {/* Новый семестр — редкое и заметное действие, отдельно от формы. */}
+                  <div className="semester-box">
+                    <h3>{t("w_semester_new_title")}</h3>
+                    <p className="small muted">{t("w_semester_new_lead")}</p>
+                    <form action={newSemesterAction.bind(null, slug)}>
+                      <ConfirmSubmit className="btn" confirm={t("w_semester_new_confirm")}>
+                        {t("w_semester_new_btn")}
+                      </ConfirmSubmit>
+                    </form>
+                  </div>
+                  </>
                 )}
               </section>
               </>

@@ -213,6 +213,12 @@ export const meetings = pgTable(
     // На Vercel нет живого процесса с JobQueue: напоминание рассылает cron,
     // и этот флаг не даёт отправить его дважды.
     reminderSent: boolean("reminder_sent").notNull().default(false),
+    // Повторяющаяся встреча: каждую неделю в тот же день и час до этой даты
+    // включительно (в поясе группы). null — встреча разовая.
+    repeatUntil: date("repeat_until"),
+    // Начало повтора, о котором уже напомнили. Одного флага reminder_sent
+    // повторяющейся встрече мало: напоминать нужно перед каждым повтором.
+    remindedStart: timestamp("reminded_start", { withTimezone: true }),
     createdAt: createdAt(),
   },
   (table) => [index("ix_meetings_chat_id").on(table.chatId)],

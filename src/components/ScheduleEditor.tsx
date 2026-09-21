@@ -22,6 +22,10 @@ export type EditorLabels = {
   undo: string;
   clear: string;
   busyTotal: string; // «Занято {h} ч в неделю»
+  tplTitle: string;
+  tplEvenings: string;
+  tplWeekendFree: string;
+  tplWeekendBusy: string;
   chooseTitle: string;
   chooseLead: string;
   choosePhoto: string;
@@ -386,6 +390,20 @@ export function ScheduleEditor({
     apply(keys, !allBusy);
   }
 
+  /**
+   * Частые случаи одним нажатием. Каждый шаблон — обычное действие с сеткой:
+   * его можно отменить и поправить руками, сохраняется он сам.
+   */
+  function applyTemplate(kind: "evenings" | "weekendFree" | "weekendBusy") {
+    const weekdays = kind === "evenings" ? [0, 1, 2, 3, 4] : [5, 6];
+    const rows = kind === "evenings" ? periods.filter((period) => period.start >= 18 * 60) : periods;
+    const keys = weekdays.flatMap((weekday) => rows.map((period) => cellKey(weekday, period.start)));
+    if (keys.length === 0) return;
+    pushHistory();
+    haptic("press");
+    apply(keys, kind !== "weekendFree");
+  }
+
   function clearAll() {
     pushHistory();
     apply(
@@ -675,6 +693,19 @@ export function ScheduleEditor({
       {fileInput}
       <section className="card">
         <p className="small muted">{labels.paintHint}</p>
+
+        <div className="templates">
+          <span className="small muted">{labels.tplTitle}</span>
+          <button type="button" className="btn btn-sm" onClick={() => applyTemplate("evenings")}>
+            {labels.tplEvenings}
+          </button>
+          <button type="button" className="btn btn-sm" onClick={() => applyTemplate("weekendFree")}>
+            {labels.tplWeekendFree}
+          </button>
+          <button type="button" className="btn btn-sm" onClick={() => applyTemplate("weekendBusy")}>
+            {labels.tplWeekendBusy}
+          </button>
+        </div>
 
         {reviewing && preview && (
           <div className="notice review-bar" role="status">

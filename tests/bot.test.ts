@@ -489,6 +489,47 @@ describe("код группы в личке", () => {
   });
 });
 
+describe("повторяющиеся встречи", () => {
+  it("напоминание приходит перед каждым повтором, но один раз", async () => {
+    const repo = await import("@/db/repo");
+    const { sendDueReminders } = await import("@/bot/handlers/meeting");
+    const { addDays, todayIn } = await import("@/core/timeutils");
+
+    await repo.updateChat(GROUP_ID, { reminderMin: 30 });
+    // Серия началась неделю назад; следующий повтор — через 20 минут.
+    // Встречи — с точностью до минуты, как и выбор времени на сайте.
+    const nextStart = new Date(Math.floor((Date.now() + 20 * 60_000) / 60_000) * 60_000);
+    const first = new Date(nextStart.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const meeting = await repo.createMeeting({
+      chatId: GROUP_ID,
+      initiatorId: AMIR.id,
+      place: "Аудитория 305",
+      whenText: "по средам",
+      goal: "Консультация",
+      invitees: [AMIR.id, ASEL.id],
+      whenStart: first,
+      repeatUntil: addDays(todayIn("Asia/Almaty"), 60),
+    });
+
+    stub.reset();
+    const firstRun = await sendDueReminders();
+    expect(firstRun).toBeGreaterThanOrEqual(1);
+    expect(stub.lastText()).toContain("Консультация");
+
+    const saved = await repo.getMeeting(meeting.id);
+    expect(saved!.remindedStart?.getTime()).toBe(nextStart.getTime());
+    // Флаг разовой встречи серия не трогает — иначе следующий повтор остался бы без напоминания.
+    expect(saved!.reminderSent).toBe(false);
+
+    // Повторный запуск cron по тому же повтору ничего не шлёт.
+    stub.reset();
+    await sendDueReminders();
+    expect(stub.of("sendMessage").some((call) => String(call.payload.text).includes("Консультация"))).toBe(false);
+
+    await repo.updateMeeting(meeting.id, { status: "cancelled" });
+  });
+});
+
 describe("напоминания", () => {
   it("уходят один раз и зовут тех, кто согласился", async () => {
     const repo = await import("@/db/repo");

@@ -607,6 +607,23 @@ p {
 .sidebar-sub .sidebar-link.active {
   background: var(--surface);
 }
+/* Счётчик «ждёт тебя» у группы: встречи без ответа и непрочитанное. */
+.count-badge {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  margin-left: auto;
+  border-radius: var(--r-full);
+  background: var(--accent);
+  color: var(--accent-text);
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
 .sidebar-title {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1054,6 +1071,15 @@ img.pp-avatar {
   font-size: 17px;
   line-height: 22px;
   font-weight: 600;
+}
+
+/* --- быстрые шаблоны над сеткой --- */
+.templates {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 4px 0 12px;
 }
 
 /* --- проверка импорта над сеткой --- */
@@ -1757,6 +1783,22 @@ table.week td.cell.meeting {
   border-radius: var(--r-lg);
 }
 
+/* Дата конца серии — под галочкой, с отступом как у её подписи. */
+.repeat-until {
+  max-width: 240px;
+  margin: 4px 0 0 26px;
+}
+
+/* --- подписка на календарь группы --- */
+.calendar-sub {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.calendar-sub .dated-actions {
+  margin-top: 8px;
+}
+
 /* --- «С чего начать» --- */
 .start-list {
   list-style: none;
@@ -1904,6 +1946,20 @@ table.week td.cell.meeting {
   background: var(--surface-2);
   color: var(--muted);
 }
+/* Расписание с прошлого семестра: не «нет», но и не «готово». */
+.dot.stale {
+  background: var(--warning);
+}
+.badge.stale {
+  background: color-mix(in srgb, var(--warning) 22%, transparent);
+  color: var(--text);
+}
+.semester-box {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  max-width: 560px;
+}
 .badge.ok {
   background: color-mix(in srgb, var(--success) 14%, transparent);
   color: var(--success);
@@ -1946,6 +2002,14 @@ table.week td.cell.meeting {
   background: var(--ink);
   border-color: var(--ink);
   color: var(--ink-text);
+}
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.tab .count-badge {
+  margin-left: 0;
 }
 /* На телефоне четыре вкладки должны помещаться целиком: «Настройки»
    обрезались справа, и не было видно, что вкладки можно листать. */
@@ -2624,6 +2688,18 @@ table.week.demo-week td.timecol.period {
    (главная кнопка внизу, «назад» в шапке) — свои прячем. */
 html[data-tg] .tg-hide {
   display: none !important;
+}
+
+/* Предложение ярлыка: без отступов обёртки, когда его нет. */
+.home-screen-wrap {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.home-screen-wrap:empty {
+  display: none;
+}
+.home-screen {
+  margin: 16px 0 0;
 }
 
 /* --- полоска загрузки при переходе между страницами --- */

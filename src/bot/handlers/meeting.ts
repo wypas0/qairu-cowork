@@ -6,9 +6,18 @@ import { computeAvailability, parityFromSemesterStart, topSlots } from "@/core/a
 import { buildIcs } from "@/core/calendar";
 import { fmtInterval } from "@/core/intervals";
 import { escapeHtml } from "@/core/textutils";
-import { type DateStr, chatTz, todayIn, zonedWallToUtc } from "@/core/timeutils";
+import { nextOccurrence } from "@/core/recurrence";
+import {
+  type DateStr,
+  addDays,
+  chatTz,
+  formatDM,
+  todayIn,
+  utcToZonedWall,
+  zonedWallToUtc,
+} from "@/core/timeutils";
 import * as repo from "@/db/repo";
-import type { User } from "@/db/schema";
+import type { Chat, Meeting, User } from "@/db/schema";
 import { formatDay, t } from "@/i18n";
 import { isGroupAdmin, isTelegramChat } from "@/lib/admin";
 import {
@@ -332,7 +341,11 @@ export async function renderCard(
     .map((id) => byId.get(id)!);
 
   const place = escapeHtml(meeting.place) || "—";
-  const when = escapeHtml(meeting.whenText) || "—";
+  // Для серии текст времени хранит только первую дату — дописываем повтор.
+  const repeat = meeting.repeatUntil
+    ? ` · ${t(lang, "repeat_suffix", { until: formatDM(meeting.repeatUntil as DateStr) })}`
+    : "";
+  const when = (escapeHtml(meeting.whenText) || "—") + repeat;
   const goal = escapeHtml(meeting.goal) || "—";
 
   if (meeting.status === "cancelled") {
@@ -622,10 +635,28 @@ export async function onChangeReply(message: TgMessage): Promise<boolean> {
  * отправить одно и то же напоминание дважды.
  */
 export async function sendDueReminders(now = new Date()): Promise<number> {
-  const due = await repo.meetingsDueForReminder(now);
+  const due: { meeting: Meeting; chat: Chat; when: string }[] = (
+    await repo.meetingsDueForReminder(now)
+  ).map(({ meeting, chat }) => ({ meeting, chat, when: meeting.whenText }));
+
+  // Серии: напоминаем перед ближайшим повтором, если до него осталось не больше
+  // порога группы и о нём ещё не напоминали.
+  // День назад по UTC — с запасом на пояса: в последний день серии она ещё живая.
+  for (const { meeting, chat } of await repo.recurringReminderCandidates(addDays(todayIn("UTC"), -1))) {
+    const tz = chatTz(chat);
+    const next = nextOccurrence(meeting.whenStart!, meeting.repeatUntil as DateStr, tz, now);
+    if (!next || next.getTime() - now.getTime() > chat.reminderMin * 60_000) continue;
+    if (meeting.remindedStart && meeting.remindedStart.getTime() === next.getTime()) continue;
+    const wall = utcToZonedWall(next, tz);
+    const minutes = `${String(Math.floor(wall.minutes / 60)).padStart(2, "0")}:${String(wall.minutes % 60).padStart(2, "0")}`;
+    due.push({ meeting, chat, when: `${formatDay(chat.lang, wall.day)} · ${minutes}` });
+    // Отмечаем именно этот повтор: следующий получит своё напоминание.
+    await repo.updateMeeting(meeting.id, { remindedStart: next });
+  }
+
   let sent = 0;
 
-  for (const { meeting, chat } of due) {
+  for (const { meeting, chat, when } of due) {
     const responses = await repo.meetingResponsesFor(meeting.id);
     const saidYes = responses.filter((row) => row.answer === "yes").map((row) => row.userId);
     const targetIds = saidYes.length ? saidYes : repo.inviteeIds(meeting);
@@ -633,7 +664,7 @@ export async function sendDueReminders(now = new Date()): Promise<number> {
     const ordered = targetIds.filter((id) => byId.has(id)).map((id) => byId.get(id)!);
 
     // Флаг ставим до отправки: повторное напоминание хуже пропущенного.
-    await repo.updateMeeting(meeting.id, { reminderSent: true });
+    if (!meeting.repeatUntil) await repo.updateMeeting(meeting.id, { reminderSent: true });
 
     // Группа с сайта: общего чата нет — напоминаем каждому лично.
     if (!isTelegramChat(chat)) {
@@ -649,7 +680,7 @@ export async function sendDueReminders(now = new Date()): Promise<number> {
               minutes: chat.reminderMin,
               chat: escapeHtml(chat.title) || "—",
               place: escapeHtml(meeting.place) || "—",
-              when: escapeHtml(meeting.whenText) || "—",
+              when: escapeHtml(when) || "—",
               goal: escapeHtml(meeting.goal) || "—",
             }),
             parse_mode: "HTML",
@@ -669,7 +700,7 @@ export async function sendDueReminders(now = new Date()): Promise<number> {
         chat_id: meeting.chatId,
         text: t(chat.lang, "meeting_reminder", {
           minutes: chat.reminderMin,
-          when: escapeHtml(meeting.whenText) || "—",
+          when: escapeHtml(when) || "—",
           place: escapeHtml(meeting.place) || "—",
           goal: escapeHtml(meeting.goal) || "—",
           names: mentionList(ordered),

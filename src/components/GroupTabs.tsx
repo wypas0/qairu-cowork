@@ -25,10 +25,13 @@ export function GroupTabs({
   labels,
   initial,
   panels,
+  badges = {},
 }: {
   labels: GroupTabLabels;
   initial: GroupTabKey;
   panels: Record<GroupTabKey, React.ReactNode>;
+  /** Сколько ждёт внимания в разделе — например, встречи без твоего ответа. */
+  badges?: Partial<Record<GroupTabKey, number>>;
 }) {
   const [active, setActive] = useState<GroupTabKey>(initial);
 
@@ -61,6 +64,7 @@ export function GroupTabs({
             onClick={() => setActive(key)}
           >
             {labels[key]}
+            {badges[key] ? <span className="count-badge">{badges[key]}</span> : null}
           </button>
         ))}
       </div>

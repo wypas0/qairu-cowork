@@ -7,6 +7,7 @@ import { currentUser } from "@/lib/auth";
 import { hasBot } from "@/lib/config";
 import { THEME_COOKIE, normalizeTheme } from "@/lib/theme";
 import type { ProfileGroup, ProfilePanelProps, ProfileUser } from "./ProfilePanel";
+import { RECENT_COOKIE, parseRecent } from "@/lib/cookies";
 
 /**
  * Данные для панели профиля. Панель открывается и из шапки на телефоне, и из
@@ -30,11 +31,7 @@ export async function profilePanelProps(langOverride?: string): Promise<ProfileP
       login: credentials?.login ?? null,
       avatarUrl: avatar ? `/api/avatar/${user.userId}?v=${avatar}` : null,
     };
-    const chats = await repo.userChats(user.userId);
-    groups = chats
-      .filter((chat) => chat.slug)
-      .map((chat) => ({ chatId: chat.chatId, slug: chat.slug!, title: chat.title }))
-      .sort((a, b) => a.title.localeCompare(b.title, lang));
+    groups = await userGroups(user.userId, lang);
   }
 
   const theme = normalizeTheme((await cookies()).get(THEME_COOKIE)?.value);
@@ -85,4 +82,28 @@ export async function profilePanelProps(langOverride?: string): Promise<ProfileP
     themeDark: t("w_pp_theme_dark"),
     },
   };
+}
+
+/**
+ * Группы человека в том порядке, в каком их удобно выбирать: сначала те, где
+ * он был недавно (по куке последних групп), потом остальные по алфавиту.
+ * У каждой — сколько там его ждёт.
+ */
+export async function userGroups(userId: number, lang: string): Promise<ProfileGroup[]> {
+  const chats = await repo.userChats(userId);
+  const pending = await repo.pendingCounts(userId);
+  const recent = parseRecent((await cookies()).get(RECENT_COOKIE)?.value);
+  const rank = (slug: string) => {
+    const index = recent.indexOf(slug);
+    return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+  };
+  return chats
+    .filter((chat) => chat.slug)
+    .map((chat) => ({
+      chatId: chat.chatId,
+      slug: chat.slug!,
+      title: chat.title,
+      pending: pending.get(chat.chatId) ?? 0,
+    }))
+    .sort((a, b) => rank(a.slug) - rank(b.slug) || a.title.localeCompare(b.title, lang));
 }

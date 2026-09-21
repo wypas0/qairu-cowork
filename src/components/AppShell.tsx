@@ -4,6 +4,7 @@ import { translator } from "@/i18n";
 import { BrandMark, IconCalendarUser, IconMeeting, IconPlus } from "./icons";
 import { ProfilePanel } from "./ProfilePanel";
 import { profilePanelProps } from "./profilePanelProps";
+import { HomeScreenPrompt } from "./TelegramHome";
 import { Topbar } from "./Topbar";
 
 /** Какой раздел группы открыт — подсвечивается и в сайдбаре, и в нижней панели. */
@@ -66,6 +67,11 @@ export async function AppShell({
                     {group.title.trim()[0]?.toUpperCase() ?? "?"}
                   </span>
                   <span className="sidebar-title">{group.title}</span>
+                  {group.pending ? (
+                    <span className="count-badge" aria-label={t("w_pending_label", { n: String(group.pending) })}>
+                      {group.pending}
+                    </span>
+                  ) : null}
                 </Link>
                 <div className="sidebar-sub">
                   {links.map((link) => (
@@ -87,6 +93,11 @@ export async function AppShell({
                   {group.title.trim()[0]?.toUpperCase() ?? "?"}
                 </span>
                 <span className="sidebar-title">{group.title}</span>
+                {group.pending ? (
+                  <span className="count-badge" aria-label={t("w_pending_label", { n: String(group.pending) })}>
+                    {group.pending}
+                  </span>
+                ) : null}
               </Link>
             ),
           )}
@@ -105,6 +116,11 @@ export async function AppShell({
 
       <div className="shell-main">
         <Topbar lang={lang} panel={panel} />
+        <div className="wrap home-screen-wrap">
+          <HomeScreenPrompt
+            labels={{ text: t("w_home_screen"), add: t("w_home_screen_add"), later: t("w_home_screen_later") }}
+          />
+        </div>
         {children}
         <nav className="bottomnav" aria-label={title}>
           {links.map((link) => (

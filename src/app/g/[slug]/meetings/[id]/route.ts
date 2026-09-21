@@ -1,4 +1,6 @@
 import { buildIcs } from "@/core/calendar";
+import { weeklyRule } from "@/core/recurrence";
+import { type DateStr, chatTz } from "@/core/timeutils";
 import * as repo from "@/db/repo";
 
 export const dynamic = "force-dynamic";
@@ -35,6 +37,7 @@ export async function GET(
     durationMin: 90,
     location: meeting.place,
     description: meeting.goal,
+    rrule: meeting.repeatUntil ? weeklyRule(meeting.repeatUntil as DateStr, chatTz(chat)) : undefined,
   });
 
   return new Response(payload, {

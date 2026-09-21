@@ -15,7 +15,13 @@ import type { Theme } from "@/lib/theme";
 import { IconCheck, IconChevronLeft, IconChevronRight, IconClose } from "./icons";
 import { ThemeSwitch } from "./ThemeSwitch";
 
-export type ProfileGroup = { chatId: number; slug: string; title: string };
+export type ProfileGroup = {
+  chatId: number;
+  slug: string;
+  title: string;
+  /** Сколько здесь ждёт человека: встречи без ответа и непрочитанное. */
+  pending?: number;
+};
 
 export type ProfileUser = {
   name: string;
@@ -485,6 +491,7 @@ export function ProfilePanel({ user, groups, theme, botEnabled, labels }: Profil
                                 {(group.title.trim()[0] ?? "#").toUpperCase()}
                               </span>
                               <span className="pp-group-title">{group.title}</span>
+                              {group.pending ? <span className="count-badge">{group.pending}</span> : null}
                             </Link>
                             <form
                               action={leaveGroupAction.bind(null, group.slug)}
