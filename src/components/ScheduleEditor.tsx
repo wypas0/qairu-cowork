@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import type { Period } from "@/core/grid";
 import { periodOverlaps } from "@/core/grid";
 import { haptic, whenReady } from "@/lib/telegram";
-import { IconCheck } from "./icons";
+import { IconCamera, IconCheck, IconChevronRight, IconGrid, IconText } from "./icons";
 import { BreakRow, PeriodTime, hhmm } from "./PeriodRow";
 import { TelegramMainButton } from "./TelegramButtons";
 import { toast } from "./toast";
@@ -21,7 +21,14 @@ export type EditorLabels = {
   undo: string;
   clear: string;
   busyTotal: string; // «Занято {h} ч в неделю»
-  importFirst: string;
+  chooseTitle: string;
+  chooseLead: string;
+  choosePhoto: string;
+  choosePhotoHint: string;
+  chooseText: string;
+  chooseTextHint: string;
+  chooseManual: string;
+  chooseManualHint: string;
   importTitle: string;
   importTitleFirst: string;
   importHint: string;
@@ -183,8 +190,13 @@ export function ScheduleEditor({
   const [photoWorking, setPhotoWorking] = useState(false);
   const photoRef = useRef<HTMLInputElement>(null);
 
-  // Первый раз расписание заполняют импортом: с пустой сеткой он идёт первым.
+  // Первый раз расписание заполняют не сразу сеткой: сперва человек выбирает
+  // способ, и редактор открывается тем путём, который он выбрал.
   const startedEmpty = useRef(initialBusy.length === 0);
+  const [mode, setMode] = useState<"choose" | "photo" | "text" | "manual">(() =>
+    initialBusy.length === 0 ? "choose" : "manual",
+  );
+  const textRef = useRef<HTMLTextAreaElement>(null);
   const painting = useRef(false);
   const paintTo = useRef(true);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -444,6 +456,23 @@ export function ScheduleEditor({
     return () => window.removeEventListener("keydown", onKey);
   }, [undo]);
 
+  // Выбрали «текстом» — сразу ставим курсор в поле; «вручную» — показываем сетку.
+  useEffect(() => {
+    if (mode === "text") {
+      textRef.current?.scrollIntoView({ block: "center" });
+      textRef.current?.focus();
+    } else if (mode === "manual" && startedEmpty.current) {
+      rootRef.current?.scrollIntoView({ block: "start" });
+    }
+  }, [mode]);
+
+  function choosePhoto() {
+    setMode("photo");
+    // Окно выбора файла открываем прямо в обработчике нажатия: иначе браузер
+    // на телефоне сочтёт его открытым не человеком и не покажет.
+    photoRef.current?.click();
+  }
+
   /**
    * Раскрасить сетку по распознанным парам, ничего не сохраняя: распознавание
    * ошибается, поэтому человек сначала видит результат, может поправить клетки
@@ -592,8 +621,53 @@ export function ScheduleEditor({
         10,
     ) / 10;
 
+  const fileInput = photoEnabled ? (
+    <input
+      ref={photoRef}
+      type="file"
+      accept={ACCEPT}
+      multiple
+      hidden
+      onChange={(event) => void runPhotoImport([...(event.target.files ?? [])])}
+    />
+  ) : null;
+
+  // Первый экран: три понятных пути вместо трёх равноправных карточек сразу.
+  if (mode === "choose") {
+    const options = [
+      photoEnabled
+        ? { key: "photo", Icon: IconCamera, title: labels.choosePhoto, hint: labels.choosePhotoHint, onClick: choosePhoto }
+        : null,
+      { key: "text", Icon: IconText, title: labels.chooseText, hint: labels.chooseTextHint, onClick: () => setMode("text") },
+      { key: "manual", Icon: IconGrid, title: labels.chooseManual, hint: labels.chooseManualHint, onClick: () => setMode("manual") },
+    ].filter((option) => option !== null);
+
+    return (
+      <section className="card">
+        {fileInput}
+        <h2>{labels.chooseTitle}</h2>
+        <p className="small muted">{labels.chooseLead}</p>
+        <ul className="choose-list">
+          {options.map((option) => (
+            <li key={option.key}>
+              <button type="button" className="choose-row" onClick={option.onClick}>
+                <option.Icon size={22} />
+                <span className="choose-text">
+                  <b>{option.title}</b>
+                  <span className="small muted">{option.hint}</span>
+                </span>
+                <IconChevronRight className="muted" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      </section>
+    );
+  }
+
   return (
-    <div className={`grid-2${startedEmpty.current ? " import-first" : ""}`}>
+    <div className={`grid-2${mode === "photo" || mode === "text" ? " import-first" : ""}`}>
+      {fileInput}
       <section className="card">
         <p className="small muted">{labels.paintHint}</p>
 
@@ -725,17 +799,8 @@ export function ScheduleEditor({
       <div>
         {photoEnabled && (
           <section className="card">
-            {startedEmpty.current && <p className="eyebrow">{labels.importFirst}</p>}
             <h2>{labels.photoTitle}</h2>
             <p className="small muted">{labels.photoHint}</p>
-            <input
-              ref={photoRef}
-              type="file"
-              accept={ACCEPT}
-              multiple
-              hidden
-              onChange={(event) => void runPhotoImport([...(event.target.files ?? [])])}
-            />
             <button
               className="btn btn-primary"
               type="button"
@@ -753,15 +818,11 @@ export function ScheduleEditor({
         )}
 
         <section className="card">
-          {startedEmpty.current && !photoEnabled && (
-            <p className="eyebrow">{labels.importFirst}</p>
-          )}
-          {/* Заголовок «Или…» уместен, только когда блок идёт вторым. */}
-          <h2>
-            {startedEmpty.current && !photoEnabled ? labels.importTitleFirst : labels.importTitle}
-          </h2>
+          {/* «Или…» уместно, только когда над этим блоком есть загрузка файла. */}
+          <h2>{photoEnabled ? labels.importTitle : labels.importTitleFirst}</h2>
           <p className="small muted">{labels.importHint}</p>
           <textarea
+            ref={textRef}
             value={importText}
             onChange={(event) => setImportText(event.target.value)}
             placeholder={labels.importPlaceholder}

@@ -204,3 +204,32 @@ export function IconPlus(props: IconProps) {
     </Icon>
   );
 }
+
+/** Скриншот или файл расписания. */
+export function IconCamera(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z" />
+      <circle cx="12" cy="13" r="3.5" />
+    </Icon>
+  );
+}
+
+/** Расписание текстом. */
+export function IconText(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 6h16M4 12h16M4 18h10" />
+    </Icon>
+  );
+}
+
+/** Сетка недели — отметить руками. */
+export function IconGrid(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="3" y="3" width="18" height="18" rx="3" />
+      <path d="M3 9h18M3 15h18M9 3v18M15 3v18" />
+    </Icon>
+  );
+}

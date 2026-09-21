@@ -967,11 +967,60 @@ img.pp-avatar {
   margin-left: auto;
 }
 
-/* Первое заполнение начинается с импорта: руками рисовать всю неделю долго. */
-@media (min-width: 900px) {
-  .grid-2.import-first > :first-child {
-    order: 2;
-  }
+/* Выбрали на первом экране фото или текст — этот путь идёт первым на любой
+   ширине, а сетка ниже служит для проверки и правки результата. */
+.grid-2.import-first > :first-child {
+  order: 2;
+}
+
+/* --- первый экран «Как внести пары?» --- */
+/* Строки с волосяными линиями, иконка без кружка — по дизайн-коду. */
+.choose-list {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  overflow: hidden;
+}
+.choose-list li + li {
+  border-top: 1px solid var(--border);
+}
+.choose-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 16px 18px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 150ms var(--ease);
+}
+.choose-row:hover {
+  background: color-mix(in srgb, var(--hover) 60%, transparent);
+}
+.choose-row:active {
+  background: var(--hover);
+  transition-duration: 0ms;
+}
+/* Кобальт — только для действия, иконка наследует спокойный цвет. */
+.choose-row > .icon:first-child {
+  color: var(--muted);
+}
+.choose-text {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+.choose-text b {
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 600;
 }
 
 /* --- проверка импорта над сеткой --- */
