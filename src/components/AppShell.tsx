@@ -34,6 +34,10 @@ export async function AppShell({
   const t = translator(lang);
   const panel = await profilePanelProps(lang);
 
+  const groups = panel.groups.some((group) => group.slug === slug)
+    ? panel.groups
+    : [{ chatId: 0, slug, title }, ...panel.groups];
+
   const links = [
     { key: "group" as const, href: `/g/${slug}`, label: t("w_nav_group"), Icon: IconMeeting },
     { key: "me" as const, href: `/g/${slug}/me`, label: t("w_nav_me"), Icon: IconCalendarUser },
@@ -49,37 +53,44 @@ export async function AppShell({
           </span>
         </Link>
 
-        <p className="eyebrow sidebar-eyebrow">{title}</p>
-        <nav className="sidebar-nav">
-          {links.map((link) => (
-            <Link
-              key={link.key}
-              className={`sidebar-link${section === link.key ? " active" : ""}`}
-              href={link.href}
-            >
-              <link.Icon size={18} />
-              {link.label}
-            </Link>
-          ))}
+        {/* Все группы одним списком. Текущая не пропадает из него, а выделяется,
+            и её разделы раскрыты прямо под ней — как рабочие пространства
+            в Slack или Notion: сразу видно, где ты и куда можно перейти. */}
+        <p className="eyebrow sidebar-eyebrow">{t("w_my_groups")}</p>
+        <nav className="sidebar-nav" aria-label={t("w_my_groups")}>
+          {groups.map((group) =>
+            group.slug === slug ? (
+              <div className="sidebar-current" key={group.chatId}>
+                <Link className="sidebar-link sidebar-group current" href={`/g/${group.slug}`}>
+                  <span className="sidebar-mark" aria-hidden="true">
+                    {group.title.trim()[0]?.toUpperCase() ?? "?"}
+                  </span>
+                  <span className="sidebar-title">{group.title}</span>
+                </Link>
+                <div className="sidebar-sub">
+                  {links.map((link) => (
+                    <Link
+                      key={link.key}
+                      className={`sidebar-link${section === link.key ? " active" : ""}`}
+                      href={link.href}
+                      aria-current={section === link.key ? "page" : undefined}
+                    >
+                      <link.Icon size={18} />
+                      {link.label}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <Link className="sidebar-link sidebar-group" key={group.chatId} href={`/g/${group.slug}`}>
+                <span className="sidebar-mark" aria-hidden="true">
+                  {group.title.trim()[0]?.toUpperCase() ?? "?"}
+                </span>
+                <span className="sidebar-title">{group.title}</span>
+              </Link>
+            ),
+          )}
         </nav>
-
-        {panel.groups.length > 1 && (
-          <>
-            <p className="eyebrow sidebar-eyebrow">{t("w_my_groups")}</p>
-            <nav className="sidebar-nav">
-              {panel.groups
-                .filter((group) => group.slug !== slug)
-                .map((group) => (
-                  <Link className="sidebar-link" key={group.chatId} href={`/g/${group.slug}`}>
-                    <span className="sidebar-mark" aria-hidden="true">
-                      {group.title.trim()[0]?.toUpperCase() ?? "?"}
-                    </span>
-                    <span className="sidebar-title">{group.title}</span>
-                  </Link>
-                ))}
-            </nav>
-          </>
-        )}
 
         <Link className="sidebar-link sidebar-create" href="/#create">
           <IconPlus size={18} />

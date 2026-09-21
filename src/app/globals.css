@@ -576,6 +576,37 @@ p {
   font-size: 11px;
   font-weight: 600;
 }
+/* Текущая группа: строка выделена, её знак — кобальтовый, разделы раскрыты под ней. */
+.sidebar-current {
+  display: grid;
+  gap: 2px;
+  padding: 4px;
+  margin: 0 -4px;
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+}
+.sidebar-group.current {
+  font-weight: 600;
+}
+.sidebar-group.current:hover {
+  background: transparent;
+}
+.sidebar-group.current .sidebar-mark {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+.sidebar-sub {
+  display: grid;
+  gap: 2px;
+  padding-left: 14px;
+}
+.sidebar-sub .sidebar-link {
+  height: 34px;
+  font-size: 13px;
+}
+.sidebar-sub .sidebar-link.active {
+  background: var(--surface);
+}
 .sidebar-title {
   overflow: hidden;
   text-overflow: ellipsis;
