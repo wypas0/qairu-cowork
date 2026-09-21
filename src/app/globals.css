@@ -974,6 +974,32 @@ img.pp-avatar {
   }
 }
 
+/* --- проверка импорта над сеткой --- */
+.review-bar {
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+
+/* --- разовая занятость в два нажатия --- */
+.dated-quick {
+  margin: 4px 0 20px;
+}
+.dated-details {
+  margin-top: 16px;
+}
+.dated-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+.dated-list {
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
 /* --- заголовок карточки с кнопкой справа --- */
 .card-head {
   display: flex;

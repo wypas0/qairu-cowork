@@ -27,6 +27,10 @@ export type EditorLabels = {
   importHint: string;
   importBtn: string;
   importParsed: string;
+  importReview: string; // «Распознали пар: {n}…»
+  importSave: string;
+  importCancel: string;
+  importPending: string;
   importFailed: string;
   importPlaceholder: string;
   legendFree: string;
@@ -170,6 +174,11 @@ export function ScheduleEditor({
   const [importText, setImportText] = useState("");
   const [importing, setImporting] = useState(false);
   const [preview, setPreview] = useState<{ slots: ParsedSlot[]; errors: string[] } | null>(null);
+  // Распознанное с фото или из текста ждёт проверки: пока человек не нажал
+  // «Сохранить», автосохранение молчит. Снимок — чтобы «Отменить импорт»
+  // вернул сетку ровно к тому, что было до него.
+  const [reviewing, setReviewing] = useState(false);
+  const beforeImport = useRef<{ busy: Set<string>; dirty: boolean } | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [photoWorking, setPhotoWorking] = useState(false);
   const photoRef = useRef<HTMLInputElement>(null);
@@ -418,10 +427,10 @@ export function ScheduleEditor({
   useEffect(() => {
     // После неудачи ждём нажатия «Повторить»: иначе автосохранение будет
     // молча долбить сервер по кругу.
-    if (!dirty || saving || failedSave) return;
+    if (!dirty || saving || failedSave || reviewing) return;
     const timer = setTimeout(() => void save(), 800);
     return () => clearTimeout(timer);
-  }, [dirty, saving, failedSave, save]);
+  }, [dirty, saving, failedSave, reviewing, save]);
 
   // Отмена последнего действия с клавиатуры — привычное сочетание.
   useEffect(() => {
@@ -436,9 +445,10 @@ export function ScheduleEditor({
   }, [undo]);
 
   /**
-   * Раскрасить сетку по распознанным парам, ничего не сохраняя: человек
-   * сначала видит результат и только потом жмёт «Сохранить».
-   * Клетка занята, если пара задевает её хотя бы частично.
+   * Раскрасить сетку по распознанным парам, ничего не сохраняя: распознавание
+   * ошибается, поэтому человек сначала видит результат, может поправить клетки
+   * и только потом жмёт «Сохранить». Клетка занята, если пара задевает её хотя
+   * бы частично.
    */
   function applyParsed(slots: ParsedSlot[], errors: string[]) {
     const next = new Set<string>();
@@ -447,10 +457,32 @@ export function ScheduleEditor({
         if (periodOverlaps(period, slot.start, slot.end)) next.add(cellKey(slot.weekday, period.start));
       }
     }
+    // Повторный импорт поверх непроверенного сравниваем с исходной сеткой, а не с черновиком.
+    if (!reviewing) beforeImport.current = { busy: new Set(busy), dirty };
     pushHistory();
     setBusy(next);
     setDirty(true);
+    setReviewing(true);
     setPreview({ slots, errors });
+    rootRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }
+
+  function confirmImport() {
+    setReviewing(false);
+    beforeImport.current = null;
+    haptic("ok");
+    void save();
+  }
+
+  function cancelImport() {
+    const snapshot = beforeImport.current;
+    if (snapshot) {
+      setBusy(snapshot.busy);
+      setDirty(snapshot.dirty);
+    }
+    beforeImport.current = null;
+    setReviewing(false);
+    setPreview(null);
   }
 
   async function runPhotoImport(files: File[]) {
@@ -565,6 +597,20 @@ export function ScheduleEditor({
       <section className="card">
         <p className="small muted">{labels.paintHint}</p>
 
+        {reviewing && preview && (
+          <div className="notice review-bar" role="status">
+            <span>{labels.importReview.replace("{n}", String(preview.slots.length))}</span>
+            <span className="notice-actions">
+              <button className="btn btn-sm btn-primary tg-hide" type="button" onClick={confirmImport}>
+                {labels.importSave}
+              </button>
+              <button className="btn btn-sm btn-quiet" type="button" onClick={cancelImport}>
+                {labels.importCancel}
+              </button>
+            </span>
+          </div>
+        )}
+
         <div
           className="gridwrap"
           ref={rootRef}
@@ -630,9 +676,9 @@ export function ScheduleEditor({
 
         {/* Сохранять руками нечего — главная кнопка просто возвращает в группу. */}
         <TelegramMainButton
-          text={labels.done}
-          onClick={() => router.push(backHref)}
-          disabled={saving || dirty}
+          text={reviewing ? labels.importSave : labels.done}
+          onClick={reviewing ? confirmImport : () => router.push(backHref)}
+          disabled={reviewing ? false : saving || dirty}
           progress={saving}
         />
 
@@ -645,6 +691,8 @@ export function ScheduleEditor({
                   {labels.saveRetry}
                 </button>
               </>
+            ) : reviewing ? (
+              <>{labels.importPending}</>
             ) : saving || dirty ? (
               <>
                 <span className="spinner" aria-hidden="true" /> {labels.saving}

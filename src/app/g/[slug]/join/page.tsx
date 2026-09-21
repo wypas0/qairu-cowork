@@ -5,8 +5,8 @@ import { Topbar } from "@/components/Topbar";
 import * as repo from "@/db/repo";
 import { displayName } from "@/db/schema";
 import { translator } from "@/i18n";
+import { afterJoinPath } from "@/lib/afterJoin";
 import { pageUser } from "@/lib/gate";
-import { joinGroup } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +16,13 @@ export default async function JoinPage({ params }: { params: Promise<{ slug: str
   if (!chat) notFound();
 
   const user = await pageUser(`/g/${slug}/join`);
-  if (user && (await repo.isMember(chat.chatId, user.userId))) redirect(`/g/${slug}`);
+  if (user) {
+    // Ссылка или код уже и есть согласие вступить: бот по такой же ссылке
+    // добавляет в группу сразу. Второй кнопки «Присоединиться» после входа нет.
+    const already = await repo.isMember(chat.chatId, user.userId);
+    if (!already) await repo.addMembership(chat.chatId, user.userId);
+    redirect(already ? `/g/${slug}` : await afterJoinPath(slug, user));
+  }
 
   const t = translator(chat.lang);
   const members = await repo.chatMembers(chat.chatId);
@@ -42,21 +48,12 @@ export default async function JoinPage({ params }: { params: Promise<{ slug: str
             </>
           )}
 
-          {user ? (
-            <form action={joinGroup.bind(null, slug)}>
-              <button className="btn btn-primary" type="submit">
-                {t("w_join_as", { name: displayName(user) })}
-              </button>
-            </form>
-          ) : (
-            <>
-              {/* В Mini App вход и вступление произойдут сами (см. TelegramAuth). */}
-              <TelegramSignIn lang={chat.lang} next={`/g/${slug}/join`} />
-              <p className="small muted" style={{ marginTop: 10 }}>
-                {t("w_signin_hint")}
-              </p>
-            </>
-          )}
+          {/* После входа человек вернётся сюда и сразу окажется в группе.
+              В Mini App вход и вступление произойдут сами (см. TelegramAuth). */}
+          <TelegramSignIn lang={chat.lang} next={`/g/${slug}/join`} />
+          <p className="small muted" style={{ marginTop: 10 }}>
+            {t("w_signin_hint")}
+          </p>
         </div>
       </main>
     </>

@@ -13,7 +13,7 @@ import { StartChecklist } from "@/components/StartChecklist";
 import { fmtMinutes } from "@/core/intervals";
 import { chatTz } from "@/core/timeutils";
 import * as repo from "@/db/repo";
-import { ROLE_ADMIN, displayName } from "@/db/schema";
+import { ROLE_ADMIN, displayName, telegramName } from "@/db/schema";
 import { LANG_NAMES, translator } from "@/i18n";
 import { type AdminSource, adminSources } from "@/lib/admin";
 import { pageUser } from "@/lib/gate";
@@ -141,6 +141,11 @@ export default async function GroupPage({
         {savedSettings && (
           <div className="notice" role="status">
             {t("w_saved_settings")}
+          </div>
+        )}
+        {query.welcome === "schedule" && (
+          <div className="notice" role="status">
+            {t("w_welcome_schedule")}
           </div>
         )}
         {query.code === "changed" && (
@@ -337,8 +342,10 @@ export default async function GroupPage({
                           <div className="roster-who">
                             <span className={`dot ${filled ? "ok" : "warn"}`} aria-hidden="true" />
                             <b>{displayName(member)}</b>
-                            {member.realName && member.realName !== displayName(member) && (
-                              <span className="small muted">{member.realName}</span>
+                            {/* Главное имя — то, что человек указал сам; рядом
+                                Telegram, чтобы его можно было найти и написать. */}
+                            {telegramName(member) && telegramName(member) !== displayName(member) && (
+                              <span className="small muted">{telegramName(member)}</span>
                             )}
                             {self && <span className="small muted">({t("w_you")})</span>}
                             {source && <span className="badge">{roleLabel(source)}</span>}

@@ -50,7 +50,7 @@ export async function cmdStart(message: TgMessage, args: string[]): Promise<void
       chat_id: message.chat.id,
       text: t(lang, "start_linked", { chat: chat.title || String(chat.chatId) }),
       parse_mode: "HTML",
-      reply_markup: rows(webAppButton(t(lang, "btn_fill_schedule"), groupPath({ slug }, "/me"))),
+      reply_markup: rows(webAppButton(t(lang, "btn_fill_schedule"), groupPath({ slug }, "/welcome"))),
     });
     return;
   }
@@ -108,7 +108,7 @@ export async function cmdMovedToSite(message: TgMessage): Promise<void> {
       text: t(lang, "start_linked", { chat: byCode.title || String(byCode.chatId) }),
       parse_mode: "HTML",
       reply_markup: rows(
-        webAppButton(t(lang, "btn_fill_schedule"), groupPath(byCode, "/me")),
+        webAppButton(t(lang, "btn_fill_schedule"), groupPath(byCode, "/welcome")),
       ),
     });
     return;

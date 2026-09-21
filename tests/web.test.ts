@@ -697,3 +697,29 @@ describe("код группы", () => {
     }
   });
 });
+
+describe("после вступления в группу", () => {
+  it("сперва спрашивает имя, потом ведёт в редактор или сразу в группу", async () => {
+    const { repo } = await mods();
+    const { afterJoinPath } = await import("@/lib/afterJoin");
+    const { displayName } = await import("@/db/schema");
+    const { chat } = await makeGroup("После вступления", "Староста");
+    const slug = chat.slug!;
+
+    const newcomer = await repo.createWebUser({ fullName: "amir_2005", lang: "ru" });
+    await repo.addMembership(chat.chatId, newcomer.userId);
+
+    // Имени ещё нет — первый шаг «как тебя подписать».
+    expect(await afterJoinPath(slug, newcomer)).toBe(`/g/${slug}/welcome`);
+
+    // Представился, расписания нет — в редактор.
+    await repo.setRealName(newcomer.userId, "Амир Коваль");
+    const named = (await repo.getUser(newcomer.userId))!;
+    expect(displayName(named), "в группе видно его собственное имя, а не ник").toBe("Амир Коваль");
+    expect(await afterJoinPath(slug, named)).toBe(`/g/${slug}/me`);
+
+    // Расписание одно на все группы: уже заполнено — редактор не нужен.
+    await repo.replaceWeeklySlots(newcomer.userId, [0, 1, 2, 3, 4, 5, 6], [], "web");
+    expect(await afterJoinPath(slug, named)).toBe(`/g/${slug}?welcome=schedule`);
+  });
+});

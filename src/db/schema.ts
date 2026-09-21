@@ -269,6 +269,18 @@ export type MeetingResponse = typeof meetingResponses.$inferSelect;
 export type Notice = typeof notices.$inferSelect;
 
 /** Как показывать человека в списках: имя, иначе @username, иначе id. */
-export function displayName(user: Pick<User, "fullName" | "username" | "userId">): string {
-  return user.fullName || (user.username ? `@${user.username}` : String(user.userId));
+/**
+ * Как человека подписывать в группе. Сперва имя, которое он сам указал при
+ * вступлении («Как тебя подписать?») — одногруппники и староста узнают его
+ * по нему, а не по нику, — потом имя из Telegram.
+ */
+export function displayName(
+  user: Pick<User, "fullName" | "username" | "userId"> & { realName?: string | null },
+): string {
+  return user.realName || user.fullName || (user.username ? `@${user.username}` : String(user.userId));
+}
+
+/** Как человек записан в Telegram — вторая строка там, где главное имя его собственное. */
+export function telegramName(user: Pick<User, "fullName" | "username">): string | null {
+  return user.username ? `@${user.username}` : user.fullName || null;
 }

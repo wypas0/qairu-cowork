@@ -125,12 +125,13 @@ describe("подключение чата и регистрация", () => {
     expect(await repo.isMember(GROUP_ID, AMIR.id)).toBe(true);
   });
 
-  it("deep-link /start привязывает человека к чату и открывает его расписание на сайте", async () => {
+  it("deep-link /start привязывает человека к чату и ведёт на первый шаг в группе", async () => {
     await handleUpdate(text(PRIVATE_ASEL, ASEL, `/start c${GROUP_ID}`));
     const call = stub.last("sendMessage")!;
     expect(String(call.payload.text)).toContain("Ты в группе");
     const markup = call.payload.reply_markup as { inline_keyboard: { web_app?: { url: string } }[][] };
-    expect(markup.inline_keyboard[0][0].web_app?.url).toMatch(/^https:\/\/qairu\.example\/g\/[a-z0-9]{8}\/me$/);
+    // Первый шаг — «как тебя подписать»; оттуда сайт сам решит, нужен ли редактор.
+    expect(markup.inline_keyboard[0][0].web_app?.url).toMatch(/^https:\/\/qairu\.example\/g\/[a-z0-9]{8}\/welcome$/);
 
     const repo = await import("@/db/repo");
     expect(await repo.isMember(GROUP_ID, ASEL.id)).toBe(true);

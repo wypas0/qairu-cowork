@@ -2,13 +2,13 @@ import { notFound, redirect } from "next/navigation";
 
 import { AppShell } from "@/components/AppShell";
 import { ConfirmSubmit } from "@/components/ConfirmSubmit";
-import { DatedTimeFields } from "@/components/DatedTimeFields";
+import { DatedQuickForm } from "@/components/DatedQuickForm";
 import { ScrollToAnchor } from "@/components/ScrollToAnchor";
 import { ScheduleEditor } from "@/components/ScheduleEditor";
 import { TelegramBackButton } from "@/components/TelegramButtons";
 import { gridPeriods, periodOverlaps } from "@/core/grid";
 import { fmtMinutes } from "@/core/intervals";
-import { chatTz, compareDates, formatDM, formatDMY, todayIn } from "@/core/timeutils";
+import { addDays, chatTz, compareDates, formatDM, formatDMY, todayIn } from "@/core/timeutils";
 import * as repo from "@/db/repo";
 import { WEEKDAY_NAMES, WEEKDAY_SHORT, isLang, translator } from "@/i18n";
 import { pageUser } from "@/lib/gate";
@@ -82,6 +82,9 @@ export default async function MySchedulePage({
             <p className="eyebrow">{chat.title}</p>
             <h1>{t("w_me_title")}</h1>
             <p className="lead">{t("w_me_lead")}</p>
+            <p className="small muted" style={{ margin: "8px 0 0" }}>
+              {t("w_me_shared")}
+            </p>
           </div>
         </header>
 
@@ -109,6 +112,10 @@ export default async function MySchedulePage({
             importHint: t("w_import_hint"),
             importBtn: t("w_import_btn"),
             importParsed: t("w_import_parsed", { n: "{n}" }),
+            importReview: t("w_import_review", { n: "{n}" }),
+            importSave: t("w_import_save"),
+            importCancel: t("w_import_cancel"),
+            importPending: t("w_import_pending"),
             importFailed: t("w_import_failed"),
             importPlaceholder: IMPORT_PLACEHOLDER,
             legendFree: t("w_legend_free"),
@@ -151,84 +158,68 @@ export default async function MySchedulePage({
             </div>
           )}
 
-          <div className="grid-2">
-            <div>
-              {dated.length > 0 ? (
-                <ul className="windows">
-                  {dated.map((slot) => {
-                    const last = slot.dateTo ?? slot.specificDate ?? today;
-                    const past = compareDates(last, today) < 0;
-                    const allDay = slot.startMin === 0 && slot.endMin >= 24 * 60;
-                    return (
-                      <li key={slot.id} className={`slotrow${past ? " past" : ""}`}>
-                        <div className="slotinfo">
-                          <span className="when">
-                            {slot.specificDate
-                              ? formatDMY(slot.specificDate)
-                              : `${formatDM(slot.dateFrom!)}–${formatDMY(slot.dateTo!)}`}
-                          </span>{" "}
-                          <span className="small muted">
-                            {allDay
-                              ? t("w_dated_all_day")
-                              : `${fmtMinutes(slot.startMin)}–${fmtMinutes(slot.endMin)}`}
-                            {slot.label ? ` · ${slot.label}` : ""}
-                            {past ? ` · ${t("w_dated_past")}` : ""}
-                          </span>
-                        </div>
-                        <form action={deleteDatedBusyAction.bind(null, slug, slot.id)}>
-                          <ConfirmSubmit
-                            className="btn btn-sm btn-quiet btn-danger"
-                            confirm={t("w_dated_delete_confirm")}
-                          >
-                            {t("w_dated_delete")}
-                          </ConfirmSubmit>
-                        </form>
-                      </li>
-                    );
-                  })}
-                </ul>
-              ) : (
-                <p className="muted small">{t("w_dated_empty")}</p>
-              )}
-            </div>
+          {/* Сначала добавить (это делают чаще), потом список уже добавленного. */}
+          <DatedQuickForm
+            action={addDatedBusyAction.bind(null, slug)}
+            today={today}
+            tomorrow={addDays(today, 1)}
+            labels={{
+              day: t("w_dated_from"),
+              today: t("w_dated_today"),
+              tomorrow: t("w_dated_tomorrow"),
+              other: t("w_dated_other"),
+              add: t("w_dated_add_btn"),
+              more: t("w_dated_more"),
+              less: t("w_dated_less"),
+              to: t("w_dated_to"),
+              toHint: t("w_dated_to_hint"),
+              label: t("w_dated_label"),
+              labelPh: t("w_dated_label_ph"),
+              allDay: t("w_dated_all_day"),
+              start: t("w_dated_start"),
+              end: t("w_dated_end"),
+              timeHint: t("w_dated_time_hint"),
+            }}
+          />
 
-            <form action={addDatedBusyAction.bind(null, slug)} className="dated-form">
-              <h3>{t("w_dated_add")}</h3>
-              <div className="row">
-                <div className="field">
-                  <label htmlFor="date_from">{t("w_dated_from")}</label>
-                  <input id="date_from" name="date_from" type="date" required min={today} />
-                </div>
-                <div className="field">
-                  <label htmlFor="date_to">{t("w_dated_to")}</label>
-                  <input id="date_to" name="date_to" type="date" min={today} />
-                </div>
-              </div>
-              <p className="small muted" style={{ marginTop: -6 }}>
-                {t("w_dated_to_hint")}
-              </p>
-              <DatedTimeFields
-                labels={{
-                  allDay: t("w_dated_all_day"),
-                  start: t("w_dated_start"),
-                  end: t("w_dated_end"),
-                  hint: t("w_dated_time_hint"),
-                }}
-              />
-              <div className="field">
-                <label htmlFor="label">{t("w_dated_label")}</label>
-                <input
-                  id="label"
-                  name="label"
-                  type="text"
-                  maxLength={60}
-                  placeholder={t("w_dated_label_ph")}
-                />
-              </div>
-              <button className="btn btn-primary" type="submit">
-                {t("w_dated_add_btn")}
-              </button>
-            </form>
+          <div className="dated-list">
+          {dated.length > 0 ? (
+            <ul className="windows">
+              {dated.map((slot) => {
+                const last = slot.dateTo ?? slot.specificDate ?? today;
+                const past = compareDates(last, today) < 0;
+                const allDay = slot.startMin === 0 && slot.endMin >= 24 * 60;
+                return (
+                  <li key={slot.id} className={`slotrow${past ? " past" : ""}`}>
+                    <div className="slotinfo">
+                      <span className="when">
+                        {slot.specificDate
+                          ? formatDMY(slot.specificDate)
+                          : `${formatDM(slot.dateFrom!)}–${formatDMY(slot.dateTo!)}`}
+                      </span>{" "}
+                      <span className="small muted">
+                        {allDay
+                          ? t("w_dated_all_day")
+                          : `${fmtMinutes(slot.startMin)}–${fmtMinutes(slot.endMin)}`}
+                        {slot.label ? ` · ${slot.label}` : ""}
+                        {past ? ` · ${t("w_dated_past")}` : ""}
+                      </span>
+                    </div>
+                    <form action={deleteDatedBusyAction.bind(null, slug, slot.id)}>
+                      <ConfirmSubmit
+                        className="btn btn-sm btn-quiet btn-danger"
+                        confirm={t("w_dated_delete_confirm")}
+                      >
+                        {t("w_dated_delete")}
+                      </ConfirmSubmit>
+                    </form>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="muted small">{t("w_dated_empty")}</p>
+          )}
           </div>
         </section>
       </main>

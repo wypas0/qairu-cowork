@@ -18,6 +18,7 @@ import {
   notifyNonResponders,
   notifyVote,
 } from "@/lib/notify";
+import { afterJoinPath, afterNamePath } from "@/lib/afterJoin";
 
 /** Не чаще раза в 10 минут на одного адресата — напоминание не должно становиться спамом. */
 const REMIND_WINDOW_MS = 10 * 60 * 1000;
@@ -66,7 +67,22 @@ export async function joinGroup(slug: string): Promise<void> {
   const user = await requireTelegramUser(`/g/${slug}/join`);
   await repo.addMembership(chat.chatId, user.userId);
   revalidatePath("/", "layout");
-  redirect(`/g/${slug}/me`);
+  redirect(await afterJoinPath(slug, user));
+}
+
+/**
+ * «Как тебя подписать в группе?» — один вопрос сразу после вступления.
+ *
+ * Пустой ответ тоже ответ: тогда остаётся имя из Telegram, и больше мы не
+ * спрашиваем. Имя общее для всех групп, как и расписание.
+ */
+export async function saveGroupNameAction(slug: string, formData: FormData): Promise<void> {
+  const { user } = await requireMember(slug);
+  const typed = String(formData.get("real_name") ?? "");
+  const fallback = user.fullName || (user.username ? `@${user.username}` : "");
+  await repo.setRealName(user.userId, repo.normalizeRealName(typed) || fallback);
+  revalidatePath("/", "layout");
+  redirect(await afterNamePath(slug, user.userId));
 }
 
 /**
