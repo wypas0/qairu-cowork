@@ -207,9 +207,10 @@ export default async function GroupPage({
                     weekPrev: t("w_week_prev"),
                     weekNext: t("w_week_next"),
                     weekThis: t("w_week_this"),
-                    quorumAll: t("w_quorum_all"),
-                    quorumMinusOne: t("w_quorum_minus_one"),
-                    quorumMost: t("w_quorum_most"),
+                    whoNeeded: t("w_who_needed", { n: "{n}", total: "{total}" }),
+                    whoAll: t("w_who_all"),
+                    whoHint: t("w_who_hint"),
+                    notFilled: t("w_not_filled"),
                     heatTitle: t("w_heat_title"),
                     heatHint: t("w_heat_hint"),
                     breakRow: t("w_break_row", { m: "{m}" }),
@@ -231,7 +232,6 @@ export default async function GroupPage({
                     hoursOnlyTemplate: t("w_duration_h", { h: "{h}" }),
                     minutesTemplate: t("w_duration_m", { m: "{m}" }),
                     variantsTemplate: t("w_variants", { n: "{n}" }),
-                    quorumTemplate: t("w_quorum_label", { q: "{q}", n: "{n}" }),
                     close: t("w_close"),
                   }}
                 />

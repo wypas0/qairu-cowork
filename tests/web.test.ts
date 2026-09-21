@@ -613,6 +613,48 @@ describe("своя занятость на общей карте", () => {
   });
 });
 
+describe("кто должен прийти", () => {
+  it("окна считаются для выбранных, а карта остаётся картой всей группы", async () => {
+    const { repo, group } = await mods();
+    const { chat, user } = await makeGroup("Кто придёт", "Амир");
+    const { weekdayOf } = await import("@/core/timeutils");
+
+    const guest = await repo.createWebUser({ fullName: "Асель", lang: "ru" });
+    await repo.addMembership(chat.chatId, guest.userId);
+    const late = await repo.createWebUser({ fullName: "Болат", lang: "ru" });
+    await repo.addMembership(chat.chatId, late.userId);
+
+    // Амир занят весь понедельник, Асель свободна, Болат расписание не заполнил.
+    await repo.replaceWeeklySlots(user.userId, [0, 1, 2, 3, 4, 5, 6], [{ weekday: 0, start: 0, end: 1440 }], "web");
+    await repo.replaceWeeklySlots(guest.userId, [0, 1, 2, 3, 4, 5, 6], [], "web");
+
+    const all = await group.loadGroupState(chat, {});
+    const onlyGuest = await group.loadGroupState(chat, { only: [guest.userId] });
+    const allPayload = group.toBoardPayload(all, "ru");
+    const guestPayload = group.toBoardPayload(onlyGuest, "ru");
+
+    const monday = (payload: typeof allPayload) =>
+      payload.slotDays.find((day) => weekdayOf(day.date) === 0)!;
+
+    // Для всей группы в понедельник окон нет, для одной Асель — есть.
+    expect(monday(allPayload).items).toHaveLength(0);
+    expect(monday(guestPayload).items.length).toBeGreaterThan(0);
+    expect(guestPayload.selectedTotal).toBe(1);
+
+    // Карта при этом про всю группу: знаменатель прежний, Амир всё так же занят.
+    expect(guestPayload.total).toBe(allPayload.total);
+    expect(guestPayload.days[0].cells[0].missing).toContain("Амир");
+
+    // В списке — все участники, и не заполнивший помечен.
+    expect(guestPayload.people.map((person) => person.name).sort()).toEqual(["Амир", "Асель", "Болат"]);
+    expect(guestPayload.people.find((person) => person.name === "Болат")!.filled).toBe(false);
+
+    // Посторонние id отбрасываются: окна считаются как для всех.
+    const stranger = await group.loadGroupState(chat, { only: [987654321] });
+    expect(stranger.selected).toBeNull();
+  });
+});
+
 describe("смена кода группы", () => {
   it("выдаёт новый код, старый перестаёт находиться", async () => {
     const { repo } = await mods();

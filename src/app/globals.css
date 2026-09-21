@@ -44,16 +44,19 @@
   /* Штриховка «тут занят ты» поверх общей карты. */
   --mine-stripe: rgba(10, 22, 40, 0.3);
 
-  /* Тепловая карта — шкала данных, а не действие: приглушённый стальной
-     синий, чтобы её нельзя было спутать с кобальтовой кнопкой.
-     h0 — свободны все (самый насыщенный), h5 — никого (почти фон).
-     Насыщенность растёт вместе с пользой клетки. */
-  --heat-0: #3f6ea8;
-  --heat-1: #6a94c4;
-  --heat-2: #9ab6d8;
-  --heat-3: #c0d2e6;
-  --heat-4: #dde5ee;
-  --heat-5: #eef1f5;
+  /* Тепловая карта группы — последовательная шкала одного синего с ровными
+     шагами светлоты (проверено валидатором: монотонно, шаги различимы,
+     самая светлая ступень отделяется от карточки не хуже 2:1).
+     h0 — свободны все (самая тёмная), h4 — свободен хоть кто-то,
+     h5 — никого: нейтральный серый, вне шкалы, чтобы «ноль» не путался с «мало».
+     Прежняя стально-синяя шкала сливалась: три светлых шага были почти
+     одного цвета с фоном. */
+  --heat-0: #0d366b;
+  --heat-1: #1c5cab;
+  --heat-2: #2a78d6;
+  --heat-3: #5598e7;
+  --heat-4: #86b6ef;
+  --heat-5: #dfe3e9;
 
   /* --- радиусы, ровно те роли, что в дизайн-коде --- */
   --r-sm: 6px; /* мелкий контрол */
@@ -109,12 +112,12 @@
     --slot-busy: #1b76f2;
     --mine-stripe: rgba(7, 14, 28, 0.42);
 
-    --heat-0: #6ea8ff;
-    --heat-1: #4d7fcc;
-    --heat-2: #365d99;
-    --heat-3: #274166;
-    --heat-4: #1b2c44;
-    --heat-5: #131f33;
+    --heat-0: #b7d3f6;
+    --heat-1: #6da7ec;
+    --heat-2: #3987e5;
+    --heat-3: #256abf;
+    --heat-4: #184f95;
+    --heat-5: #232b38;
 
     --shadow-float: 0 10px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35);
   }
@@ -150,12 +153,12 @@
   --slot-busy: #1b76f2;
   --mine-stripe: rgba(7, 14, 28, 0.42);
 
-  --heat-0: #6ea8ff;
-  --heat-1: #4d7fcc;
-  --heat-2: #365d99;
-  --heat-3: #274166;
-  --heat-4: #1b2c44;
-  --heat-5: #131f33;
+  --heat-0: #b7d3f6;
+  --heat-1: #6da7ec;
+  --heat-2: #3987e5;
+  --heat-3: #256abf;
+  --heat-4: #184f95;
+  --heat-5: #232b38;
 
   --shadow-float: 0 10px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35);
 }
@@ -1245,6 +1248,32 @@ table.week td.cell {
 td.cell.busy {
   background: var(--slot-busy) !important;
 }
+/* Штриховка «тут занят ты» должна читаться на любой ступени шкалы:
+   на тёмных клетках — светлая, на светлых — тёмная. */
+.h0,
+.h1,
+.h2 {
+  --mine-stripe: rgba(255, 255, 255, 0.5);
+}
+.h3,
+.h4,
+.h5 {
+  --mine-stripe: rgba(10, 22, 40, 0.35);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) :is(.h0, .h1) {
+    --mine-stripe: rgba(7, 14, 28, 0.45);
+  }
+  :root:not([data-theme="light"]) :is(.h2, .h3, .h4, .h5) {
+    --mine-stripe: rgba(255, 255, 255, 0.35);
+  }
+}
+:root[data-theme="dark"] :is(.h0, .h1) {
+  --mine-stripe: rgba(7, 14, 28, 0.45);
+}
+:root[data-theme="dark"] :is(.h2, .h3, .h4, .h5) {
+  --mine-stripe: rgba(255, 255, 255, 0.35);
+}
 
 /* --- сетка по парам, как на портале университета --- */
 /* Колонки дней одной ширины: подпись встречи в клетке не должна раздвигать свой день. */
@@ -1815,6 +1844,66 @@ table.week td.cell.meeting {
 .best-item .btn {
   align-self: flex-start;
   margin-top: 4px;
+}
+
+/* --- «кто должен прийти» --- */
+.who-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.who-head .label {
+  margin: 0;
+}
+.who-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  max-height: 264px;
+  overflow-y: auto;
+}
+.who-list li + li {
+  border-top: 1px solid var(--border);
+}
+.who-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 8px 12px;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 20px;
+  cursor: pointer;
+  transition: background-color 150ms var(--ease);
+}
+.who-row:hover {
+  background: color-mix(in srgb, var(--hover) 60%, transparent);
+}
+.who-row input {
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  flex: none;
+  accent-color: var(--accent);
+}
+.who-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.who-row.off {
+  cursor: default;
+  color: var(--muted);
+}
+.who-row.off:hover {
+  background: transparent;
 }
 
 /* --- переключатель недель --- */

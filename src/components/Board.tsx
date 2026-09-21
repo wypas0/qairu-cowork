@@ -20,9 +20,10 @@ export type BoardLabels = {
   weekPrev: string;
   weekNext: string;
   weekThis: string;
-  quorumAll: string;
-  quorumMinusOne: string;
-  quorumMost: string;
+  whoNeeded: string; // «Кто должен прийти · {n} из {total}»
+  whoAll: string;
+  whoHint: string;
+  notFilled: string;
   heatTitle: string;
   heatHint: string;
   breakRow: string; // «Перерыв {m} мин»
@@ -44,7 +45,6 @@ export type BoardLabels = {
   hoursOnlyTemplate: string; // «{h} ч»
   minutesTemplate: string; // «{m} мин»
   variantsTemplate: string; // «{n} вариантов» — литеральный {n}
-  quorumTemplate: string;
   close: string;
 };
 
@@ -98,7 +98,8 @@ export function Board({
   labels: BoardLabels;
 }) {
   const [payload, setPayload] = useState(initial);
-  const [quorum, setQuorum] = useState(initial.quorum);
+  // Кто должен прийти. null — все, у кого есть расписание.
+  const [selected, setSelected] = useState<number[] | null>(initial.selected);
   const [duration, setDuration] = useState(initial.duration);
   const [week, setWeek] = useState(initial.week);
   const [selectedDay, setSelectedDay] = useState(() => firstDayWithSlots(initial));
@@ -110,7 +111,11 @@ export function Board({
   // Сравнивать выбор нужно с ними, а не с начальными значениями: иначе
   // 60 → 90 → 60 не перезапрашивало данные, и под «1 ч» оставались
   // 90-минутные варианты.
-  const loaded = useRef({ quorum: initial.quorum, duration: initial.duration, week: initial.week });
+  const loaded = useRef({
+    selected: selectionKey(initial.selected),
+    duration: initial.duration,
+    week: initial.week,
+  });
 
   useEffect(() => {
     if (!activeCell) return;
@@ -130,15 +135,15 @@ export function Board({
   }, [hover]);
 
   const refresh = useCallback(
-    async (nextQuorum: number, nextDuration: number, nextWeek: number) => {
+    async (nextSelected: number[] | null, nextDuration: number, nextWeek: number) => {
       const id = ++requestId.current;
       setLoading(true);
       try {
         const params = new URLSearchParams({
-          quorum: String(nextQuorum),
           duration: String(nextDuration),
           week: String(nextWeek),
         });
+        if (nextSelected) params.set("members", nextSelected.join(","));
         const response = await fetch(`/api/g/${slug}/state?${params}`, {
           credentials: "same-origin",
         });
@@ -146,7 +151,11 @@ export function Board({
         const data = (await response.json()) as BoardPayload;
         // Ответы могут прийти не в том порядке, в каком уехали запросы.
         if (id === requestId.current) {
-          loaded.current = { quorum: nextQuorum, duration: nextDuration, week: nextWeek };
+          loaded.current = {
+            selected: selectionKey(nextSelected),
+            duration: nextDuration,
+            week: nextWeek,
+          };
           setPayload(data);
           // День для списка окон принадлежал прошлой неделе — берём первый с вариантами.
           setSelectedDay((current) =>
@@ -162,10 +171,10 @@ export function Board({
     [slug],
   );
 
-  // Ползунок двигают непрерывно — ждём паузы, иначе на каждый пиксель уходит запрос.
+  // Галочки щёлкают подряд — ждём паузы, иначе на каждый щелчок уходит запрос.
   useEffect(() => {
     if (
-      quorum === loaded.current.quorum &&
+      selectionKey(selected) === loaded.current.selected &&
       duration === loaded.current.duration &&
       week === loaded.current.week
     ) {
@@ -175,9 +184,9 @@ export function Board({
       setLoading(false);
       return;
     }
-    const timer = setTimeout(() => void refresh(quorum, duration, week), 180);
+    const timer = setTimeout(() => void refresh(selected, duration, week), 180);
     return () => clearTimeout(timer);
-  }, [quorum, duration, week, refresh]);
+  }, [selected, duration, week, refresh]);
 
   const total = payload.total;
   // Встречи приходят вместе с остальными данными доски: иначе при переходе
@@ -188,9 +197,20 @@ export function Board({
 
   const day = payload.slotDays.find((entry) => entry.date === selectedDay) ?? payload.slotDays[0];
 
-  // Кворум выбирается словами, а не числом: «все» и «все, кроме одного» —
-  // то, чем люди на самом деле меряют «можно ли встречаться».
-  const quorumChoices = quorumOptions(total, labels);
+  // Список «кто должен прийти»: считать окна можно не для всех, а для тех,
+  // без кого встреча не имеет смысла. Не заполнившие расписание в расчёт
+  // не попадают — про них неизвестно, свободны ли они.
+  const filledIds = payload.people.filter((person) => person.filled).map((person) => person.id);
+  const isOn = (id: number) => (selected === null ? filledIds.includes(id) : selected.includes(id));
+  const chosenCount = selected === null ? filledIds.length : selected.length;
+
+  function togglePerson(id: number) {
+    const current = selected ?? filledIds;
+    const next = current.includes(id) ? current.filter((other) => other !== id) : [...current, id];
+    // Хотя бы один человек должен остаться — иначе считать нечего.
+    if (next.length === 0) return;
+    setSelected(next.length === filledIds.length ? null : next);
+  }
 
   function pick(date: string, start: number, end: number, text: string) {
     const detail: PickDetail = { value: `${date}T${hhmm(start)}|${end - start}`, text };
@@ -220,7 +240,7 @@ export function Board({
                     ? labels.bestAll
                     : `${labels.bestCount
                         .replace("{n}", String(item.count))
-                        .replace("{total}", String(total))} — ${labels.missingShort} ${item.missing.join(", ")}`}
+                        .replace("{total}", String(payload.selectedTotal))} — ${labels.missingShort} ${item.missing.join(", ")}`}
                 </p>
                 <button
                   type="button"
@@ -404,27 +424,39 @@ export function Board({
               ))}
             </select>
           </div>
-          {quorumChoices.length > 1 && (
+          {payload.people.length > 1 && (
             <div className="field">
-              <span className="label" id="quorum-label">
-                {labels.quorumTemplate
-                  .replace("{q}", String(payload.quorum))
-                  .replace("{n}", String(total))}
-              </span>
-              <div className="daypicker" role="radiogroup" aria-labelledby="quorum-label">
-                {quorumChoices.map((choice) => (
-                  <button
-                    key={choice.value}
-                    type="button"
-                    role="radio"
-                    aria-checked={quorum === choice.value}
-                    className={`daychip${quorum === choice.value ? " active" : ""}`}
-                    onClick={() => setQuorum(choice.value)}
-                  >
-                    {choice.label}
+              <div className="who-head">
+                <span className="label" id="who-label">
+                  {labels.whoNeeded
+                    .replace("{n}", String(chosenCount))
+                    .replace("{total}", String(filledIds.length))}
+                </span>
+                {selected !== null && (
+                  <button type="button" className="btn btn-sm btn-quiet" onClick={() => setSelected(null)}>
+                    {labels.whoAll}
                   </button>
-                ))}
+                )}
               </div>
+              <ul className="who-list" aria-labelledby="who-label">
+                {payload.people.map((person) => (
+                  <li key={person.id}>
+                    <label className={`who-row${person.filled ? "" : " off"}`}>
+                      <input
+                        type="checkbox"
+                        checked={isOn(person.id)}
+                        disabled={!person.filled}
+                        onChange={() => togglePerson(person.id)}
+                      />
+                      <span className="who-name">{person.name}</span>
+                      {!person.filled && <span className="small muted">{labels.notFilled}</span>}
+                    </label>
+                  </li>
+                ))}
+              </ul>
+              <p className="small muted" style={{ margin: "6px 0 0" }}>
+                {labels.whoHint}
+              </p>
             </div>
           )}
         </div>
@@ -438,7 +470,7 @@ export function Board({
         )}
 
         <div className="slotlist">
-          {total === 0 ? (
+          {payload.selectedTotal === 0 ? (
             <p className="muted small">{labels.windowsNoData}</p>
           ) : !day || day.items.length === 0 ? (
             <p className="muted small">{labels.windowsEmpty}</p>
@@ -449,7 +481,7 @@ export function Board({
                   <div className="slotinfo">
                     <span className="when">{item.text}</span>{" "}
                     <span className="small muted">
-                      {item.count}/{total}
+                      {item.count}/{payload.selectedTotal}
                       {item.missing.length > 0 &&
                         ` — ${labels.missingShort} ${item.missing.join(", ")}`}
                     </span>
@@ -562,18 +594,7 @@ function WhoIsFree({ detail, total, labels }: { detail: CellDetail; total: numbe
 /** Насколько далеко вперёд можно листать недели (на сервере значение то же). */
 const MAX_WEEK = 8;
 
-/** Варианты кворума словами. Повторяющиеся числа схлопываются. */
-function quorumOptions(total: number, labels: BoardLabels): { value: number; label: string }[] {
-  if (total <= 1) return [];
-  const options = [
-    { value: total, label: labels.quorumAll },
-    { value: total - 1, label: labels.quorumMinusOne },
-    { value: Math.ceil(total / 2), label: labels.quorumMost },
-  ];
-  const seen = new Set<number>();
-  return options.filter((option) => {
-    if (option.value < 1 || seen.has(option.value)) return false;
-    seen.add(option.value);
-    return true;
-  });
+/** Сравнимый вид выбора участников: порядок щелчков значения не имеет. */
+function selectionKey(selected: number[] | null): string {
+  return selected === null ? "all" : [...selected].sort((a, b) => a - b).join(",");
 }

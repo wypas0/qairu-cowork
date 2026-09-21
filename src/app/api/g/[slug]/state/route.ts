@@ -24,12 +24,20 @@ export async function GET(request: NextRequest, context: { params: Promise<{ slu
   const rawDuration = search.get("duration") ?? search.get("min");
 
   const rawWeek = search.get("week");
+  // Кто должен прийти: id через запятую. Чужие id отбрасывает сам расчёт.
+  const only = (search.get("members") ?? "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part) => /^-?\d+$/.test(part))
+    .map(Number)
+    .slice(0, 500);
 
   const state = await loadGroupState(chat, {
     quorum: rawQuorum && /^\d+$/.test(rawQuorum) ? Number(rawQuorum) : null,
     duration: rawDuration && /^\d+$/.test(rawDuration) ? Number(rawDuration) : null,
     week: rawWeek && /^\d+$/.test(rawWeek) ? Number(rawWeek) : 0,
     withMeetings: false,
+    only,
   });
 
   return Response.json(toBoardPayload(state, chat.lang, user.userId));

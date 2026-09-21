@@ -102,10 +102,16 @@ export type GroupState = {
   missing: User[];
   grid: HeatDay[];
   slotDays: DaySlots[];
+  /** Те, для кого считаются окна: выбранные участники с заполненным расписанием. */
   participants: PersonSchedule[];
+  /** Все участники с заполненным расписанием — по ним рисуется тепловая карта. */
+  groupParticipants: PersonSchedule[];
   quorum: number;
   everyone: boolean;
+  /** Сколько человек в расчёте окон. */
   total: number;
+  /** Кого выбрали для окон; null — всех. */
+  selected: number[] | null;
   today: DateStr;
   periods: Period[];
   meetings: Meeting[];
@@ -126,6 +132,8 @@ export async function loadGroupState(
     duration?: number | null;
     withMeetings?: boolean;
     week?: number;
+    /** Окна только для этих участников; пусто или null — для всех. */
+    only?: number[] | null;
   } = {},
 ): Promise<GroupState> {
   const { quorum = null, duration = null, withMeetings = true } = options;
@@ -171,7 +179,14 @@ export async function loadGroupState(
     rows: periods,
   });
 
-  const slots = slotsOfLength(people, slotsStart, {
+  // Окна можно считать не для всей группы, а для тех, кто должен прийти:
+  // тепловая карта при этом остаётся картиной всей группы.
+  const memberIds = new Set(members.map((member) => member.userId));
+  const only = options.only?.filter((id) => memberIds.has(id)) ?? [];
+  const selected = only.length > 0 ? only : null;
+  const slotPeople = selected ? people.filter((person) => selected.includes(person.userId)) : people;
+
+  const slots = slotsOfLength(slotPeople, slotsStart, {
     daysAhead: DAYS_AHEAD,
     dayStart: chat.dayStartMin,
     dayEnd: chat.dayEndMin,
@@ -190,9 +205,11 @@ export async function loadGroupState(
     grid,
     slotDays: slots.days,
     participants: slots.participants,
+    groupParticipants: people.filter((person) => person.hasData),
     quorum: slots.quorum,
     everyone: slots.everyone,
     total: slots.participants.length,
+    selected,
     today,
     periods,
     meetings: meetingRows,
@@ -221,7 +238,14 @@ export type BoardSlot = {
 
 /** Сериализуемая порция данных для клиентской доски. */
 export type BoardPayload = {
+  /** Участники с расписанием во всей группе — знаменатель тепловой карты. */
   total: number;
+  /** Сколько человек в расчёте окон и «лучшего времени». */
+  selectedTotal: number;
+  /** Вся группа для списка «кто должен прийти». */
+  people: { id: number; name: string; filled: boolean }[];
+  /** Кого выбрали для окон; null — всех. */
+  selected: number[] | null;
   quorum: number;
   everyone: boolean;
   duration: number;
@@ -266,18 +290,28 @@ export function toBoardPayload(state: GroupState, lang: string, viewerId?: numbe
   // Свою занятость видно прямо на общей карте: без неё непонятно, ты ли тот
   // человек, которого не хватает. Если расписание ещё не заполнено, помечать нечего.
   const viewerHasData =
-    viewerId !== undefined && state.participants.some((person) => person.userId === viewerId);
-  const freeNames = (freeIds: readonly number[]) =>
-    state.participants
-      .filter((person) => freeIds.includes(person.userId))
+    viewerId !== undefined && state.groupParticipants.some((person) => person.userId === viewerId);
+  // Клетки карты — про всю группу, окна — про выбранных.
+  const namesOf = (list: readonly PersonSchedule[], ids: readonly number[], inside: boolean) =>
+    list
+      .filter((person) => ids.includes(person.userId) === inside)
       .map((person) => state.names.get(person.userId) ?? "?");
+  const freeNames = (freeIds: readonly number[]) => namesOf(state.groupParticipants, freeIds, true);
   const missingNames = (freeIds: readonly number[]) =>
-    state.participants
-      .filter((person) => !freeIds.includes(person.userId))
-      .map((person) => state.names.get(person.userId) ?? "?");
+    namesOf(state.groupParticipants, freeIds, false);
+  const slotMissing = (freeIds: readonly number[]) => namesOf(state.participants, freeIds, false);
 
   return {
-    total: state.total,
+    total: state.groupParticipants.length,
+    selectedTotal: state.total,
+    people: state.members
+      .map((member) => ({
+        id: member.userId,
+        name: displayName(member),
+        filled: state.filledIds.has(member.userId),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name, lang)),
+    selected: state.selected,
     quorum: state.quorum,
     everyone: state.everyone,
     duration: state.duration,
@@ -309,7 +343,7 @@ export function toBoardPayload(state: GroupState, lang: string, viewerId?: numbe
         end: slot.interval[1],
         text: fmtInterval(slot.interval),
         count: slot.freeIds.length,
-        missing: missingNames(slot.freeIds),
+        missing: slotMissing(slot.freeIds),
       })),
     })),
     missing: state.missing.map((member) => displayName(member)),
