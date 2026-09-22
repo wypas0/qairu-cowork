@@ -21,6 +21,16 @@ export type ProfileGroup = {
   title: string;
   /** Сколько здесь ждёт человека: встречи без ответа и непрочитанное. */
   pending?: number;
+  /** Ближайшая встреча группы, коротко: когда и о чём. */
+  next?: GroupNextMeeting;
+};
+
+export type GroupNextMeeting = {
+  id: number;
+  /** «Завтра, 15:00» / «Чт 24.09, 15:00» — в поясе группы. */
+  when: string;
+  /** Зачем и где, через точку; пусто, если ни того ни другого нет. */
+  about: string;
 };
 
 export type ProfileUser = {

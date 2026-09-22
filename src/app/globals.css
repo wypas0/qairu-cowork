@@ -43,22 +43,22 @@
   --slot-busy: #0064e0;
   /* Штриховка «тут занят ты» поверх общей карты. */
   --mine-stripe: rgba(10, 22, 40, 0.3);
+  /* Кто свободен и кто занят в клетке: ярко-голубой и тёмно-тёмно-фиолетовый. */
+  --who-free: #3cc8ff;
+  --who-free-text: #03263a;
+  --who-busy: #1f0a3d;
+  --who-busy-text: #efe6ff;
 
-  /* Тепловая карта группы — последовательная шкала одного синего с ровными
-     шагами светлоты (проверено валидатором: монотонно, шаги различимы,
-     самая светлая ступень отделяется от карточки не хуже 2:1).
-     h0 — свободны все (самая тёмная), h4 — свободен хоть кто-то,
-     h5 — никого: нейтральный серый, вне шкалы, чтобы «ноль» не путался с «мало».
-     Шкала растянута по светлоте к краям: «свободны все» ~15:1 к карточке
-     в обеих темах, «никого» почти уходит в фон и держится обводкой. Ступень,
-     ближайшая к фону, не светлее 2:1 — иначе «свободен один» слился бы
-     с карточкой. */
-  --heat-0: #002352;
-  --heat-1: #044692;
-  --heat-2: #2168c4;
-  --heat-3: #4d8ee7;
-  --heat-4: #85b5f8;
-  --heat-5: #eef0f3;
+  /* Тепловая карта группы: от ярко-голубого «свободны все» (h0) через
+     сине-фиолетовый к тёмно-тёмно-фиолетовому «никого» (h5). Светлота
+     убывает монотонно, поэтому шкала читается и без различения оттенков.
+     Самая тёмная ступень держится обводкой, чтобы не сливаться с фоном. */
+  --heat-0: #3cc8ff;
+  --heat-1: #3a93f0;
+  --heat-2: #4a62d6;
+  --heat-3: #4f3aa8;
+  --heat-4: #3a1f78;
+  --heat-5: #1f0a3d;
 
   /* --- радиусы, ровно те роли, что в дизайн-коде --- */
   --r-sm: 6px; /* мелкий контрол */
@@ -113,13 +113,17 @@
     --slot-free-border: rgba(255, 255, 255, 0.16);
     --slot-busy: #1b76f2;
     --mine-stripe: rgba(7, 14, 28, 0.42);
+    --who-free: #3cc8ff;
+    --who-free-text: #03263a;
+    --who-busy: #2a0f52;
+    --who-busy-text: #efe6ff;
 
-    --heat-0: #e2eeff;
-    --heat-1: #9fc7fe;
-    --heat-2: #5c9df8;
-    --heat-3: #3676ce;
-    --heat-4: #225395;
-    --heat-5: #1d232c;
+    --heat-0: #3cc8ff;
+    --heat-1: #3a93f0;
+    --heat-2: #4a62d6;
+    --heat-3: #5540b3;
+    --heat-4: #3f2385;
+    --heat-5: #2a0f52;
 
     --shadow-float: 0 10px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35);
   }
@@ -154,13 +158,17 @@
   --slot-free-border: rgba(255, 255, 255, 0.16);
   --slot-busy: #1b76f2;
   --mine-stripe: rgba(7, 14, 28, 0.42);
+  --who-free: #3cc8ff;
+  --who-free-text: #03263a;
+  --who-busy: #2a0f52;
+  --who-busy-text: #efe6ff;
 
-  --heat-0: #e2eeff;
-  --heat-1: #9fc7fe;
-  --heat-2: #5c9df8;
-  --heat-3: #3676ce;
-  --heat-4: #225395;
-  --heat-5: #1d232c;
+  --heat-0: #3cc8ff;
+  --heat-1: #3a93f0;
+  --heat-2: #4a62d6;
+  --heat-3: #5540b3;
+  --heat-4: #3f2385;
+  --heat-5: #2a0f52;
 
   --shadow-float: 0 10px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35);
 }
@@ -431,6 +439,34 @@ p {
   line-height: 18px;
 }
 
+/* Контакты: кому написать о баге и чей это проект. */
+.foot-contacts {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.foot-contact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin: 0;
+}
+.foot-contact a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--accent);
+  font-weight: 500;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.foot-contact a:hover {
+  text-decoration: underline;
+}
+
 @media (min-width: 640px) {
   .wrap,
   .foot {
@@ -523,6 +559,7 @@ p {
     border-right: 1px solid var(--border);
     background: var(--surface);
     overflow-y: auto;
+    overflow-x: hidden;
   }
   .shell .wrap {
     padding-left: 32px;
@@ -530,8 +567,26 @@ p {
   }
 }
 
+.sidebar-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 8px;
+}
 .sidebar-brand {
-  padding: 4px 8px 12px;
+  padding: 4px 8px;
+  min-width: 0;
+}
+.sidebar-toggle {
+  width: 32px;
+  height: 32px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+.sidebar-toggle:hover {
+  color: var(--text);
 }
 .sidebar-eyebrow {
   margin: 12px 8px 4px;
@@ -645,6 +700,96 @@ p {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Ближайшая встреча под названием группы: текст выровнен по названию, не по знаку. */
+.sidebar-item {
+  display: grid;
+}
+.sidebar-next {
+  display: grid;
+  min-width: 0;
+  margin-top: -4px;
+  padding: 0 8px 6px 40px;
+  border-radius: var(--r-lg);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 16px;
+  text-decoration: none;
+}
+.sidebar-next-when {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  transition: color 150ms var(--ease);
+}
+.sidebar-next:hover .sidebar-next-when {
+  color: var(--accent);
+}
+.sidebar-next-about {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Свёрнутая панель: узкая полоса со знаками групп и иконками разделов.
+   Подписи остаются для скринридера, счётчик садится на угол знака. */
+@media (min-width: 1024px) {
+  .shell.sidebar-closed {
+    grid-template-columns: 68px minmax(0, 1fr);
+  }
+  .sidebar-closed .sidebar {
+    align-items: center;
+    padding-left: max(10px, var(--safe-left));
+    padding-right: 10px;
+  }
+  .sidebar-closed .sidebar-top {
+    flex-direction: column;
+    gap: 4px;
+  }
+  .sidebar-closed .sidebar-brand {
+    padding: 4px;
+  }
+  .sidebar-closed .sidebar-label,
+  .sidebar-closed .sidebar-title {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .sidebar-closed .sidebar-eyebrow,
+  .sidebar-closed .sidebar-next {
+    display: none;
+  }
+  .sidebar-closed .sidebar-link {
+    position: relative;
+    width: 40px;
+    justify-content: center;
+    padding: 0;
+  }
+  .sidebar-closed .sidebar-current {
+    margin: 0;
+  }
+  .sidebar-closed .sidebar-sub {
+    padding-left: 0;
+  }
+  .sidebar-closed .sidebar .count-badge {
+    position: absolute;
+    top: 0;
+    right: -2px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    font-size: 10px;
+  }
+  .sidebar-closed .sidebar-foot {
+    flex-direction: column;
+  }
 }
 
 /* --- панель профиля ---
@@ -1386,28 +1531,14 @@ td.cell.busy {
 /* Штриховка «тут занят ты» должна читаться на любой ступени шкалы:
    на тёмных клетках — светлая, на светлых — тёмная. */
 .h0,
-.h1,
-.h2 {
-  --mine-stripe: rgba(255, 255, 255, 0.5);
+.h1 {
+  --mine-stripe: rgba(3, 20, 40, 0.4);
 }
+.h2,
 .h3,
 .h4,
 .h5 {
-  --mine-stripe: rgba(10, 22, 40, 0.35);
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) :is(.h0, .h1) {
-    --mine-stripe: rgba(7, 14, 28, 0.45);
-  }
-  :root:not([data-theme="light"]) :is(.h2, .h3, .h4, .h5) {
-    --mine-stripe: rgba(255, 255, 255, 0.35);
-  }
-}
-:root[data-theme="dark"] :is(.h0, .h1) {
-  --mine-stripe: rgba(7, 14, 28, 0.45);
-}
-:root[data-theme="dark"] :is(.h2, .h3, .h4, .h5) {
-  --mine-stripe: rgba(255, 255, 255, 0.35);
+  --mine-stripe: rgba(255, 255, 255, 0.4);
 }
 
 /* --- сетка по парам, как на портале университета --- */
@@ -1634,26 +1765,56 @@ table.week td.cell.meeting {
   font-weight: 600;
   margin-bottom: 4px;
 }
-.cell-tooltip .who-free-label {
-  color: inherit;
+/* Таблица «Свободны | Заняты» в подсказке и в окне клетки. */
+.who-table {
+  width: 100%;
+  margin: 6px 0 4px;
+  border-collapse: separate;
+  border-spacing: 0 4px;
+  table-layout: fixed;
+  font-size: 13px;
+  line-height: 18px;
+}
+.who-table th {
+  padding: 0 6px 2px 0;
+  text-align: left;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.who-table td {
+  padding: 0 6px 0 0;
+  vertical-align: top;
+}
+.who-count {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
   opacity: 0.7;
 }
-.cell-tooltip .who-free-label.ok {
-  color: inherit;
-  opacity: 1;
+.who-name {
+  display: inline-block;
+  max-width: 100%;
+  padding: 1px 8px;
+  border-radius: var(--r-full);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: top;
 }
-.who-free {
-  display: grid;
-  gap: 4px;
-  margin: 4px 0;
-  overflow-wrap: anywhere;
+.who-name.free {
+  background: var(--who-free);
+  color: var(--who-free-text);
 }
-.who-free-label {
-  color: var(--muted);
-  font-weight: 600;
+.who-name.busy {
+  background: var(--who-busy);
+  color: var(--who-busy-text);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
 }
-.who-free-label.ok {
-  color: var(--accent);
+.who-none {
+  opacity: 0.6;
+}
+.cell-tooltip {
+  min-width: 220px;
 }
 
 /* --- списки --- */
@@ -2060,6 +2221,25 @@ table.week td.cell.meeting {
 }
 .best-item .btn {
   flex: none;
+}
+/* Крестик закрытия стоит в строке заголовка и не раздувает её высоту. */
+.best-head {
+  flex-wrap: nowrap;
+  margin-bottom: 4px;
+}
+.best-close {
+  width: 32px;
+  height: 32px;
+  margin: -4px -6px -4px 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+.best-close:hover {
+  color: var(--text);
+}
+.best-collapsed .card-head {
+  margin-bottom: 0;
 }
 
 /* --- «кто должен прийти» --- */

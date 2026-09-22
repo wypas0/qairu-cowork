@@ -25,3 +25,20 @@ export function parseRecent(value: string | undefined): string[] {
     .map((code) => code.trim().toLowerCase())
     .filter((code) => /^[a-z0-9]{3,24}$/.test(code));
 }
+
+/**
+ * Свёрнутый сайдбар и скрытый блок «Лучшее время» — просто удобство вида,
+ * запоминается на устройстве. Кука, а не localStorage: сервер сразу рисует
+ * страницу в нужном виде, без вспышки при загрузке.
+ */
+export const SIDEBAR_COOKIE = "qairu_sidebar";
+export const BEST_COOKIE = "qairu_best";
+export const VIEW_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
+
+/** Записать куку вида из браузера. */
+export function setViewCookie(name: string, value: string | null): void {
+  document.cookie =
+    value === null
+      ? `${name}=; path=/; max-age=0; samesite=lax`
+      : `${name}=${value}; path=/; max-age=${VIEW_COOKIE_MAX_AGE}; samesite=lax`;
+}

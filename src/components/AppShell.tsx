@@ -1,9 +1,12 @@
+import { cookies } from "next/headers";
 import Link from "next/link";
 
 import { translator } from "@/i18n";
-import { BrandMark, IconCalendarUser, IconMeeting, IconPlus } from "./icons";
-import { ProfilePanel } from "./ProfilePanel";
+import { SIDEBAR_COOKIE } from "@/lib/cookies";
+import { BrandMark, IconCalendarUser, IconClock, IconMeeting, IconPlus } from "./icons";
+import { ProfilePanel, type ProfileGroup } from "./ProfilePanel";
 import { profilePanelProps } from "./profilePanelProps";
+import { SidebarToggle } from "./SidebarToggle";
 import { HomeScreenPrompt } from "./TelegramHome";
 import { Topbar } from "./Topbar";
 
@@ -34,6 +37,7 @@ export async function AppShell({
 }) {
   const t = translator(lang);
   const panel = await profilePanelProps(lang);
+  const closed = (await cookies()).get(SIDEBAR_COOKIE)?.value === "closed";
 
   const groups = panel.groups.some((group) => group.slug === slug)
     ? panel.groups
@@ -45,14 +49,20 @@ export async function AppShell({
   ];
 
   return (
-    <div className="shell">
-      <aside className="sidebar">
-        <Link className="brand sidebar-brand" href="/">
-          <BrandMark className="brand-mark" />
-          <span>
-            Qairu<b>Cowork</b>
-          </span>
-        </Link>
+    <div className={`shell${closed ? " sidebar-closed" : ""}`}>
+      <aside className="sidebar" id="sidebar">
+        <div className="sidebar-top">
+          <Link className="brand sidebar-brand" href="/">
+            <BrandMark className="brand-mark" />
+            <span className="sidebar-label">
+              Qairu<b>Cowork</b>
+            </span>
+          </Link>
+          <SidebarToggle
+            initialClosed={closed}
+            labels={{ collapse: t("w_sidebar_collapse"), expand: t("w_sidebar_expand") }}
+          />
+        </div>
 
         {/* Все группы одним списком. Текущая не пропадает из него, а выделяется,
             и её разделы раскрыты прямо под ней — как рабочие пространства
@@ -62,55 +72,40 @@ export async function AppShell({
           {groups.map((group) =>
             group.slug === slug ? (
               <div className="sidebar-current" key={group.chatId}>
-                <Link className="sidebar-link sidebar-group current" href={`/g/${group.slug}`}>
-                  <span className="sidebar-mark" aria-hidden="true">
-                    {group.title.trim()[0]?.toUpperCase() ?? "?"}
-                  </span>
-                  <span className="sidebar-title">{group.title}</span>
-                  {group.pending ? (
-                    <span className="count-badge" aria-label={t("w_pending_label", { n: String(group.pending) })}>
-                      {group.pending}
-                    </span>
-                  ) : null}
-                </Link>
+                <GroupLink group={group} current pendingLabel={t("w_pending_label", { n: String(group.pending ?? 0) })} />
+                <NextMeeting group={group} label={t("w_side_next")} />
                 <div className="sidebar-sub">
                   {links.map((link) => (
                     <Link
                       key={link.key}
                       className={`sidebar-link${section === link.key ? " active" : ""}`}
                       href={link.href}
+                      title={link.label}
                       aria-current={section === link.key ? "page" : undefined}
                     >
                       <link.Icon size={18} />
-                      {link.label}
+                      <span className="sidebar-label">{link.label}</span>
                     </Link>
                   ))}
                 </div>
               </div>
             ) : (
-              <Link className="sidebar-link sidebar-group" key={group.chatId} href={`/g/${group.slug}`}>
-                <span className="sidebar-mark" aria-hidden="true">
-                  {group.title.trim()[0]?.toUpperCase() ?? "?"}
-                </span>
-                <span className="sidebar-title">{group.title}</span>
-                {group.pending ? (
-                  <span className="count-badge" aria-label={t("w_pending_label", { n: String(group.pending) })}>
-                    {group.pending}
-                  </span>
-                ) : null}
-              </Link>
+              <div className="sidebar-item" key={group.chatId}>
+                <GroupLink group={group} pendingLabel={t("w_pending_label", { n: String(group.pending ?? 0) })} />
+                <NextMeeting group={group} label={t("w_side_next")} />
+              </div>
             ),
           )}
         </nav>
 
-        <Link className="sidebar-link sidebar-create" href="/#create">
+        <Link className="sidebar-link sidebar-create" href="/#create" title={t("w_pp_create")}>
           <IconPlus size={18} />
-          {t("w_pp_create")}
+          <span className="sidebar-label">{t("w_pp_create")}</span>
         </Link>
 
         <div className="sidebar-foot">
           <ProfilePanel {...panel} />
-          <span className="small muted sidebar-me">{panel.user?.name ?? t("w_profile")}</span>
+          <span className="small muted sidebar-me sidebar-label">{panel.user?.name ?? t("w_profile")}</span>
         </div>
       </aside>
 
@@ -136,5 +131,55 @@ export async function AppShell({
         </nav>
       </div>
     </div>
+  );
+}
+
+/** Строка группы: знак, название, счётчик «ждёт тебя». В свёрнутой панели остаются знак и счётчик. */
+function GroupLink({
+  group,
+  current = false,
+  pendingLabel,
+}: {
+  group: ProfileGroup;
+  current?: boolean;
+  pendingLabel: string;
+}) {
+  return (
+    <Link
+      className={`sidebar-link sidebar-group${current ? " current" : ""}`}
+      href={`/g/${group.slug}`}
+      title={group.title}
+    >
+      <span className="sidebar-mark" aria-hidden="true">
+        {group.title.trim()[0]?.toUpperCase() ?? "?"}
+      </span>
+      <span className="sidebar-title">{group.title}</span>
+      {group.pending ? (
+        <span className="count-badge" aria-label={pendingLabel}>
+          {group.pending}
+        </span>
+      ) : null}
+    </Link>
+  );
+}
+
+/**
+ * Ближайшая встреча группы прямо под её названием: когда и о чём.
+ * Нажатие открывает эту встречу во вкладке «Встречи».
+ */
+function NextMeeting({ group, label }: { group: ProfileGroup; label: string }) {
+  if (!group.next) return null;
+  return (
+    <Link
+      className="sidebar-next"
+      href={`/g/${group.slug}?at=meeting-${group.next.id}`}
+      aria-label={`${label}: ${group.next.when}${group.next.about ? `, ${group.next.about}` : ""}`}
+    >
+      <span className="sidebar-next-when">
+        <IconClock size={14} />
+        {group.next.when}
+      </span>
+      {group.next.about && <span className="sidebar-next-about">{group.next.about}</span>}
+    </Link>
   );
 }

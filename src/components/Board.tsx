@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { BEST_COOKIE, setViewCookie } from "@/lib/cookies";
 import type { BoardPayload } from "@/lib/group";
-import { IconChevronLeft, IconChevronRight, IconMeeting } from "./icons";
+import { IconChevronLeft, IconChevronRight, IconClose, IconMeeting } from "./icons";
 import { BreakRow, PeriodTime, hhmm } from "./PeriodRow";
 
 export type PickDetail = { value: string; text: string };
@@ -18,6 +19,8 @@ export type BoardLabels = {
   bestAll: string;
   moreDays: string; // «и ещё {n}»
   bestCount: string; // «свободны {n} из {total}»
+  bestHide: string;
+  bestShow: string;
   weekPrev: string;
   weekNext: string;
   weekThis: string;
@@ -63,7 +66,7 @@ type CellDetail = {
 /** Где показать подсказку: над клеткой, а у верхнего края экрана — под ней. */
 type Hover = { detail: CellDetail; x: number; y: number; below: boolean };
 
-/** h0 — свободны все (самая насыщенная клетка), h5 — никого (почти фон): сильнее цвет — полезнее окно. */
+/** h0 — свободны все (ярко-голубая клетка), h5 — никого (тёмно-фиолетовая): светлее — полезнее окно. */
 function heatClass(count: number, total: number): string {
   if (!total || count <= 0) return "h5";
   const share = count / total;
@@ -92,13 +95,22 @@ export function Board({
   initial,
   durationOptions,
   labels,
+  initialBestHidden = false,
 }: {
   slug: string;
   initial: BoardPayload;
   durationOptions: number[];
   labels: BoardLabels;
+  /** «Лучшее время» свёрнуто — запоминается кукой на устройстве. */
+  initialBestHidden?: boolean;
 }) {
   const [payload, setPayload] = useState(initial);
+  const [bestHidden, setBestHidden] = useState(initialBestHidden);
+
+  function toggleBest(hide: boolean) {
+    setBestHidden(hide);
+    setViewCookie(BEST_COOKIE, hide ? "hidden" : null);
+  }
   // Кто должен прийти. null — все, у кого есть расписание.
   const [selected, setSelected] = useState<number[] | null>(initial.selected);
   const [duration, setDuration] = useState(initial.duration);
@@ -220,9 +232,32 @@ export function Board({
 
   return (
     <>
-      {/* ============ главный ответ страницы ============ */}
+      {/* ============ главный ответ страницы ============
+          Закрывается крестиком: кто назначает по карте, тому список не нужен.
+          Свёрнутый остаётся одной строкой — вернуть его можно в одно нажатие. */}
+      {bestHidden ? (
+        <section className="card best-collapsed">
+          <div className="card-head">
+            <h2>{labels.bestTitle}</h2>
+            <button type="button" className="btn btn-sm" onClick={() => toggleBest(false)}>
+              {labels.bestShow}
+            </button>
+          </div>
+        </section>
+      ) : (
       <section className="card" aria-busy={loading}>
-        <h2>{labels.bestTitle}</h2>
+        <div className="card-head best-head">
+          <h2>{labels.bestTitle}</h2>
+          <button
+            type="button"
+            className="icon-btn best-close"
+            aria-label={labels.bestHide}
+            title={labels.bestHide}
+            onClick={() => toggleBest(true)}
+          >
+            <IconClose size={18} />
+          </button>
+        </div>
         <p className="small muted">{labels.bestLead}</p>
         {payload.best.length === 0 ? (
           <div className="empty">
@@ -252,6 +287,7 @@ export function Board({
           </ul>
         )}
       </section>
+      )}
 
       <div className="grid-2">
       {/* ============ тепловая карта недели ============ */}
@@ -567,22 +603,46 @@ export function Board({
   );
 }
 
-/** Кто свободен и кто занят в клетке — общее для подсказки и окна по нажатию. */
+/**
+ * Кто свободен и кто занят в клетке — таблица в две колонки, общая для
+ * подсказки при наведении и окна по нажатию. Свободные — на ярко-голубых
+ * плашках, занятые — на тёмно-фиолетовых: колонку видно, не читая заголовок.
+ */
 function WhoIsFree({ detail, total, labels }: { detail: CellDetail; total: number; labels: BoardLabels }) {
+  const rows = Math.max(detail.free.length, detail.missing.length, 1);
   return (
-    <div className="who-free small">
-      <div>
-        <span className="who-free-label ok">
-          {labels.freeNames} {detail.count}/{total}:
-        </span>{" "}
-        {detail.free.length > 0 ? detail.free.join(", ") : labels.nobody}
-      </div>
-      {detail.missing.length > 0 && (
-        <div>
-          <span className="who-free-label">{labels.busyNames}:</span> {detail.missing.join(", ")}
-        </div>
-      )}
-    </div>
+    <table className="who-table">
+      <thead>
+        <tr>
+          <th scope="col" className="who-col-free">
+            {labels.freeNames} <span className="who-count">{detail.count}/{total}</span>
+          </th>
+          <th scope="col" className="who-col-busy">
+            {labels.busyNames} <span className="who-count">{detail.missing.length}/{total}</span>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {Array.from({ length: rows }, (_, index) => (
+          <tr key={index}>
+            <td>
+              {detail.free[index] ? (
+                <span className="who-name free">{detail.free[index]}</span>
+              ) : index === 0 ? (
+                <span className="who-none">{labels.nobody}</span>
+              ) : null}
+            </td>
+            <td>
+              {detail.missing[index] ? (
+                <span className="who-name busy">{detail.missing[index]}</span>
+              ) : index === 0 ? (
+                <span className="who-none">—</span>
+              ) : null}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 

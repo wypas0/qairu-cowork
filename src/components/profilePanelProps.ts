@@ -8,6 +8,10 @@ import { hasBot } from "@/lib/config";
 import { THEME_COOKIE, normalizeTheme } from "@/lib/theme";
 import type { ProfileGroup, ProfilePanelProps, ProfileUser } from "./ProfilePanel";
 import { RECENT_COOKIE, parseRecent } from "@/lib/cookies";
+import { nearestByChat } from "@/core/recurrence";
+import { addDays, chatTz, formatDM, todayIn, utcToZonedWall, weekdayOf } from "@/core/timeutils";
+import { fmtMinutes } from "@/core/intervals";
+import { weekdayShort } from "@/i18n";
 
 /**
  * Данные для панели профиля. Панель открывается и из шапки на телефоне, и из
@@ -97,13 +101,55 @@ export async function userGroups(userId: number, lang: string): Promise<ProfileG
     const index = recent.indexOf(slug);
     return index === -1 ? Number.MAX_SAFE_INTEGER : index;
   };
+  const now = new Date();
+  const tzById = new Map(chats.map((chat) => [chat.chatId, chatTz(chat)]));
+  const tzOf = (chatId: number) => tzById.get(chatId) ?? chatTz(null);
+  const nearest = nearestByChat(
+    await repo.feedMeetings(
+      chats.map((chat) => chat.chatId),
+      now,
+    ),
+    tzOf,
+    now,
+  );
+  const t = translator(lang);
+
   return chats
     .filter((chat) => chat.slug)
-    .map((chat) => ({
-      chatId: chat.chatId,
-      slug: chat.slug!,
-      title: chat.title,
-      pending: pending.get(chat.chatId) ?? 0,
-    }))
+    .map((chat) => {
+      const next = nearest.get(chat.chatId);
+      return {
+        chatId: chat.chatId,
+        slug: chat.slug!,
+        title: chat.title,
+        pending: pending.get(chat.chatId) ?? 0,
+        next: next
+          ? {
+              id: next.meeting.id,
+              when: nextWhen(next.start, tzOf(chat.chatId), now, lang, t),
+              about: [next.meeting.goal, next.meeting.place]
+                .map((part) => part.trim())
+                .filter(Boolean)
+                .join(" · "),
+            }
+          : undefined,
+      };
+    })
     .sort((a, b) => rank(a.slug) - rank(b.slug) || a.title.localeCompare(b.title, lang));
+}
+
+/** «Сегодня, 15:00», «Завтра, 15:00» или «Чт 24.09, 15:00» — в поясе группы. */
+function nextWhen(
+  start: Date,
+  tz: string,
+  now: Date,
+  lang: string,
+  t: ReturnType<typeof translator>,
+): string {
+  const { day, minutes } = utcToZonedWall(start, tz);
+  const time = fmtMinutes(minutes);
+  const today = todayIn(tz, now);
+  if (day === today) return t("w_side_today", { time });
+  if (day === addDays(today, 1)) return t("w_side_tomorrow", { time });
+  return `${weekdayShort(lang, weekdayOf(day))} ${formatDM(day)}, ${time}`;
 }

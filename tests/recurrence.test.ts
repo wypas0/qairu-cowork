@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { nextOccurrence, occurrencesBetween, seriesOver, weeklyRule } from "@/core/recurrence";
+import { nearestByChat, nextOccurrence, occurrencesBetween, seriesOver, weeklyRule } from "@/core/recurrence";
 import { zonedWallToUtc } from "@/core/timeutils";
 
 const TZ = "Asia/Almaty";
@@ -46,5 +46,45 @@ describe("повторяющиеся встречи", () => {
     expect(seriesOver("2026-10-07", "2026-10-08")).toBe(true);
     // 23:59 по Алматы (UTC+5) — это 18:59 UTC.
     expect(weeklyRule("2026-10-07", TZ)).toBe("FREQ=WEEKLY;UNTIL=20261007T185900Z");
+  });
+});
+
+describe("ближайшая встреча группы", () => {
+  const NOW = zonedWallToUtc("2026-09-22", 12 * 60, TZ);
+  const tz = () => TZ;
+  const at = (day: string, minutes: number) => zonedWallToUtc(day, minutes, TZ);
+
+  it("берёт самую раннюю из будущих и пропускает прошедшие и без времени", () => {
+    const result = nearestByChat(
+      [
+        { id: 1, chatId: 10, whenStart: at("2026-09-21", 15 * 60), repeatUntil: null },
+        { id: 2, chatId: 10, whenStart: at("2026-09-25", 10 * 60), repeatUntil: null },
+        { id: 3, chatId: 10, whenStart: at("2026-09-23", 18 * 60), repeatUntil: null },
+        { id: 4, chatId: 10, whenStart: null, repeatUntil: null },
+        { id: 5, chatId: 20, whenStart: at("2026-09-20", 9 * 60), repeatUntil: null },
+      ],
+      tz,
+      NOW,
+    );
+    expect(result.get(10)?.meeting.id).toBe(3);
+    expect(result.has(20)).toBe(false);
+  });
+
+  it("для серии, начавшейся раньше, показывает ближайший повтор", () => {
+    const result = nearestByChat(
+      [{ id: 7, chatId: 10, whenStart: at("2026-09-02", 15 * 60), repeatUntil: "2026-12-16" }],
+      tz,
+      NOW,
+    );
+    expect(result.get(10)?.start).toEqual(at("2026-09-23", 15 * 60));
+  });
+
+  it("закончившаяся серия встречей не считается", () => {
+    const result = nearestByChat(
+      [{ id: 8, chatId: 10, whenStart: at("2026-08-05", 15 * 60), repeatUntil: "2026-09-16" }],
+      tz,
+      NOW,
+    );
+    expect(result.size).toBe(0);
   });
 });

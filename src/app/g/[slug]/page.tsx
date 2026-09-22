@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
@@ -27,6 +28,7 @@ import {
   toBoardPayload,
 } from "@/lib/group";
 import { feedPath } from "@/lib/calendarFeed";
+import { BEST_COOKIE } from "@/lib/cookies";
 import { formatCode } from "@/lib/invite";
 import { baseUrl } from "@/lib/url";
 import {
@@ -76,6 +78,7 @@ export default async function GroupPage({
   const t = translator(lang);
   const state = await loadGroupState(chat, { week: normalizeWeek(query.week) });
   const payload = toBoardPayload(state, lang, user.userId);
+  const bestHidden = (await cookies()).get(BEST_COOKIE)?.value === "hidden";
   const base = await baseUrl();
   const inviteUrl = `${base}/g/${slug}`;
   // Личная лента встреч этой группы для подписки в календаре.
@@ -248,8 +251,11 @@ export default async function GroupPage({
                   slug={slug}
                   initial={payload}
                   durationOptions={durationOptions(state.duration)}
+                  initialBestHidden={bestHidden}
                   labels={{
                     bestTitle: t("w_best_title"),
+                    bestHide: t("w_best_hide"),
+                    bestShow: t("w_best_show"),
                     bestLead: t("w_best_lead"),
                     bestEmpty: t("w_best_empty"),
                     bestAll: t("w_best_all"),

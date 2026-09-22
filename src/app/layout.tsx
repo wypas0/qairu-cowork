@@ -6,7 +6,9 @@ import { Suspense } from "react";
 import { NavProgress } from "@/components/NavProgress";
 import { TelegramAuth } from "@/components/TelegramAuth";
 import { TelegramChrome } from "@/components/TelegramChrome";
+import { IconGlobe, IconSend } from "@/components/icons";
 import { normalizeLang, t } from "@/i18n";
+import { CONTACTS, telegramUrl } from "@/lib/contacts";
 import { THEME_COOKIE, normalizeTheme } from "@/lib/theme";
 import "./globals.css";
 
@@ -61,6 +63,32 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         {children}
         <footer className="foot">
           <span>{t(lang, "w_footer")}</span>
+          <div className="foot-contacts">
+            {CONTACTS.developerTelegram && (
+              <p className="foot-contact">
+                <span>{t(lang, "w_contact_dev")}</span>
+                <a href={telegramUrl(CONTACTS.developerTelegram)} target="_blank" rel="noopener noreferrer">
+                  <IconSend size={14} />@{CONTACTS.developerTelegram.replace(/^@/, "")}
+                </a>
+              </p>
+            )}
+            {(CONTACTS.hub.site || CONTACTS.hub.telegram) && (
+              <p className="foot-contact">
+                <span>{t(lang, "w_contact_hub")}</span>
+                {CONTACTS.hub.site && (
+                  <a href={CONTACTS.hub.site} target="_blank" rel="noopener noreferrer">
+                    <IconGlobe size={14} />
+                    {CONTACTS.hub.site.replace(/^https?:\/\//, "").replace(/\/$/, "")}
+                  </a>
+                )}
+                {CONTACTS.hub.telegram && (
+                  <a href={telegramUrl(CONTACTS.hub.telegram)} target="_blank" rel="noopener noreferrer">
+                    <IconSend size={14} />@{CONTACTS.hub.telegram.replace(/^@/, "")}
+                  </a>
+                )}
+              </p>
+            )}
+          </div>
         </footer>
         {/* Скрипт Mini App должен загрузиться до того, как клиентский вход
             попробует прочитать window.Telegram.WebApp. */}

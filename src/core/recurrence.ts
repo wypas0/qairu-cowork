@@ -63,3 +63,36 @@ export function weeklyRule(repeatUntil: DateStr, tz: string): string {
     .replace(/[-:]|\.\d{3}/g, "");
   return `FREQ=WEEKLY;UNTIL=${until}`;
 }
+
+/** Встреча в том виде, которого хватает, чтобы найти её ближайший повтор. */
+export type TimedMeeting = {
+  id: number;
+  chatId: number;
+  whenStart: Date | null;
+  repeatUntil: DateStr | null;
+};
+
+/**
+ * Ближайшая ещё не начавшаяся встреча каждой группы — для строки под группой
+ * в сайдбаре. Для серии берётся ближайший повтор, а не первая дата: серия,
+ * начавшаяся месяц назад, всё ещё «встреча в среду».
+ */
+export function nearestByChat<M extends TimedMeeting>(
+  meetings: M[],
+  tzOf: (chatId: number) => string,
+  now: Date,
+): Map<number, { meeting: M; start: Date }> {
+  const result = new Map<number, { meeting: M; start: Date }>();
+  for (const meeting of meetings) {
+    if (!meeting.whenStart) continue;
+    const start = meeting.repeatUntil
+      ? nextOccurrence(meeting.whenStart, meeting.repeatUntil, tzOf(meeting.chatId), now)
+      : meeting.whenStart > now
+        ? meeting.whenStart
+        : null;
+    if (!start) continue;
+    const best = result.get(meeting.chatId);
+    if (!best || start < best.start) result.set(meeting.chatId, { meeting, start });
+  }
+  return result;
+}
