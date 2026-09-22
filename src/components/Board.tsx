@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { BEST_COOKIE, setViewCookie } from "@/lib/cookies";
 import type { BoardPayload } from "@/lib/group";
+import { CopyButton } from "./CopyButton";
 import { IconChevronLeft, IconChevronRight, IconClose, IconMeeting } from "./icons";
 import { BreakRow, PeriodTime, hhmm } from "./PeriodRow";
 
@@ -21,6 +22,14 @@ export type BoardLabels = {
   bestCount: string; // «свободны {n} из {total}»
   bestHide: string;
   bestShow: string;
+  rowsTrimmed: string; // «Скрыты часы, когда никто не свободен»
+  rowsShowAll: string;
+  rowsHideEmpty: string;
+  copyWindows: string;
+  copiedWindows: string;
+  copyHead: string; // «Общие окна · {duration}» — литеральный {duration}
+  copyWithout: string; // «без {names}» — литеральный {names}
+  nowLabel: string;
   weekPrev: string;
   weekNext: string;
   weekThis: string;
@@ -66,7 +75,7 @@ type CellDetail = {
 /** Где показать подсказку: над клеткой, а у верхнего края экрана — под ней. */
 type Hover = { detail: CellDetail; x: number; y: number; below: boolean };
 
-/** h0 — свободны все (ярко-голубая клетка), h5 — никого (тёмно-фиолетовая): светлее — полезнее окно. */
+/** h0 — свободны все (ярко-голубая клетка), h5 — никого (тёмно-синяя): светлее — полезнее окно. */
 function heatClass(count: number, total: number): string {
   if (!total || count <= 0) return "h5";
   const share = count / total;
@@ -119,6 +128,17 @@ export function Board({
   const [loading, setLoading] = useState(false);
   const [activeCell, setActiveCell] = useState<CellDetail | null>(null);
   const [hover, setHover] = useState<Hover | null>(null);
+  // Кого подсветить на карте: наведение на имя в «Кто должен прийти» (как в When2meet).
+  const [spot, setSpot] = useState<number | null>(null);
+  // Протяжка мышью по клеткам одного дня — так выбирают время встречи целиком.
+  const [drag, setDrag] = useState<Drag | null>(null);
+  const dragRef = useRef<(Drag & { moved: boolean }) | null>(null);
+  const skipClick = useRef(false);
+  // «Сейчас» в поясе группы. На сервере его не считаем: разметка сервера и
+  // браузера должна совпасть, поэтому отметки появляются после загрузки.
+  const [now, setNow] = useState<WallNow | null>(null);
+  // Пустые часы по краям дня (никто не свободен) скрыты, пока не попросят показать.
+  const [allRows, setAllRows] = useState(false);
   const requestId = useRef(0);
   // Для каких кворума и длительности посчитаны данные, что сейчас на экране.
   // Сравнивать выбор нужно с ними, а не с начальными значениями: иначе
@@ -146,6 +166,41 @@ export function Board({
     window.addEventListener("scroll", hide, { capture: true, passive: true });
     return () => window.removeEventListener("scroll", hide, { capture: true });
   }, [hover]);
+
+  // Часы группы идут сами: раз в минуту двигаем линию «сейчас» и гасим прошедшее.
+  useEffect(() => {
+    const tick = () => setNow(wallNow(payload.tz));
+    tick();
+    const timer = setInterval(tick, 60_000);
+    return () => clearInterval(timer);
+  }, [payload.tz]);
+
+  // Протяжку заканчивает отпускание кнопки где угодно, даже за пределами карты.
+  useEffect(() => {
+    function finish() {
+      const current = dragRef.current;
+      if (!current) return;
+      dragRef.current = null;
+      setDrag(null);
+      if (!current.moved) return;
+      // Следом за отпусканием браузер пришлёт щелчок — окно клетки он открыть не должен.
+      skipClick.current = true;
+      setTimeout(() => {
+        skipClick.current = false;
+      }, 0);
+      const heatDay = payload.days.find((entry) => entry.date === current.date);
+      if (!heatDay) return;
+      const start = heatDay.cells[Math.min(current.from, current.to)].start;
+      const end = heatDay.cells[Math.max(current.from, current.to)].end;
+      pick(heatDay.date, start, end, `${heatDay.label} · ${hhmm(start)}–${hhmm(end)}`);
+    }
+    window.addEventListener("pointerup", finish);
+    window.addEventListener("pointercancel", finish);
+    return () => {
+      window.removeEventListener("pointerup", finish);
+      window.removeEventListener("pointercancel", finish);
+    };
+  }, [payload.days]);
 
   const refresh = useCallback(
     async (nextSelected: number[] | null, nextDuration: number, nextWeek: number) => {
@@ -208,7 +263,29 @@ export function Board({
   const meetingsAt = (date: string, start: number, end: number) =>
     meetings.filter((meeting) => meeting.date === date && meeting.start < end && start < meeting.end);
 
-  const day = payload.slotDays.find((entry) => entry.date === selectedDay) ?? payload.slotDays[0];
+  // Сегодняшние окна начинаются не раньше, чем сейчас: встречу в прошедшее
+  // утро не назначить. Окно, от которого осталось меньше длины встречи, уходит.
+  const from = now ? Math.ceil(now.min / 10) * 10 : null;
+  const upcoming = <T extends { start: number; end: number; text: string }>(date: string, item: T): T | null => {
+    if (from === null || !now || date !== now.day || item.start >= from) return item;
+    if (item.end - from < payload.duration) return null;
+    return { ...item, start: from, text: `${hhmm(from)}–${hhmm(item.end)}` };
+  };
+  const slotDays = payload.slotDays.map((entry) => ({
+    ...entry,
+    items: entry.items
+      .map((item) => upcoming(entry.date, item))
+      .filter((item): item is (typeof entry.items)[number] => item !== null),
+  }));
+  // В «Лучшем времени» у сегодняшнего дня то же правило; строка без дней пропадает.
+  const best = payload.best
+    .map((item) => ({
+      ...item,
+      dates: item.dates.filter((entry) => upcoming(entry.date, item) === item),
+    }))
+    .filter((item) => item.dates.length > 0);
+
+  const day = slotDays.find((entry) => entry.date === selectedDay) ?? slotDays[0];
 
   // Список «кто должен прийти»: считать окна можно не для всех, а для тех,
   // без кого встреча не имеет смысла. Не заполнившие расписание в расчёт
@@ -229,6 +306,47 @@ export function Board({
     const detail: PickDetail = { value: `${date}T${hhmm(start)}|${end - start}`, text };
     window.dispatchEvent(new CustomEvent<PickDetail>(PICK_EVENT, { detail }));
   }
+
+  // Ряды по краям дня, где не свободен никто и нет встреч, прячем: ранним
+  // утром и поздним вечером карта иначе состоит из одинаковых пустых клеток.
+  const rowUsed = (row: number) =>
+    payload.days.some(
+      (heatDay) =>
+        heatDay.cells[row].count > 0 ||
+        meetingsAt(heatDay.date, heatDay.cells[row].start, heatDay.cells[row].end).length > 0,
+    );
+  const lastRow = payload.periods.length - 1;
+  let firstShown = 0;
+  let lastShown = lastRow;
+  if (total > 0) {
+    while (firstShown < lastShown && !rowUsed(firstShown)) firstShown += 1;
+    while (lastShown > firstShown && !rowUsed(lastShown)) lastShown -= 1;
+  }
+  const trimmable = firstShown > 0 || lastShown < lastRow;
+  if (allRows) {
+    firstShown = 0;
+    lastShown = lastRow;
+  }
+
+  // Окна текстом — вставить в чат группы одним сообщением.
+  const windowsText = [
+    labels.copyHead.replace("{duration}", durationText(payload.duration, labels)),
+    ...slotDays
+      .filter((entry) => entry.items.length > 0)
+      .map(
+        (entry) =>
+          `${entry.short}: ${entry.items
+            .map((item) =>
+              item.missing.length > 0
+                ? `${item.text} (${labels.copyWithout.replace("{names}", item.missing.join(", "))})`
+                : item.text,
+            )
+            .join(", ")}`,
+      ),
+  ].join("\n");
+  const hasWindows = slotDays.some((entry) => entry.items.length > 0);
+
+  const today = now?.day ?? payload.today;
 
   return (
     <>
@@ -259,13 +377,13 @@ export function Board({
           </button>
         </div>
         <p className="small muted">{labels.bestLead}</p>
-        {payload.best.length === 0 ? (
+        {best.length === 0 ? (
           <div className="empty">
             <h3>{labels.bestEmpty}</h3>
           </div>
         ) : (
           <ul className="best-list">
-            {payload.best.map((item) => {
+            {best.map((item) => {
               const first = item.dates[0];
               return (
                 <li className="best-item" key={`${first.date}-${item.start}`}>
@@ -324,12 +442,16 @@ export function Board({
         <p className="small muted">{labels.heatHint}</p>
 
         <div className="gridwrap">
-          <table className="week periods">
+          <table className={`week periods${drag ? " dragging" : ""}${spot !== null ? " spotting" : ""}`}>
             <thead>
               <tr>
                 <th className="timecol" />
                 {payload.days.map((heatDay) => (
-                  <th key={heatDay.date}>
+                  <th
+                    key={heatDay.date}
+                    className={heatDay.date === today ? "today" : undefined}
+                    aria-current={heatDay.date === today ? "date" : undefined}
+                  >
                     {heatDay.short}
                     <br />
                     <span className="small muted">{heatDay.dm}</span>
@@ -338,68 +460,126 @@ export function Board({
               </tr>
             </thead>
             <tbody>
-              {payload.periods.map((period, row) => [
-                <BreakRow
-                  key={`break-${period.start}`}
-                  period={period}
-                  columns={payload.days.length}
-                  template={labels.breakRow}
-                />,
-                <tr key={period.start}>
-                  <PeriodTime period={period} />
-                  {payload.days.map((heatDay) => {
-                    const cell = heatDay.cells[row];
-                    const here = meetingsAt(heatDay.date, cell.start, cell.end);
-                    // Подпись — только в первой клетке встречи за день, дальше просто красные.
-                    const titled = here.filter(
-                      (meeting) => row === 0 || !(meeting.start < heatDay.cells[row - 1].end && heatDay.cells[row - 1].start < meeting.end),
-                    );
-                    const detail: CellDetail = {
-                      date: heatDay.date,
-                      dayLabel: heatDay.label,
-                      start: cell.start,
-                      end: cell.end,
-                      count: cell.count,
-                      free: cell.free,
-                      missing: cell.missing,
-                      meetings: here.map((meeting) => meeting.title),
-                    };
-                    return (
-                      <td
-                        key={`${heatDay.date}-${cell.start}`}
-                        className={`cell ${here.length > 0 ? "meeting" : heatClass(cell.count, total)}${
-                          cell.mine ? " mine" : ""
-                        }`}
-                        onPointerEnter={(event) => {
-                          // Подсказка — для мыши; на телефоне то же самое показывает окно по нажатию.
-                          if (event.pointerType !== "mouse") return;
-                          const rect = event.currentTarget.getBoundingClientRect();
-                          const below = rect.top < 140;
-                          setHover({ detail, x: rect.left + rect.width / 2, y: below ? rect.bottom : rect.top, below });
-                        }}
-                        onPointerLeave={() => setHover(null)}
-                        tabIndex={0}
-                        role="button"
-                        aria-label={`${heatDay.label} ${hhmm(cell.start)}–${hhmm(cell.end)}: ${cell.count}/${total}${here.length > 0 ? ` · ${labels.legendMeeting}: ${here.map((meeting) => meeting.title).join(", ")}` : ""}`}
-                        onClick={() => {
-                          setHover(null);
-                          setActiveCell(detail);
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key !== " " && event.key !== "Enter") return;
-                          event.preventDefault();
-                          setActiveCell(detail);
-                        }}
-                      >
-                        {titled.length > 0 && <span className="cell-meeting">{titled[0].title}</span>}
-                      </td>
-                    );
-                  })}
-                </tr>,
-              ])}
+              {payload.periods.map((period, row) =>
+                row < firstShown || row > lastShown
+                  ? null
+                  : [
+                      // Перерыв перед первым показанным рядом не нужен: над ним ничего нет.
+                      row === firstShown ? null : (
+                        <BreakRow
+                          key={`break-${period.start}`}
+                          period={period}
+                          columns={payload.days.length}
+                          template={labels.breakRow}
+                        />
+                      ),
+                      <tr key={period.start}>
+                        <PeriodTime period={period} />
+                        {payload.days.map((heatDay) => {
+                          const cell = heatDay.cells[row];
+                          const here = meetingsAt(heatDay.date, cell.start, cell.end);
+                          // Подпись — только в первой клетке встречи за день, дальше просто красные.
+                          const titled = here.filter(
+                            (meeting) =>
+                              row === firstShown ||
+                              !(meeting.start < heatDay.cells[row - 1].end && heatDay.cells[row - 1].start < meeting.end),
+                          );
+                          const detail: CellDetail = {
+                            date: heatDay.date,
+                            dayLabel: heatDay.label,
+                            start: cell.start,
+                            end: cell.end,
+                            count: cell.count,
+                            free: cell.free,
+                            missing: cell.missing,
+                            meetings: here.map((meeting) => meeting.title),
+                          };
+                          const past =
+                            now !== null &&
+                            (heatDay.date < now.day || (heatDay.date === now.day && cell.end <= now.min));
+                          const current =
+                            now !== null && heatDay.date === now.day && cell.start <= now.min && now.min < cell.end;
+                          const inRange =
+                            drag !== null &&
+                            drag.date === heatDay.date &&
+                            row >= Math.min(drag.from, drag.to) &&
+                            row <= Math.max(drag.from, drag.to);
+                          const classes = [
+                            "cell",
+                            here.length > 0 ? "meeting" : heatClass(cell.count, total),
+                            cell.mine ? "mine" : "",
+                            past ? "past" : "",
+                            inRange ? "inrange" : "",
+                            spot === null ? "" : cell.freeIds.includes(spot) ? "spot-on" : "spot-off",
+                          ];
+                          return (
+                            <td
+                              key={`${heatDay.date}-${cell.start}`}
+                              className={classes.filter(Boolean).join(" ")}
+                              onPointerDown={(event) => {
+                                // Протяжка — только мышью: пальцем по карте листают страницу.
+                                if (event.pointerType !== "mouse" || event.button !== 0) return;
+                                dragRef.current = { date: heatDay.date, from: row, to: row, moved: false };
+                              }}
+                              onPointerEnter={(event) => {
+                                // Подсказка — для мыши; на телефоне то же самое показывает окно по нажатию.
+                                if (event.pointerType !== "mouse") return;
+                                const dragging = dragRef.current;
+                                if (dragging) {
+                                  setHover(null);
+                                  if (dragging.date === heatDay.date && dragging.to !== row) {
+                                    dragging.to = row;
+                                    dragging.moved = true;
+                                    setDrag({ date: dragging.date, from: dragging.from, to: row });
+                                  }
+                                  return;
+                                }
+                                const rect = event.currentTarget.getBoundingClientRect();
+                                const below = rect.top < 140;
+                                setHover({ detail, x: rect.left + rect.width / 2, y: below ? rect.bottom : rect.top, below });
+                              }}
+                              onPointerLeave={() => setHover(null)}
+                              tabIndex={0}
+                              role="button"
+                              aria-label={`${heatDay.label} ${hhmm(cell.start)}–${hhmm(cell.end)}: ${cell.count}/${total}${here.length > 0 ? ` · ${labels.legendMeeting}: ${here.map((meeting) => meeting.title).join(", ")}` : ""}`}
+                              onClick={() => {
+                                if (skipClick.current) return;
+                                setHover(null);
+                                setActiveCell(detail);
+                              }}
+                              onKeyDown={(event) => {
+                                if (event.key !== " " && event.key !== "Enter") return;
+                                event.preventDefault();
+                                setActiveCell(detail);
+                              }}
+                            >
+                              {titled.length > 0 && <span className="cell-meeting">{titled[0].title}</span>}
+                              {current && now && (
+                                <span
+                                  className="now-line"
+                                  style={{ top: `${((now.min - cell.start) / (cell.end - cell.start)) * 100}%` }}
+                                  title={labels.nowLabel}
+                                  aria-hidden="true"
+                                />
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>,
+                    ],
+              )}
             </tbody>
           </table>
         </div>
+
+        {trimmable && (
+          <p className="rows-note small muted">
+            {allRows ? null : <span>{labels.rowsTrimmed}</span>}
+            <button type="button" className="btn btn-sm btn-quiet" onClick={() => setAllRows((value) => !value)}>
+              {allRows ? labels.rowsHideEmpty : labels.rowsShowAll}
+            </button>
+          </p>
+        )}
 
         <div className="legend">
           <span>{labels.legendAll}</span>
@@ -416,14 +596,19 @@ export function Board({
 
       {/* ============ выбор дня и длительности ============ */}
       <section className="card" aria-busy={loading}>
-        <h2>{labels.windowsTitle}</h2>
+        <div className="card-head">
+          <h2>{labels.windowsTitle}</h2>
+          {hasWindows && (
+            <CopyButton value={windowsText} label={labels.copyWindows} copiedLabel={labels.copiedWindows} small />
+          )}
+        </div>
 
         <div className="field">
           <span className="label" id="slot-day-label">
             {labels.day}
           </span>
           <div className="daypicker" role="radiogroup" aria-labelledby="slot-day-label">
-            {payload.slotDays.map((entry) => {
+            {slotDays.map((entry) => {
               const active = entry.date === day?.date;
               return (
                 <button
@@ -473,8 +658,15 @@ export function Board({
               </div>
               <ul className="who-list" aria-labelledby="who-label">
                 {payload.people.map((person) => (
-                  <li key={person.id}>
-                    <label className={`who-row${person.filled ? "" : " off"}`}>
+                  <li
+                    key={person.id}
+                    // Наведение на имя подсвечивает на карте, когда этот человек свободен.
+                    onMouseEnter={person.filled ? () => setSpot(person.id) : undefined}
+                    onMouseLeave={person.filled ? () => setSpot(null) : undefined}
+                    onFocus={person.filled ? () => setSpot(person.id) : undefined}
+                    onBlur={person.filled ? () => setSpot(null) : undefined}
+                  >
+                    <label className={`who-row${person.filled ? "" : " off"}${spot === person.id ? " spotted" : ""}`}>
                       <input
                         type="checkbox"
                         checked={isOn(person.id)}
@@ -606,7 +798,7 @@ export function Board({
 /**
  * Кто свободен и кто занят в клетке — таблица в две колонки, общая для
  * подсказки при наведении и окна по нажатию. Свободные — на ярко-голубых
- * плашках, занятые — на тёмно-фиолетовых: колонку видно, не читая заголовок.
+ * плашках, занятые — на тёмно-синих: колонку видно, не читая заголовок.
  */
 function WhoIsFree({ detail, total, labels }: { detail: CellDetail; total: number; labels: BoardLabels }) {
   const rows = Math.max(detail.free.length, detail.missing.length, 1);
@@ -627,14 +819,14 @@ function WhoIsFree({ detail, total, labels }: { detail: CellDetail; total: numbe
           <tr key={index}>
             <td>
               {detail.free[index] ? (
-                <span className="who-name free">{detail.free[index]}</span>
+                <span className="who-pill free">{detail.free[index]}</span>
               ) : index === 0 ? (
                 <span className="who-none">{labels.nobody}</span>
               ) : null}
             </td>
             <td>
               {detail.missing[index] ? (
-                <span className="who-name busy">{detail.missing[index]}</span>
+                <span className="who-pill busy">{detail.missing[index]}</span>
               ) : index === 0 ? (
                 <span className="who-none">—</span>
               ) : null}
@@ -648,6 +840,33 @@ function WhoIsFree({ detail, total, labels }: { detail: CellDetail; total: numbe
 
 /** Насколько далеко вперёд можно листать недели (на сервере значение то же). */
 const MAX_WEEK = 8;
+
+/** Протяжка мышью: день и ряды, с которого начали и до которого дотянули. */
+type Drag = { date: string; from: number; to: number };
+
+/** Стенные часы группы: дата «ГГГГ-ММ-ДД» и минуты от полуночи. */
+type WallNow = { day: string; min: number };
+
+/** Который сейчас час у группы — в её поясе, а не в поясе браузера. */
+function wallNow(tz: string): WallNow {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    })
+      .formatToParts(new Date())
+      .map((part) => [part.type, part.value]),
+  );
+  return {
+    day: `${parts.year}-${parts.month}-${parts.day}`,
+    min: Number(parts.hour) * 60 + Number(parts.minute),
+  };
+}
 
 /** Сравнимый вид выбора участников: порядок щелчков значения не имеет. */
 function selectionKey(selected: number[] | null): string {

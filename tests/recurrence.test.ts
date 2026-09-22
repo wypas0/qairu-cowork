@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { nearestByChat, nextOccurrence, occurrencesBetween, seriesOver, weeklyRule } from "@/core/recurrence";
+import { upcomingByChat, nextOccurrence, occurrencesBetween, seriesOver, weeklyRule } from "@/core/recurrence";
 import { zonedWallToUtc } from "@/core/timeutils";
 
 const TZ = "Asia/Almaty";
@@ -49,13 +49,13 @@ describe("повторяющиеся встречи", () => {
   });
 });
 
-describe("ближайшая встреча группы", () => {
+describe("предстоящие встречи группы", () => {
   const NOW = zonedWallToUtc("2026-09-22", 12 * 60, TZ);
   const tz = () => TZ;
   const at = (day: string, minutes: number) => zonedWallToUtc(day, minutes, TZ);
 
-  it("берёт самую раннюю из будущих и пропускает прошедшие и без времени", () => {
-    const result = nearestByChat(
+  it("все будущие по времени, без прошедших и без времени", () => {
+    const result = upcomingByChat(
       [
         { id: 1, chatId: 10, whenStart: at("2026-09-21", 15 * 60), repeatUntil: null },
         { id: 2, chatId: 10, whenStart: at("2026-09-25", 10 * 60), repeatUntil: null },
@@ -66,21 +66,21 @@ describe("ближайшая встреча группы", () => {
       tz,
       NOW,
     );
-    expect(result.get(10)?.meeting.id).toBe(3);
+    expect(result.get(10)?.map((item) => item.meeting.id)).toEqual([3, 2]);
     expect(result.has(20)).toBe(false);
   });
 
   it("для серии, начавшейся раньше, показывает ближайший повтор", () => {
-    const result = nearestByChat(
+    const result = upcomingByChat(
       [{ id: 7, chatId: 10, whenStart: at("2026-09-02", 15 * 60), repeatUntil: "2026-12-16" }],
       tz,
       NOW,
     );
-    expect(result.get(10)?.start).toEqual(at("2026-09-23", 15 * 60));
+    expect(result.get(10)?.[0].start).toEqual(at("2026-09-23", 15 * 60));
   });
 
   it("закончившаяся серия встречей не считается", () => {
-    const result = nearestByChat(
+    const result = upcomingByChat(
       [{ id: 8, chatId: 10, whenStart: at("2026-08-05", 15 * 60), repeatUntil: "2026-09-16" }],
       tz,
       NOW,

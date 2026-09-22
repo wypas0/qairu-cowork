@@ -73,16 +73,16 @@ export type TimedMeeting = {
 };
 
 /**
- * Ближайшая ещё не начавшаяся встреча каждой группы — для строки под группой
- * в сайдбаре. Для серии берётся ближайший повтор, а не первая дата: серия,
- * начавшаяся месяц назад, всё ещё «встреча в среду».
+ * Все ещё не начавшиеся встречи каждой группы, по времени, — для списка под
+ * группой в сайдбаре. Для серии берётся ближайший повтор, а не первая дата:
+ * серия, начавшаяся месяц назад, всё ещё «встреча в среду».
  */
-export function nearestByChat<M extends TimedMeeting>(
+export function upcomingByChat<M extends TimedMeeting>(
   meetings: M[],
   tzOf: (chatId: number) => string,
   now: Date,
-): Map<number, { meeting: M; start: Date }> {
-  const result = new Map<number, { meeting: M; start: Date }>();
+): Map<number, { meeting: M; start: Date }[]> {
+  const result = new Map<number, { meeting: M; start: Date }[]>();
   for (const meeting of meetings) {
     if (!meeting.whenStart) continue;
     const start = meeting.repeatUntil
@@ -91,8 +91,10 @@ export function nearestByChat<M extends TimedMeeting>(
         ? meeting.whenStart
         : null;
     if (!start) continue;
-    const best = result.get(meeting.chatId);
-    if (!best || start < best.start) result.set(meeting.chatId, { meeting, start });
+    const list = result.get(meeting.chatId) ?? [];
+    list.push({ meeting, start });
+    result.set(meeting.chatId, list);
   }
+  for (const list of result.values()) list.sort((a, b) => a.start.getTime() - b.start.getTime());
   return result;
 }

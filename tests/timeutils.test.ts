@@ -9,6 +9,7 @@ import {
   formatDMY,
   isDateStr,
   parseDateToken,
+  startsSoon,
   todayIn,
   tzOf,
   weekdayOf,
@@ -132,5 +133,25 @@ describe("обрезка длинных сообщений", () => {
 
   it("экранирует HTML для Telegram", () => {
     expect(escapeHtml("<b>a & b</b>")).toBe("&lt;b&gt;a &amp; b&lt;/b&gt;");
+  });
+});
+
+describe("до встречи осталось", () => {
+  const NOW = new Date("2026-09-22T10:00:00Z");
+  const after = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000);
+
+  it("меньше часа — минуты, не меньше одной", () => {
+    expect(startsSoon(after(40), NOW)).toEqual({ unit: "min", n: 40 });
+    expect(startsSoon(after(0.2), NOW)).toEqual({ unit: "min", n: 1 });
+  });
+
+  it("больше часа — часы с округлением", () => {
+    expect(startsSoon(after(60), NOW)).toEqual({ unit: "h", n: 1 });
+    expect(startsSoon(after(115), NOW)).toEqual({ unit: "h", n: 2 });
+  });
+
+  it("начавшееся и то, что дальше суток, без метки", () => {
+    expect(startsSoon(after(-5), NOW)).toBeNull();
+    expect(startsSoon(after(24 * 60), NOW)).toBeNull();
   });
 });

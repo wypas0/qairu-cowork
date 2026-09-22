@@ -43,22 +43,23 @@
   --slot-busy: #0064e0;
   /* Штриховка «тут занят ты» поверх общей карты. */
   --mine-stripe: rgba(10, 22, 40, 0.3);
-  /* Кто свободен и кто занят в клетке: ярко-голубой и тёмно-тёмно-фиолетовый. */
-  --who-free: #3cc8ff;
+  /* Кто свободен и кто занят в клетке: ярко-голубой и тёмно-синий, как края шкалы карты. */
+  --who-free: #45d6ff;
   --who-free-text: #03263a;
-  --who-busy: #1f0a3d;
-  --who-busy-text: #efe6ff;
+  --who-busy: #0b2059;
+  --who-busy-text: #e6efff;
 
-  /* Тепловая карта группы: от ярко-голубого «свободны все» (h0) через
-     сине-фиолетовый к тёмно-тёмно-фиолетовому «никого» (h5). Светлота
-     убывает монотонно, поэтому шкала читается и без различения оттенков.
-     Самая тёмная ступень держится обводкой, чтобы не сливаться с фоном. */
-  --heat-0: #3cc8ff;
-  --heat-1: #3a93f0;
-  --heat-2: #4a62d6;
-  --heat-3: #4f3aa8;
-  --heat-4: #3a1f78;
-  --heat-5: #1f0a3d;
+  /* Тепловая карта группы: от очень яркого голубого «свободны все» (h0)
+     к тёмно-синему «никого» (h5). Светлота убывает монотонно, поэтому шкала
+     читается и без различения оттенков. У каждой клетки тонкая обводка
+     --heat-edge: соседние клетки одной ступени не сливаются в пятно. */
+  --heat-0: #45d6ff;
+  --heat-1: #33abf5;
+  --heat-2: #2582e0;
+  --heat-3: #1a5cbf;
+  --heat-4: #133c8f;
+  --heat-5: #0b2059;
+  --heat-edge: rgba(10, 22, 40, 0.22);
 
   /* --- радиусы, ровно те роли, что в дизайн-коде --- */
   --r-sm: 6px; /* мелкий контрол */
@@ -113,17 +114,18 @@
     --slot-free-border: rgba(255, 255, 255, 0.16);
     --slot-busy: #1b76f2;
     --mine-stripe: rgba(7, 14, 28, 0.42);
-    --who-free: #3cc8ff;
+    --who-free: #45d6ff;
     --who-free-text: #03263a;
-    --who-busy: #2a0f52;
-    --who-busy-text: #efe6ff;
+    --who-busy: #12307a;
+    --who-busy-text: #e6efff;
 
-    --heat-0: #3cc8ff;
-    --heat-1: #3a93f0;
-    --heat-2: #4a62d6;
-    --heat-3: #5540b3;
-    --heat-4: #3f2385;
-    --heat-5: #2a0f52;
+    --heat-0: #45d6ff;
+    --heat-1: #33abf5;
+    --heat-2: #2582e0;
+    --heat-3: #1d62c9;
+    --heat-4: #1a4aa8;
+    --heat-5: #12307a;
+    --heat-edge: rgba(255, 255, 255, 0.2);
 
     --shadow-float: 0 10px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35);
   }
@@ -158,17 +160,18 @@
   --slot-free-border: rgba(255, 255, 255, 0.16);
   --slot-busy: #1b76f2;
   --mine-stripe: rgba(7, 14, 28, 0.42);
-  --who-free: #3cc8ff;
+  --who-free: #45d6ff;
   --who-free-text: #03263a;
-  --who-busy: #2a0f52;
-  --who-busy-text: #efe6ff;
+  --who-busy: #12307a;
+  --who-busy-text: #e6efff;
 
-  --heat-0: #3cc8ff;
-  --heat-1: #3a93f0;
-  --heat-2: #4a62d6;
-  --heat-3: #5540b3;
-  --heat-4: #3f2385;
-  --heat-5: #2a0f52;
+  --heat-0: #45d6ff;
+  --heat-1: #33abf5;
+  --heat-2: #2582e0;
+  --heat-3: #1d62c9;
+  --heat-4: #1a4aa8;
+  --heat-5: #12307a;
+  --heat-edge: rgba(255, 255, 255, 0.2);
 
   --shadow-float: 0 10px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35);
 }
@@ -702,15 +705,88 @@ p {
   white-space: nowrap;
 }
 
-/* Ближайшая встреча под названием группы: текст выровнен по названию, не по знаку. */
+/* Предстоящие встречи под названием группы: текст выровнен по названию, не по знаку. */
 .sidebar-item {
   display: grid;
+}
+/* Список встреч группы сворачивается в одну строку: «Встречи: 3 · Завтра, 16:00». */
+.sidebar-fold {
+  margin: -4px 0 2px;
+}
+.sidebar-fold-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px 2px 22px;
+  border-radius: var(--r-lg);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 16px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.sidebar-fold-head::-webkit-details-marker {
+  display: none;
+}
+.sidebar-fold-head:hover {
+  color: var(--text);
+}
+.sidebar-fold-icon {
+  flex: none;
+  transition: transform 150ms var(--ease);
+}
+.sidebar-fold[open] > .sidebar-fold-head .sidebar-fold-icon {
+  transform: rotate(90deg);
+}
+.sidebar-fold-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+/* Точка «ждёт твоего ответа» — тем же цветом, что и счётчик у группы. */
+/* Раскрытому списку время ближайшей не нужно — оно первой строкой ниже. */
+.sidebar-fold[open] .sidebar-fold-when {
+  display: none;
+}
+.sidebar-dot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: var(--r-full);
+  background: var(--accent);
+}
+.sidebar-dot-slot {
+  width: 14px;
+  height: 14px;
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+.sidebar-soon {
+  padding: 0 6px;
+  border-radius: var(--r-full);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+}
+.sidebar-next-going {
+  font-variant-numeric: tabular-nums;
+}
+.sidebar-meetings {
+  display: grid;
+  gap: 2px;
+  margin: 0 0 4px;
+  padding: 0;
+  list-style: none;
 }
 .sidebar-next {
   display: grid;
   min-width: 0;
-  margin-top: -4px;
-  padding: 0 8px 6px 40px;
+  padding: 2px 8px 2px 40px;
   border-radius: var(--r-lg);
   color: var(--muted);
   font-size: 12px;
@@ -721,6 +797,8 @@ p {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  flex-wrap: wrap;
+  white-space: nowrap;
   color: var(--text);
   font-weight: 500;
   font-variant-numeric: tabular-nums;
@@ -763,7 +841,7 @@ p {
     white-space: nowrap;
   }
   .sidebar-closed .sidebar-eyebrow,
-  .sidebar-closed .sidebar-next {
+  .sidebar-closed .sidebar-fold {
     display: none;
   }
   .sidebar-closed .sidebar-link {
@@ -1523,7 +1601,14 @@ table.week td.cell {
 }
 .h5 {
   background: var(--heat-5) !important;
-  box-shadow: inset 0 0 0 1px var(--border);
+}
+.h0,
+.h1,
+.h2,
+.h3,
+.h4,
+.h5 {
+  box-shadow: inset 0 0 0 1px var(--heat-edge);
 }
 td.cell.busy {
   background: var(--slot-busy) !important;
@@ -1549,6 +1634,65 @@ table.week.periods {
 table.week.periods td.cell {
   height: 44px;
   border-radius: var(--r-md);
+}
+/* Сегодняшний день: заголовок столбца выделен, как в календарях. */
+table.week th.today {
+  color: var(--accent);
+}
+table.week th.today .small {
+  display: inline-block;
+  margin-top: 2px;
+  padding: 0 6px;
+  border-radius: var(--r-full);
+  background: var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+/* Прошедшее время приглушено: назначать на него встречу поздно. */
+table.week td.cell.past {
+  opacity: 0.4;
+}
+/* Линия «сейчас» внутри текущей клетки сегодняшнего дня. */
+.now-line {
+  position: absolute;
+  left: -3px;
+  right: -3px;
+  height: 2px;
+  margin-top: -1px;
+  background: var(--danger);
+  border-radius: var(--r-full);
+  pointer-events: none;
+  z-index: 1;
+}
+.now-line::before {
+  content: "";
+  position: absolute;
+  left: -3px;
+  top: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-full);
+  background: var(--danger);
+}
+/* Протяжка мышью: выбранные клетки обведены цветом действия. */
+table.week.dragging {
+  user-select: none;
+  -webkit-user-select: none;
+}
+table.week td.cell.inrange {
+  opacity: 1;
+  box-shadow: inset 0 0 0 3px var(--accent), inset 0 0 0 5px var(--accent-text);
+}
+/* Подсветка одного человека: где он занят — клетки уходят в тень. */
+table.week.spotting td.cell.spot-off {
+  opacity: 0.18;
+}
+.rows-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 8px 0 0;
 }
 table.week.periods td.timecol.period {
   width: 68px;
@@ -1790,7 +1934,7 @@ table.week td.cell.meeting {
   font-variant-numeric: tabular-nums;
   opacity: 0.7;
 }
-.who-name {
+.who-pill {
   display: inline-block;
   max-width: 100%;
   padding: 1px 8px;
@@ -1801,11 +1945,11 @@ table.week td.cell.meeting {
   white-space: nowrap;
   vertical-align: top;
 }
-.who-name.free {
+.who-pill.free {
   background: var(--who-free);
   color: var(--who-free-text);
 }
-.who-name.busy {
+.who-pill.busy {
   background: var(--who-busy);
   color: var(--who-busy-text);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
@@ -2111,6 +2255,11 @@ table.week td.cell.meeting {
 .dot.stale {
   background: var(--warning);
 }
+.badge.soon {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
 .badge.stale {
   background: color-mix(in srgb, var(--warning) 22%, transparent);
   color: var(--text);
@@ -2300,6 +2449,9 @@ table.week td.cell.meeting {
 }
 .who-row.off:hover {
   background: transparent;
+}
+.who-row.spotted {
+  background: var(--accent-soft);
 }
 
 /* --- переключатель недель --- */

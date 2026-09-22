@@ -124,6 +124,26 @@ describe("расписание и сетка", () => {
     expect(free.every((cell) => cell.count === 1)).toBe(true);
   });
 
+  it("клетка знает id свободных, а доска — сегодня и пояс группы", async () => {
+    const { repo } = await mods();
+    const { chat, user } = await makeGroup("Подсветка", "Амир");
+    await repo.replaceWeeklySlots(
+      user.userId,
+      [0, 1, 2, 3, 4, 5, 6],
+      [0, 1, 2, 3, 4, 5, 6].map((weekday) => ({ weekday, start: 540, end: 630 })),
+      "web",
+    );
+
+    const { payload, state } = await board(chat.slug!);
+    expect(payload.tz).toBe("Asia/Almaty");
+    expect(payload.today).toBe(state.today);
+    for (const cell of payload.days[0].cells) {
+      // По id карта подсвечивает человека — они обязаны совпадать с именами.
+      expect(cell.freeIds.length).toBe(cell.count);
+      expect(cell.freeIds.includes(user.userId)).toBe(cell.free.length === 1);
+    }
+  });
+
   it("каждая строка сетки — свой получас, по возрастанию", async () => {
     const { repo } = await mods();
     const { chat, user } = await makeGroup("Сетка", "Амир");

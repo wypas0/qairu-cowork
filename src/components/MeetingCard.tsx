@@ -5,8 +5,8 @@ import {
 } from "@/app/g/[slug]/actions";
 import type { Meeting, MeetingResponse } from "@/db/schema";
 import { translator } from "@/i18n";
-import { weeklyRule } from "@/core/recurrence";
-import { type DateStr, formatDM, utcToZonedWall, weekdayOf } from "@/core/timeutils";
+import { nextOccurrence, weeklyRule } from "@/core/recurrence";
+import { type DateStr, formatDM, startsSoon, utcToZonedWall, weekdayOf } from "@/core/timeutils";
 import { weekdayShort } from "@/i18n";
 import { meetingSpan } from "@/lib/group";
 import { ConfirmSubmit } from "./ConfirmSubmit";
@@ -88,6 +88,13 @@ export function MeetingCard({
   const invited = invitees.includes(viewerId);
   const waiting = invitees.filter((id) => !byUser.has(id));
   const gcal = googleCalendarUrl(meeting, tz);
+  // «через 2 ч» у встречи, до которой меньше суток; у серии — до ближайшего повтора.
+  const now = new Date();
+  const nextStart =
+    meeting.whenStart && meeting.repeatUntil
+      ? nextOccurrence(meeting.whenStart, meeting.repeatUntil as DateStr, tz, now)
+      : meeting.whenStart;
+  const soon = !cancelled && !past && nextStart ? startsSoon(nextStart, now) : null;
 
   const groups = [
     { key: "yes", label: t("w_going"), Icon: IconYes, ids: invitees.filter((id) => byUser.get(id)?.answer === "yes") },
@@ -107,6 +114,11 @@ export function MeetingCard({
         <b className="mtitle">{meeting.goal || t("w_new_meeting")}</b>
         {cancelled && <span className="badge">{t("w_cancelled")}</span>}
         {!cancelled && past && <span className="badge">{t("w_meeting_past")}</span>}
+        {soon && (
+          <span className="badge soon">
+            {t(soon.unit === "min" ? "w_in_minutes" : "w_in_hours", { n: soon.n })}
+          </span>
+        )}
       </div>
 
       <div className="small muted meeting-meta">

@@ -3,8 +3,8 @@ import Link from "next/link";
 
 import { translator } from "@/i18n";
 import { SIDEBAR_COOKIE } from "@/lib/cookies";
-import { BrandMark, IconCalendarUser, IconClock, IconMeeting, IconPlus } from "./icons";
-import { ProfilePanel, type ProfileGroup } from "./ProfilePanel";
+import { BrandMark, IconCalendarUser, IconChevronRight, IconClock, IconMeeting, IconPlus } from "./icons";
+import { type GroupNextMeeting, ProfilePanel, type ProfileGroup } from "./ProfilePanel";
 import { profilePanelProps } from "./profilePanelProps";
 import { SidebarToggle } from "./SidebarToggle";
 import { HomeScreenPrompt } from "./TelegramHome";
@@ -43,6 +43,13 @@ export async function AppShell({
     ? panel.groups
     : [{ chatId: 0, slug, title }, ...panel.groups];
 
+  const meetingLabels: MeetingLabels = {
+    list: t("w_side_meetings"),
+    count: t("w_side_meetings_n", { n: "{n}" }),
+    going: t("w_side_going", { n: "{n}", total: "{total}" }),
+    awaiting: t("w_side_awaiting"),
+  };
+
   const links = [
     { key: "group" as const, href: `/g/${slug}`, label: t("w_nav_group"), Icon: IconMeeting },
     { key: "me" as const, href: `/g/${slug}/me`, label: t("w_nav_me"), Icon: IconCalendarUser },
@@ -73,7 +80,7 @@ export async function AppShell({
             group.slug === slug ? (
               <div className="sidebar-current" key={group.chatId}>
                 <GroupLink group={group} current pendingLabel={t("w_pending_label", { n: String(group.pending ?? 0) })} />
-                <NextMeeting group={group} label={t("w_side_next")} />
+                <GroupMeetings group={group} open labels={meetingLabels} />
                 <div className="sidebar-sub">
                   {links.map((link) => (
                     <Link
@@ -92,7 +99,7 @@ export async function AppShell({
             ) : (
               <div className="sidebar-item" key={group.chatId}>
                 <GroupLink group={group} pendingLabel={t("w_pending_label", { n: String(group.pending ?? 0) })} />
-                <NextMeeting group={group} label={t("w_side_next")} />
+                <GroupMeetings group={group} open={false} labels={meetingLabels} />
               </div>
             ),
           )}
@@ -163,23 +170,84 @@ function GroupLink({
   );
 }
 
+type MeetingLabels = {
+  list: string;
+  /** «Встречи: {n}» — литеральный {n}. */
+  count: string;
+  /** «{n}/{total} идут» — литеральные {n} и {total}. */
+  going: string;
+  awaiting: string;
+};
+
 /**
- * Ближайшая встреча группы прямо под её названием: когда и о чём.
- * Нажатие открывает эту встречу во вкладке «Встречи».
+ * Все предстоящие встречи группы под её названием, по времени: когда, о чём,
+ * сколько идут и ждёт ли встреча твоего ответа. Нажатие открывает встречу во
+ * вкладке «Встречи».
+ *
+ * Список текущей группы раскрыт, у остальных свёрнут в строку «Встречи: 3 ·
+ * Завтра, 16:00» — как рабочие пространства в Slack: при пяти группах со
+ * встречами сайдбар иначе превращается в ленту.
  */
-function NextMeeting({ group, label }: { group: ProfileGroup; label: string }) {
-  if (!group.next) return null;
+function GroupMeetings({
+  group,
+  open,
+  labels,
+}: {
+  group: ProfileGroup;
+  open: boolean;
+  labels: MeetingLabels;
+}) {
+  const meetings = group.meetings ?? [];
+  if (meetings.length === 0) return null;
+  const awaiting = meetings.some((meeting) => meeting.awaiting);
   return (
-    <Link
-      className="sidebar-next"
-      href={`/g/${group.slug}?at=meeting-${group.next.id}`}
-      aria-label={`${label}: ${group.next.when}${group.next.about ? `, ${group.next.about}` : ""}`}
-    >
-      <span className="sidebar-next-when">
-        <IconClock size={14} />
-        {group.next.when}
-      </span>
-      {group.next.about && <span className="sidebar-next-about">{group.next.about}</span>}
-    </Link>
+    <details className="sidebar-fold" open={open}>
+      <summary className="sidebar-fold-head">
+        <IconChevronRight size={14} className="sidebar-fold-icon" />
+        <span className="sidebar-fold-text">
+          {labels.count.replace("{n}", String(meetings.length))}
+          <span className="sidebar-fold-when"> · {meetings[0].when}</span>
+        </span>
+        {awaiting && <span className="sidebar-dot" title={labels.awaiting} aria-label={labels.awaiting} />}
+      </summary>
+      <ul className="sidebar-meetings" aria-label={labels.list}>
+        {meetings.map((meeting) => (
+          <li key={meeting.id}>
+            <Link
+              className="sidebar-next"
+              href={`/g/${group.slug}?at=meeting-${meeting.id}`}
+              aria-label={[
+                meeting.when,
+                meeting.soon,
+                meeting.about,
+                meeting.invited > 0 ? goingText(meeting, labels) : null,
+                meeting.awaiting ? labels.awaiting : null,
+              ]
+                .filter(Boolean)
+                .join(", ")}
+            >
+              <span className="sidebar-next-when">
+                {/* Ждёт твоего ответа — точка на месте значка часов, строка не растёт. */}
+                {meeting.awaiting ? (
+                  <span className="sidebar-dot-slot" aria-hidden="true">
+                    <span className="sidebar-dot" />
+                  </span>
+                ) : (
+                  <IconClock size={14} />
+                )}
+                {meeting.when}
+                {meeting.soon && <span className="sidebar-soon">{meeting.soon}</span>}
+              </span>
+              {meeting.about && <span className="sidebar-next-about">{meeting.about}</span>}
+              {meeting.invited > 0 && <span className="sidebar-next-going">{goingText(meeting, labels)}</span>}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </details>
   );
+}
+
+function goingText(meeting: GroupNextMeeting, labels: MeetingLabels): string {
+  return labels.going.replace("{n}", String(meeting.going)).replace("{total}", String(meeting.invited));
 }

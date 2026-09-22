@@ -131,6 +131,8 @@ export type GroupState = {
   /** Кого выбрали для окон; null — всех. */
   selected: number[] | null;
   today: DateStr;
+  /** Часовой пояс группы: «сейчас» на карте считается в нём, а не в поясе браузера. */
+  tz: string;
   periods: Period[];
   meetings: Meeting[];
   responses: Map<number, MeetingResponse[]>;
@@ -232,6 +234,7 @@ export async function loadGroupState(
     total: slots.participants.length,
     selected,
     today,
+    tz,
     periods,
     meetings: meetingRows,
     responses,
@@ -279,6 +282,9 @@ export type BoardPayload = {
   weekLabel: string;
   /** Два-три лучших окна недели — главный ответ страницы. */
   best: BoardBest[];
+  /** Сегодня и пояс группы — чтобы отметить на карте текущий день и прошедшее время. */
+  today: string;
+  tz: string;
   /** Ряды тепловой карты: номер пары и перерыв перед ней. */
   periods: Period[];
   /** Назначенные встречи — их клетки на карте красные. */
@@ -295,6 +301,8 @@ export type BoardPayload = {
       end: number;
       count: number;
       free: string[];
+      /** Те же свободные, но id: по ним карта подсвечивает одного человека. */
+      freeIds: number[];
       missing: string[];
       /** Занят ли в этой клетке тот, кто смотрит на карту. */
       mine: boolean;
@@ -342,6 +350,8 @@ export function toBoardPayload(state: GroupState, lang: string, viewerId?: numbe
     week: state.week,
     weekLabel: `${formatDM(state.weekStart)} – ${formatDM(addDays(state.weekStart, 6))}`,
     best: bestSlots(state, lang),
+    today: state.today,
+    tz: state.tz,
     periods: state.periods,
     meetings: state.weekMeetings,
     days: state.grid.map((day) => ({
@@ -354,6 +364,7 @@ export function toBoardPayload(state: GroupState, lang: string, viewerId?: numbe
         end: cell.endMin,
         count: cell.freeIds.length,
         free: freeNames(cell.freeIds),
+        freeIds: [...cell.freeIds],
         missing: missingNames(cell.freeIds),
         mine: viewerHasData && !cell.freeIds.includes(viewerId!),
       })),

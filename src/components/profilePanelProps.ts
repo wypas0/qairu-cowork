@@ -8,8 +8,8 @@ import { hasBot } from "@/lib/config";
 import { THEME_COOKIE, normalizeTheme } from "@/lib/theme";
 import type { ProfileGroup, ProfilePanelProps, ProfileUser } from "./ProfilePanel";
 import { RECENT_COOKIE, parseRecent } from "@/lib/cookies";
-import { nearestByChat } from "@/core/recurrence";
-import { addDays, chatTz, formatDM, todayIn, utcToZonedWall, weekdayOf } from "@/core/timeutils";
+import { upcomingByChat } from "@/core/recurrence";
+import { addDays, chatTz, formatDM, startsSoon, todayIn, utcToZonedWall, weekdayOf } from "@/core/timeutils";
 import { fmtMinutes } from "@/core/intervals";
 import { weekdayShort } from "@/i18n";
 
@@ -104,7 +104,7 @@ export async function userGroups(userId: number, lang: string): Promise<ProfileG
   const now = new Date();
   const tzById = new Map(chats.map((chat) => [chat.chatId, chatTz(chat)]));
   const tzOf = (chatId: number) => tzById.get(chatId) ?? chatTz(null);
-  const nearest = nearestByChat(
+  const upcoming = upcomingByChat(
     await repo.feedMeetings(
       chats.map((chat) => chat.chatId),
       now,
@@ -113,26 +113,36 @@ export async function userGroups(userId: number, lang: string): Promise<ProfileG
     now,
   );
   const t = translator(lang);
+  const answers = await repo.meetingResponsesForMany(
+    [...upcoming.values()].flat().map(({ meeting }) => meeting.id),
+  );
 
   return chats
     .filter((chat) => chat.slug)
     .map((chat) => {
-      const next = nearest.get(chat.chatId);
       return {
         chatId: chat.chatId,
         slug: chat.slug!,
         title: chat.title,
         pending: pending.get(chat.chatId) ?? 0,
-        next: next
-          ? {
-              id: next.meeting.id,
-              when: nextWhen(next.start, tzOf(chat.chatId), now, lang, t),
-              about: [next.meeting.goal, next.meeting.place]
-                .map((part) => part.trim())
-                .filter(Boolean)
-                .join(" · "),
-            }
-          : undefined,
+        meetings: (upcoming.get(chat.chatId) ?? []).map(({ meeting, start }) => {
+          const invitees = repo.inviteeIds(meeting);
+          const replies = answers.get(meeting.id) ?? [];
+          const soon = startsSoon(start, now);
+          return {
+            id: meeting.id,
+            when: nextWhen(start, tzOf(chat.chatId), now, lang, t),
+            soon: soon ? t(soon.unit === "min" ? "w_in_minutes" : "w_in_hours", { n: soon.n }) : null,
+            about: [meeting.goal, meeting.place]
+              .map((part) => part.trim())
+              .filter(Boolean)
+              .join(" · "),
+            going: invitees.filter((id) => replies.some((reply) => reply.userId === id && reply.answer === "yes"))
+              .length,
+            invited: invitees.length,
+            awaiting: invitees.includes(userId) && !replies.some((reply) => reply.userId === userId),
+          };
+        }),
       };
     })
     .sort((a, b) => rank(a.slug) - rank(b.slug) || a.title.localeCompare(b.title, lang));

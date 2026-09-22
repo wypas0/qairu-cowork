@@ -174,3 +174,15 @@ export function parseDateToken(token: string, today: DateStr): DateStr | null {
   }
   return result;
 }
+
+/**
+ * Сколько осталось до начала, если меньше суток: «через 40 мин», «через 2 ч».
+ * До часа — минуты (не меньше одной), дальше — часы с округлением. Начавшееся
+ * и далёкое — null: там метка ничего не добавляет к дате.
+ */
+export function startsSoon(start: Date, now: Date): { unit: "min" | "h"; n: number } | null {
+  const minutes = (start.getTime() - now.getTime()) / 60_000;
+  if (minutes <= 0 || minutes >= 24 * 60) return null;
+  if (minutes < 60) return { unit: "min", n: Math.max(1, Math.round(minutes)) };
+  return { unit: "h", n: Math.round(minutes / 60) };
+}
