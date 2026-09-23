@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { IconBell, IconChevronRight, IconPhone, IconUser } from "@/components/icons";
 import { ProductDemo } from "@/components/ProductDemo";
 import { OpenLastGroup } from "@/components/TelegramHome";
-import { userGroups } from "@/components/profilePanelProps";
+import { profilePanelProps } from "@/components/profilePanelProps";
 import { TelegramSignIn } from "@/components/TelegramSignIn";
 import { Topbar } from "@/components/Topbar";
 import { displayName } from "@/db/schema";
@@ -33,13 +33,15 @@ export default async function LandingPage({
   const user = await pageUser("/");
   const lang = user?.lang ?? normalizeLang((requestHeaders.get("accept-language") ?? "").split(",")[0]);
   const t = translator(lang);
-  const groups = user ? await userGroups(user.userId, lang) : [];
+  // Группы для страницы — те же, что в панели профиля: собираем их один раз.
+  const panel = await profilePanelProps(lang);
+  const groups = panel.groups;
   const joinError =
     query.join === "bad" ? "w_join_err_bad" : query.join === "notfound" ? "w_join_err_notfound" : null;
 
   return (
     <>
-      <Topbar />
+      <Topbar lang={lang} panel={panel} />
       {/* Группы уже отсортированы по свежести — первая и есть последняя открытая. */}
       <OpenLastGroup slug={groups[0]?.slug ?? null} />
       <main className="wrap">

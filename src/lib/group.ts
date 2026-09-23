@@ -192,33 +192,39 @@ export async function loadGroupState(
   const week = normalizeWeek(options.week);
 
   const now = new Date();
-  const today = todayIn(chatTz(chat), now);
-  const members = await repo.chatMembers(chat.chatId);
-  const people = await repo.buildPersonSchedules(members);
-  const meetingRows = withMeetings ? await repo.chatMeetingsForTab(chat.chatId, now, today) : [];
-  const responses = await repo.meetingResponsesForMany(meetingRows.map((row) => row.id));
-
-  const filledIds = new Set(people.filter((person) => person.hasData).map((p) => p.userId));
-  const names = new Map(members.map((member) => [member.userId, displayName(member)]));
-  const parityOf = parityOfChat(chat);
-  const length = normalizeDuration(duration, normalizeDuration(chat.minSlotMin, 60));
+  const tz = chatTz(chat);
+  const today = todayIn(tz, now);
   // Тепловая карта — это «эта неделя», а не «7 дней вперёд»: понедельник
   // всегда первым столбцом, даже если сегодня, скажем, четверг. Варианты
   // встречи ниже по-прежнему считаются вперёд от сегодня — предлагать
   // встречу на прошедший день не нужно.
   const weekStart = addDays(today, -weekdayOf(today) + week * 7);
+  const weekFrom = zonedWallToUtc(weekStart, 0, tz);
+  const weekTo = zonedWallToUtc(addDays(weekStart, DAYS_AHEAD), 0, tz);
+
+  // Друг от друга запросы не зависят — идут одновременно, а не по очереди.
+  const [members, meetingRows, oneOffRows, seriesRows] = await Promise.all([
+    repo.chatMembers(chat.chatId),
+    withMeetings ? repo.chatMeetingsForTab(chat.chatId, now, today) : Promise.resolve([] as Meeting[]),
+    repo.openMeetingsBetween(chat.chatId, weekFrom, weekTo),
+    repo.recurringMeetings(chat.chatId, weekStart, weekTo),
+  ]);
+  const [people, responses] = await Promise.all([
+    repo.buildPersonSchedules(members),
+    repo.meetingResponsesForMany(meetingRows.map((row) => row.id)),
+  ]);
+
+  const filledIds = new Set(people.filter((person) => person.hasData).map((p) => p.userId));
+  const names = new Map(members.map((member) => [member.userId, displayName(member)]));
+  const parityOf = parityOfChat(chat);
+  const length = normalizeDuration(duration, normalizeDuration(chat.minSlotMin, 60));
   // Для текущей недели варианты считаем от сегодня (прошедшие дни не нужны),
   // для будущей — с её понедельника.
   const slotsStart = week === 0 ? today : weekStart;
   const periods = gridPeriods(chat.dayStartMin, chat.dayEndMin, SLOT_STEP);
-  const tz = chatTz(chat);
-  const weekFrom = zonedWallToUtc(weekStart, 0, tz);
-  const weekTo = zonedWallToUtc(addDays(weekStart, DAYS_AHEAD), 0, tz);
-  const oneOff = (await repo.openMeetingsBetween(chat.chatId, weekFrom, weekTo)).map((meeting) =>
-    meetingSpan(meeting, tz),
-  );
+  const oneOff = oneOffRows.map((meeting) => meetingSpan(meeting, tz));
   // Повторяющаяся встреча занимает свои клетки в каждой неделе серии.
-  const repeated = (await repo.recurringMeetings(chat.chatId, weekStart, weekTo)).flatMap((meeting) =>
+  const repeated = seriesRows.flatMap((meeting) =>
     occurrencesBetween(meeting.whenStart!, meeting.repeatUntil, tz, weekFrom, weekTo).map((start) =>
       meetingSpan({ ...meeting, whenStart: start }, tz),
     ),

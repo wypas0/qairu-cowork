@@ -25,8 +25,11 @@ export async function profilePanelProps(langOverride?: string): Promise<ProfileP
   let profile: ProfileUser | null = null;
   let groups: ProfileGroup[] = [];
   if (user) {
-    const credentials = await repo.getCredentials(user.userId);
-    const avatar = await repo.avatarVersion(user.userId);
+    const [credentials, avatar, userGroupList] = await Promise.all([
+      repo.getCredentials(user.userId),
+      repo.avatarVersion(user.userId),
+      userGroups(user.userId, lang),
+    ]);
     profile = {
       name: displayName(user),
       realName: user.realName,
@@ -35,7 +38,7 @@ export async function profilePanelProps(langOverride?: string): Promise<ProfileP
       login: credentials?.login ?? null,
       avatarUrl: avatar ? `/api/avatar/${user.userId}?v=${avatar}` : null,
     };
-    groups = await userGroups(user.userId, lang);
+    groups = userGroupList;
   }
 
   const theme = normalizeTheme((await cookies()).get(THEME_COOKIE)?.value);
@@ -94,8 +97,7 @@ export async function profilePanelProps(langOverride?: string): Promise<ProfileP
  * У каждой — сколько там его ждёт.
  */
 export async function userGroups(userId: number, lang: string): Promise<ProfileGroup[]> {
-  const chats = await repo.userChats(userId);
-  const pending = await repo.pendingCounts(userId);
+  const [chats, pending] = await Promise.all([repo.userChats(userId), repo.pendingCounts(userId)]);
   const recent = parseRecent((await cookies()).get(RECENT_COOKIE)?.value);
   const rank = (slug: string) => {
     const index = recent.indexOf(slug);

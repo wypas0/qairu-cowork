@@ -228,8 +228,10 @@ export async function buildPersonSchedules(
   const db = ex(exec);
   const ids = people.map((person) => person.userId);
 
-  const slots = await db.select().from(busySlots).where(inArray(busySlots.userId, ids));
-  const filled = await filledIds(ids, db);
+  const [slots, filled] = await Promise.all([
+    db.select().from(busySlots).where(inArray(busySlots.userId, ids)),
+    filledIds(ids, db),
+  ]);
 
   const byUser = new Map<number, PersonSchedule>();
   for (const person of people) {

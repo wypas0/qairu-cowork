@@ -17,6 +17,7 @@ import "server-only";
 
 import crypto from "node:crypto";
 import { cookies } from "next/headers";
+import { cache } from "react";
 
 import * as repo from "@/db/repo";
 import type { User } from "@/db/schema";
@@ -91,12 +92,19 @@ export function verifyInitData(
   return result;
 }
 
+/**
+ * Человек по токену — один запрос в базу на отрисовку страницы, сколько бы
+ * компонентов его ни спросили (страница, сайдбар, шапка). Кэш — по самому
+ * токену: если кука сменилась посреди запроса (вход, выход), берётся новый.
+ */
+const userByToken = cache((token: string) => repo.userByWebToken(token));
+
 /** Текущий посетитель по куке. `null` — не представился. */
 export async function currentUser(): Promise<User | null> {
   const store = await cookies();
   const token = store.get(COOKIE_NAME)?.value ?? "";
   if (!token) return null;
-  return repo.userByWebToken(token);
+  return userByToken(token);
 }
 
 /** Текущий посетитель, если это Telegram-аккаунт. Аккаунты только с сайта не пускаем. */

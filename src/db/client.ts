@@ -8,6 +8,12 @@
  * Настройки драйвера подобраны под пулер Supabase (порт 6543):
  * `prepare: false` обязателен — transaction mode не поддерживает
  * prepared statements, и без него первый же повторный запрос падает.
+ *
+ * Соединений на экземпляр функции — несколько: Vercel (Fluid compute) отдаёт
+ * одному экземпляру несколько запросов сразу, и с одним соединением они
+ * стояли бы друг за другом, как и независимые запросы одной страницы.
+ * Держит их пулер, а не база, так что это дёшево. Локальная база на PGlite
+ * принимает одно соединение — для неё DATABASE_POOL_MAX=1.
  */
 
 import { drizzle, type PostgresJsDatabase } from "drizzle-orm/postgres-js";
@@ -30,8 +36,7 @@ function createSql(): Sql {
     );
   }
   return postgres(url, {
-    // Одна лямбда — одно соединение: пулер Supabase и так держит их за нас.
-    max: 1,
+    max: Number(process.env.DATABASE_POOL_MAX) || 5,
     idle_timeout: 20,
     connect_timeout: 15,
     prepare: false,

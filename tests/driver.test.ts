@@ -24,6 +24,8 @@ beforeAll(async () => {
   server = new PGLiteSocketServer({ db, port: PORT, host: "127.0.0.1" });
   await server.start();
   process.env.DATABASE_URL = `postgresql://postgres:postgres@127.0.0.1:${PORT}/postgres`;
+  // PGlite по сети принимает одно соединение, пул сайта — под это.
+  process.env.DATABASE_POOL_MAX = "1";
 });
 
 afterAll(async () => {

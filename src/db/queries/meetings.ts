@@ -57,6 +57,12 @@ export async function pendingCounts(userId: number, exec?: Exec): Promise<Map<nu
   const counts = new Map<number, number>();
   const bump = (chatId: number) => counts.set(chatId, (counts.get(chatId) ?? 0) + 1);
 
+  // Непрочитанные просьбы от встреч не зависят — запрос уходит сразу.
+  const unreadQuery = db
+    .select({ chatId: notices.chatId, kind: notices.kind })
+    .from(notices)
+    .where(and(eq(notices.userId, userId), isNull(notices.readAt)))
+    .execute();
   const open = await db
     .select({ id: meetings.id, chatId: meetings.chatId, invitees: meetings.invitees })
     .from(meetings)
@@ -93,10 +99,7 @@ export async function pendingCounts(userId: number, exec?: Exec): Promise<Map<nu
     for (const meeting of invited) if (!done.has(meeting.id)) bump(meeting.chatId);
   }
 
-  const unread = await db
-    .select({ chatId: notices.chatId, kind: notices.kind })
-    .from(notices)
-    .where(and(eq(notices.userId, userId), isNull(notices.readAt)));
+  const unread = await unreadQuery;
   for (const notice of unread) if (notice.kind !== "meeting") bump(notice.chatId);
 
   return counts;

@@ -75,7 +75,17 @@ export default async function GroupPage({
 
   const lang = chat.lang;
   const t = translator(lang);
-  const state = await loadGroupState(chat, { week: normalizeWeek(query.week) });
+  // Состояние карты, состав и уведомления друг от друга не зависят — одновременно.
+  const [state, roster, notices] = await Promise.all([
+    loadGroupState(chat, { week: normalizeWeek(query.week) }),
+    repo.chatRoster(chat.chatId),
+    repo.unreadNotices(chat.chatId, user.userId),
+  ]);
+  // Когда каждый сохранял расписание: старосте видно, кому пора обновить.
+  const [sources, updatedAt] = await Promise.all([
+    adminSources(chat, roster),
+    repo.scheduleUpdatedAt(roster.map((entry) => entry.user.userId)),
+  ]);
   const payload = toBoardPayload(state, lang, user.userId);
   const bestHidden = (await cookies()).get(BEST_COOKIE)?.value === "hidden";
   const base = await baseUrl();
@@ -84,10 +94,7 @@ export default async function GroupPage({
   const feedUrl = `${base}${feedPath(user.userId, slug)}`;
   const webcalUrl = feedUrl.replace(/^https?:/, "webcal:");
 
-  const roster = await repo.chatRoster(chat.chatId);
-  const sources = await adminSources(chat, roster);
   const isAdmin = sources.has(user.userId);
-  const notices = await repo.unreadNotices(chat.chatId, user.userId);
   const openMeetings = new Map(state.meetings.map((meeting) => [meeting.id, meeting]));
 
   // Встреча уходит в архив, когда началась (meetingIsOver). Предстоящие — по
@@ -109,8 +116,6 @@ export default async function GroupPage({
       !(state.responses.get(meeting.id) ?? []).some((answer) => answer.userId === user.userId),
   ).length;
 
-  // Когда каждый сохранял расписание: старосте видно, кому пора обновить.
-  const updatedAt = await repo.scheduleUpdatedAt(roster.map((entry) => entry.user.userId));
   const cutoff = semesterCutoff(chat);
   const outdated = (id: number) => isOutdated(updatedAt.get(id), cutoff);
   const upToDate = (id: number) => state.filledIds.has(id) && !outdated(id);

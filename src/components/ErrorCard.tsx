@@ -3,7 +3,7 @@
 import Link from "next/link";
 
 import type { ErrorText } from "@/i18n/errorText";
-import { BrandMark } from "./icons";
+import { BrandBar } from "./BrandBar";
 
 /**
  * Что видит человек при сбое страницы: что случилось, кнопка «ещё раз» и путь
@@ -13,14 +13,7 @@ import { BrandMark } from "./icons";
 export function ErrorCard({ text, digest, retry }: { text: ErrorText; digest?: string; retry: () => void }) {
   return (
     <>
-      <header className="topbar">
-        <Link className="brand" href="/">
-          <BrandMark className="brand-mark" />
-          <span>
-            Qairu<b>Cowork</b>
-          </span>
-        </Link>
-      </header>
+      <BrandBar />
       <main className="wrap">
         <div className="card" style={{ maxWidth: 520, margin: "32px auto" }}>
           <h1 style={{ fontSize: 22 }}>{text.title}</h1>

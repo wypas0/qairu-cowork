@@ -108,7 +108,8 @@ console.log(`[e2e] база на ${DB_PORT}, сайт на ${url}, вход: к�
 // ---------- сайт ----------
 const next = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start", "-p", String(SITE_PORT)], {
   stdio: "inherit",
-  env: { ...process.env, DATABASE_URL, NEXT_PUBLIC_SITE_URL: url, BOT_TOKEN: "" },
+  // PGlite принимает одно соединение — пул сайта под это.
+  env: { ...process.env, DATABASE_URL, DATABASE_POOL_MAX: "1", NEXT_PUBLIC_SITE_URL: url, BOT_TOKEN: "" },
 });
 const stop = async () => {
   next.kill();
