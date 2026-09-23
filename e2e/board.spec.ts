@@ -141,3 +141,23 @@ test.describe("приглашение и установка", () => {
     expect(botAvatar.headers()["content-type"]).toContain("image/png");
   });
 });
+
+test.describe("вступление по ссылке", () => {
+  test("открытая самим ссылка вступает сразу, переход с чужого сайта — только по кнопке", async ({ page }) => {
+    const { url } = state();
+
+    // Открыл сам (из приложения, по QR, из закладки) — сразу в группе.
+    const direct = await page.goto("/g/smoke004/join");
+    await expect(page).toHaveURL(/\/g\/smoke004(\/welcome|\/me)?(\?|$)/);
+    expect(direct?.headers()["content-security-policy"]).toContain("frame-ancestors 'self' https://*.telegram.org");
+
+    // Ссылка на чужой странице: 127.0.0.1 для браузера — другой сайт, чем localhost.
+    await page.goto(`${url.replace("localhost", "127.0.0.1")}/api/healthz`);
+    await page.setContent(`<a href="${url}/g/smoke003/join">приглашение</a>`);
+    await page.getByRole("link", { name: "приглашение" }).click();
+    const confirm = page.getByRole("button", { name: "Присоединиться" });
+    await expect(confirm).toBeVisible();
+    await confirm.click();
+    await expect(page).toHaveURL(/\/g\/smoke003(\/welcome|\/me)?(\?|$)/);
+  });
+});

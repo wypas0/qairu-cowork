@@ -1,17 +1,17 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { COOKIE_MAX_AGE, COOKIE_NAME, RECENT_COOKIE, RECENT_LIMIT, parseRecent } from "@/lib/cookies";
+import { COOKIE_MAX_AGE, RECENT_COOKIE, RECENT_LIMIT, parseRecent } from "@/lib/cookies";
 
 /** Вызовы, которые приходят не из браузера сайта: у них своя проверка подлинности. */
 const EXTERNAL_API = ["/api/telegram/", "/api/cron/", "/api/healthz"];
 
 /**
- * 1. Персональная ссылка из бота: `/g/<slug>?t=<token>`.
+ * 1. Старая персональная ссылка из бота: `/g/<slug>?t=<token>`.
  *
- *    Токен немедленно перекладывается в HttpOnly-куку, а из адресной строки
- *    убирается редиректом — иначе он остался бы в истории браузера, в заголовке
- *    Referer и на чужом скриншоте. Делать это в proxy обязательно:
- *    серверный компонент страницы куки ставить не умеет.
+ *    Вход по токену из адреса больше не работает: такую ссылку мог прислать
+ *    кто угодно, и человек незаметно оказался бы в чужом аккаунте (login CSRF).
+ *    Бот таких ссылок давно не шлёт. Токен из старых сообщений только
+ *    убирается из адреса редиректом, чтобы не остаться в истории браузера.
  *
  * 2. Защита API от запросов с чужих сайтов. Кука сессии на https выдаётся с
  *    SameSite=None (иначе не работает вход из Mini App в Telegram Web), а
@@ -33,21 +33,12 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const token = request.nextUrl.searchParams.get("t");
   const secure = request.nextUrl.protocol === "https:";
-  if (!token) return rememberGroup(request, NextResponse.next(), secure);
+  if (!request.nextUrl.searchParams.has("t")) return rememberGroup(request, NextResponse.next(), secure);
 
   const url = request.nextUrl.clone();
   url.searchParams.delete("t");
-  const response = NextResponse.redirect(url, 303);
-  response.cookies.set(COOKIE_NAME, token, {
-    httpOnly: true,
-    sameSite: secure ? "none" : "lax",
-    secure,
-    path: "/",
-    maxAge: COOKIE_MAX_AGE,
-  });
-  return rememberGroup(request, response, secure);
+  return rememberGroup(request, NextResponse.redirect(url, 303), secure);
 }
 
 /**
