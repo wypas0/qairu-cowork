@@ -705,10 +705,10 @@ export function ScheduleEditor({
   if (mode === "choose") {
     const options = [
       photoEnabled
-        ? { key: "photo", Icon: IconCamera, title: labels.choosePhoto, hint: labels.choosePhotoHint, onClick: choosePhoto }
+        ? { key: "photo" as const, Icon: IconCamera, title: labels.choosePhoto, hint: labels.choosePhotoHint }
         : null,
-      { key: "text", Icon: IconText, title: labels.chooseText, hint: labels.chooseTextHint, onClick: () => setMode("text") },
-      { key: "manual", Icon: IconGrid, title: labels.chooseManual, hint: labels.chooseManualHint, onClick: () => setMode("manual") },
+      { key: "text" as const, Icon: IconText, title: labels.chooseText, hint: labels.chooseTextHint },
+      { key: "manual" as const, Icon: IconGrid, title: labels.chooseManual, hint: labels.chooseManualHint },
     ].filter((option) => option !== null);
 
     return (
@@ -719,7 +719,11 @@ export function ScheduleEditor({
         <ul className="choose-list">
           {options.map((option) => (
             <li key={option.key}>
-              <button type="button" className="choose-row" onClick={option.onClick}>
+              <button
+                type="button"
+                className="choose-row"
+                onClick={() => (option.key === "photo" ? choosePhoto() : setMode(option.key))}
+              >
                 <option.Icon size={22} />
                 <span className="choose-text">
                   <b>{option.title}</b>

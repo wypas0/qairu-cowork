@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useEffectEvent, useRef, useState } from "react";
 
 import { logoutAction, startTelegramLoginAction } from "@/app/login/actions";
 import {
@@ -181,20 +181,26 @@ export function ProfilePanel({ user, groups, theme, botEnabled, labels }: Profil
   const [busy, setBusy] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const viewRef = useRef(view);
-  viewRef.current = view;
 
-  useEffect(() => setAvatarUrl(user?.avatarUrl ?? null), [user?.avatarUrl]);
+  // Фото сменилось на сервере (загрузили, удалили, другое устройство) — показываем его.
+  const [serverAvatar, setServerAvatar] = useState(user?.avatarUrl ?? null);
+  if ((user?.avatarUrl ?? null) !== serverAvatar) {
+    setServerAvatar(user?.avatarUrl ?? null);
+    setAvatarUrl(user?.avatarUrl ?? null);
+  }
+
+  // Esc на экране аккаунта сначала возвращает назад, потом закрывает панель.
+  const onEscape = useEffectEvent(() => {
+    if (view === "account") setView("main");
+    else setOpen(false);
+  });
 
   useEffect(() => {
     if (!open) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key !== "Escape") return;
-      // Esc на экране аккаунта сначала возвращает назад, потом закрывает панель.
-      if (viewRef.current === "account") setView("main");
-      else setOpen(false);
+      if (event.key === "Escape") onEscape();
     }
     document.addEventListener("keydown", onKeyDown);
     return () => {

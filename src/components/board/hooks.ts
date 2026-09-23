@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 
 import { type WallNow, wallNow } from "./time";
 
@@ -44,8 +44,7 @@ export function useDragSelect(onSelect: (result: DragResult) => void) {
   const [drag, setDrag] = useState<Drag | null>(null);
   const current = useRef<{ date: string; from: DragCell; to: DragCell; moved: boolean } | null>(null);
   const skipClick = useRef(false);
-  const select = useRef(onSelect);
-  select.current = onSelect;
+  const select = useEffectEvent(onSelect);
 
   useEffect(() => {
     function finish() {
@@ -59,7 +58,7 @@ export function useDragSelect(onSelect: (result: DragResult) => void) {
         skipClick.current = false;
       }, 0);
       const [first, last] = done.from.row <= done.to.row ? [done.from, done.to] : [done.to, done.from];
-      select.current({ date: done.date, start: first.start, end: last.end });
+      select({ date: done.date, start: first.start, end: last.end });
     }
     window.addEventListener("pointerup", finish);
     window.addEventListener("pointercancel", finish);

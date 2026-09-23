@@ -1,8 +1,8 @@
 /**
  * Константы куки-сессии.
  *
- * Вынесены отдельно от `config.ts` намеренно: их читает middleware, который
- * работает на edge-рантайме, а `config.ts` тянет `node:crypto`.
+ * Вынесены отдельно от `config.ts` намеренно: их читает proxy (`src/proxy.ts`),
+ * которому незачем тянуть весь конфиг вместе с `node:crypto`.
  */
 
 export const COOKIE_NAME = "qairu_token";

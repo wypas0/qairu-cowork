@@ -90,12 +90,13 @@ export default async function GroupPage({
   const openMeetings = new Map(state.meetings.map((meeting) => [meeting.id, meeting]));
 
   // Встреча уходит в архив, когда началась: голосовать за прошедшее нечего.
-  const today = todayIn(chatTz(chat));
+  const now = new Date();
+  const today = todayIn(chatTz(chat), now);
   const startedAlready = (meeting: (typeof state.meetings)[number]) =>
     meeting.status === "cancelled" ||
     (meeting.repeatUntil
       ? meeting.repeatUntil < today
-      : meeting.whenStart !== null && meeting.whenStart.getTime() < Date.now());
+      : meeting.whenStart !== null && meeting.whenStart < now);
   const upcomingMeetings = state.meetings.filter((meeting) => !startedAlready(meeting));
   const archivedMeetings = state.meetings.filter(startedAlready);
   // Встречи, на которые тебя позвали, а ты ещё не ответил, — счётчик на вкладке.

@@ -109,7 +109,7 @@ export async function currentTelegramUser(): Promise<User | null> {
  * Куку сессии в Telegram Web и Desktop сайт получает, будучи встроенным в
  * чужую страницу (Mini App во фрейме). С SameSite=Lax браузер такую куку не
  * сохранит и вход из Mini App не удержится, поэтому на https — SameSite=None.
- * От подделки запросов с чужих сайтов защищают проверка Origin в middleware
+ * От подделки запросов с чужих сайтов защищают проверка Origin в proxy
  * и встроенная проверка серверных действий Next.
  */
 export function tokenCookieOptions(): {

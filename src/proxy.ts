@@ -10,7 +10,7 @@ const EXTERNAL_API = ["/api/telegram/", "/api/cron/", "/api/healthz"];
  *
  *    Токен немедленно перекладывается в HttpOnly-куку, а из адресной строки
  *    убирается редиректом — иначе он остался бы в истории браузера, в заголовке
- *    Referer и на чужом скриншоте. Делать это в middleware обязательно:
+ *    Referer и на чужом скриншоте. Делать это в proxy обязательно:
  *    серверный компонент страницы куки ставить не умеет.
  *
  * 2. Защита API от запросов с чужих сайтов. Кука сессии на https выдаётся с
@@ -18,7 +18,7 @@ const EXTERNAL_API = ["/api/telegram/", "/api/cron/", "/api/healthz"];
  *    значит, браузер приложит её и к POST с чужой страницы. Такие запросы
  *    отличает заголовок Origin — отклоняем всё, что пришло не с нашего адреса.
  */
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (pathname.startsWith("/api/")) {

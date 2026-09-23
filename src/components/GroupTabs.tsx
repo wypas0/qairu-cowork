@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 
 import { PICK_EVENT } from "./pick";
 
@@ -9,6 +9,18 @@ export type GroupTabKey = "time" | "meetings" | "members" | "settings";
 export type GroupTabLabels = Record<GroupTabKey, string>;
 
 const ORDER: GroupTabKey[] = ["time", "meetings", "members", "settings"];
+
+/** Раздел по якорю ссылки: `#meeting-12` из уведомления — встречи, `#members` — участники. */
+function tabFromHash(hash: string): GroupTabKey | null {
+  if (hash.startsWith("#meeting-")) return "meetings";
+  if (hash === "#members") return "members";
+  return null;
+}
+
+function subscribeHash(onChange: () => void): () => void {
+  window.addEventListener("hashchange", onChange);
+  return () => window.removeEventListener("hashchange", onChange);
+}
 
 /**
  * Разделы страницы группы.
@@ -33,18 +45,16 @@ export function GroupTabs({
   /** Сколько ждёт внимания в разделе — например, встречи без твоего ответа. */
   badges?: Partial<Record<GroupTabKey, number>>;
 }) {
-  const [active, setActive] = useState<GroupTabKey>(initial);
-
+  // Вкладка, выбранная человеком, важнее якоря и начальной.
+  const [chosen, setChosen] = useState<GroupTabKey | null>(null);
   // Ссылка вида /g/slug#meeting-12 из уведомления должна открыть нужный раздел.
-  useEffect(() => {
-    const hash = window.location.hash;
-    if (hash.startsWith("#meeting-")) setActive("meetings");
-    else if (hash === "#members") setActive("members");
-  }, []);
+  // Якоря сервер не видит: при гидратации он пустой, затем читается из адреса.
+  const hash = useSyncExternalStore(subscribeHash, () => window.location.hash, () => "");
+  const active = chosen ?? tabFromHash(hash) ?? initial;
 
   // «Назначить» подставляет время в форму встречи — её и показываем.
   useEffect(() => {
-    const open = () => setActive("meetings");
+    const open = () => setChosen("meetings");
     window.addEventListener(PICK_EVENT, open);
     return () => window.removeEventListener(PICK_EVENT, open);
   }, []);
@@ -61,7 +71,7 @@ export function GroupTabs({
             aria-selected={active === key}
             aria-controls={`panel-${key}`}
             className={`tab${active === key ? " active" : ""}`}
-            onClick={() => setActive(key)}
+            onClick={() => setChosen(key)}
           >
             {labels[key]}
             {badges[key] ? <span className="count-badge">{badges[key]}</span> : null}

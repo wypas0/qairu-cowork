@@ -3,7 +3,7 @@
 Находит **общие свободные окна** у студентов из одной группы и помогает договориться о встрече.
 Работает двумя лицами одного продукта: **сайт** и **телеграм-бот** — общая база, общее ядро расчёта.
 
-Стек: Next.js 15 (App Router) · TypeScript · Drizzle ORM · PostgreSQL (Supabase) · Vitest · Playwright
+Стек: Next.js 16 (App Router) · TypeScript · Drizzle ORM · PostgreSQL (Supabase) · Vitest · Playwright
 Языки интерфейса: 🇷🇺 русский · 🇰🇿 қазақша · 🇬🇧 english
 
 

@@ -37,10 +37,14 @@ export function NavProgress() {
     return () => document.removeEventListener("click", onClick, true);
   }, []);
 
-  // Конец — сменился адрес: новая страница уже на экране.
-  useEffect(() => {
-    setState((current) => (current === "loading" ? "done" : current));
-  }, [pathname, search]);
+  // Конец — сменился адрес: новая страница уже на экране. Состояние
+  // подгоняется прямо при отрисовке, без эффекта и лишнего кадра.
+  const location = `${pathname}?${search.toString()}`;
+  const [shownLocation, setShownLocation] = useState(location);
+  if (location !== shownLocation) {
+    setShownLocation(location);
+    if (state === "loading") setState("done");
+  }
 
   useEffect(() => {
     if (state !== "done") return;

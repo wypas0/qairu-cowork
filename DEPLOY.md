@@ -351,6 +351,7 @@ DNS-записи, которые покажет Vercel. После этого д
 | Сайт падает с ошибкой про `real_name` | Не выполнена миграция `0003_real_name.sql` |
 | Страница группы или бот падают с ошибкой про `repeat_until` или `reminded_start` | Не выполнена миграция `0004_recurring_meetings.sql` |
 | Сборка падает с `[qairu:schema] В базе не хватает: …` | Не выполнена миграция, которую называет сообщение (например, `0005_calendar_and_summary.sql`). Выполнить её в Supabase и сделать Redeploy |
+| Сборка падает с `You are using Node.js … For Next.js, Node.js version ">=20.9.0" is required` | Next 16 требует Node 20.9 или новее: **Vercel → Settings → Build and Deployment → Node.js Version** → 22.x или новее, затем Redeploy |
 | `too many connections` в логах | Взято прямое подключение (5432) вместо пулера (6543). Заменить строку и сделать Redeploy |
 | Бот молчит на `/start` | Вебхук не зарегистрирован: `BOT_TOKEN` добавлен, но Redeploy не сделан. Проверить: `https://api.telegram.org/botТОКЕН/getWebhookInfo` — там должен быть ваш адрес и пустой `last_error_message` |
 | Бота нельзя добавить в группу | Не сделан `/setjoingroups → Enable` у BotFather |

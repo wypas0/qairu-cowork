@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 import { fmtMinutes } from "@/core/intervals";
 import type { BoardPayload } from "@/lib/group";
@@ -105,13 +105,14 @@ export function HeatMap({
   const defaultDay = () =>
     payload.days.some((entry) => entry.date === today) ? today : (payload.days[0]?.date ?? "");
   const [mobileDay, setMobileDay] = useState(defaultDay);
+  // Новая неделя — показываем её первый день (или сегодня, если он в ней).
+  // Неделю узнаём по первому дню; день подгоняется прямо при отрисовке.
   const weekKey = payload.days[0]?.date;
-  useEffect(() => {
-    // Новая неделя — показываем её первый день (или сегодня, если он в ней).
+  const [mobileWeek, setMobileWeek] = useState(weekKey);
+  if (mobileWeek !== weekKey) {
+    setMobileWeek(weekKey);
     setMobileDay(defaultDay());
-    // defaultDay читает только payload и today, а меняется неделя — по её первому дню.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [weekKey]);
+  }
   const dayIndex = Math.max(
     0,
     payload.days.findIndex((entry) => entry.date === mobileDay),
