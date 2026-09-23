@@ -45,3 +45,13 @@ describe("переводы", () => {
     expect(tn("kk", "w_meetings_count", 4)).toBe("4 кездесу");
   });
 });
+
+describe("страница ошибки", () => {
+  it("язык по коду браузера, незнакомый — русский", async () => {
+    const { ERROR_TEXT, errorText } = await import("@/i18n/errorText");
+    expect(errorText("kk-KZ")).toBe(ERROR_TEXT.kk);
+    expect(errorText("en")).toBe(ERROR_TEXT.en);
+    expect(errorText("de-DE")).toBe(ERROR_TEXT.ru);
+    expect(errorText(undefined)).toBe(ERROR_TEXT.ru);
+  });
+});
