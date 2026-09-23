@@ -17,7 +17,7 @@
     "e2e": "playwright test"
   },
   "dependencies": {
-    "drizzle-orm": "^0.44.6",
+    "drizzle-orm": "^0.45.3",
     "next": "^16.3.6",
     "postgres": "^3.4.7",
     "qrcode-generator": "^1.5.2",
@@ -33,7 +33,7 @@
     "@types/node": "^22.18.6",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
-    "drizzle-kit": "^0.31.5",
+    "drizzle-kit": "^0.31.11",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.3.6",
     "tailwindcss": "^4.1.13",
