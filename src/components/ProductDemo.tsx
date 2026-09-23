@@ -69,8 +69,10 @@ export function ProductDemo({ lang }: { lang: string }) {
           {FREE.map((row, index) => (
             <tr key={TIMES[index][0]}>
               <td className="timecol period">
-                <span className="period-n">{TIMES[index][0]}</span>
-                <span className="period-time">{TIMES[index][1]}</span>
+                <span className="period-line">
+                  <b className="period-n">{TIMES[index][0]}</b>
+                  <span className="period-start">{TIMES[index][1]}</span>
+                </span>
               </td>
               {row.map((count, day) => (
                 <td className={`cell ${heatClass(count)}`} key={day} />
