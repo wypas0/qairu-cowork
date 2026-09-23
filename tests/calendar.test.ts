@@ -1,14 +1,23 @@
+import { fetch } from "undici";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { startTestDb } from "./support/db";
+
+// Календари качает undici (проверка адреса при подключении) — вместо сети ответ подставляется здесь.
+vi.mock("undici", async (importOriginal) => ({ ...(await importOriginal<typeof import("undici")>()), fetch: vi.fn() }));
 
 beforeAll(async () => {
   await startTestDb();
 });
 
 afterEach(() => {
-  vi.unstubAllGlobals();
+  vi.mocked(fetch).mockReset();
 });
+
+/** Сервер календаря отвечает так. */
+function serve(handler: () => Promise<Response>) {
+  vi.mocked(fetch).mockImplementation(handler as unknown as typeof fetch);
+}
 
 async function mods() {
   return { repo: await import("@/db/repo"), sync: await import("@/lib/calendarSync") };
@@ -39,6 +48,42 @@ describe("ссылка на календарь", () => {
     expect(sync.isPrivateAddress("93.184.216.34")).toBe(false);
     expect(sync.isPrivateAddress("2606:4700::1111")).toBe(false);
   });
+
+  it("IPv4, спрятанный в IPv6, и служебные диапазоны тоже закрыты", async () => {
+    const { sync } = await mods();
+    const blocked = [
+      "::ffff:7f00:1", // так URL записывает ::ffff:127.0.0.1
+      "[::ffff:a9fe:a9fe]", // 169.254.169.254
+      "::127.0.0.1",
+      "::7f00:1",
+      "64:ff9b::7f00:1", // NAT64 → 127.0.0.1
+      "64:ff9b:1::1",
+      "2002:7f00:1::1", // 6to4 → 127.0.0.1
+      "2001::1", // Teredo
+      "2001:db8::1",
+      "fe80::1",
+      "fec0::1",
+      "ff02::1",
+      "0.0.0.0",
+      "192.0.0.8",
+      "198.18.0.1",
+      "::",
+      "не адрес",
+    ];
+    for (const address of blocked) expect(sync.isPrivateAddress(address), address).toBe(true);
+    for (const address of ["8.8.8.8", "64:ff9b::5db8:d822", "2002:5db8:d822::1", "2a00:1450:4001::200e"]) {
+      expect(sync.isPrivateAddress(address), address).toBe(false);
+    }
+  });
+
+  it("адрес числом и IPv6 в ссылке в сеть не уходят", async () => {
+    const { sync } = await mods();
+    // 2130706433 — это 127.0.0.1: URL приводит его к обычной записи.
+    expect(await sync.fetchCalendar("http://2130706433/cal.ics")).toEqual({ ok: false, error: "blocked" });
+    // IPv6 в квадратных скобках не проходит ещё разбор ссылки.
+    expect(await sync.fetchCalendar("https://[::ffff:127.0.0.1]/cal.ics")).toEqual({ ok: false, error: "bad_url" });
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+  });
 });
 
 describe("загрузка календаря", () => {
@@ -47,12 +92,9 @@ describe("загрузка календаря", () => {
     const user = await repo.createWebUser({ fullName: "Календарь", lang: "ru" });
     const { todayIn, addDays } = await import("@/core/timeutils");
     const day = addDays(todayIn("Asia/Almaty"), 2).replaceAll("-", "");
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () =>
-        calendarResponse(
-          `BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:1\r\nDTSTART;TZID=Asia/Almaty:${day}T090000\r\nDTEND;TZID=Asia/Almaty:${day}T103000\r\nSUMMARY:Секрет\r\nEND:VEVENT\r\nEND:VCALENDAR`,
-        ),
+    serve(async () =>
+      calendarResponse(
+        `BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:1\r\nDTSTART;TZID=Asia/Almaty:${day}T090000\r\nDTEND;TZID=Asia/Almaty:${day}T103000\r\nSUMMARY:Секрет\r\nEND:VEVENT\r\nEND:VCALENDAR`,
       ),
     );
     await repo.setCalendarUrl(user.userId, PUBLIC);
@@ -70,19 +112,16 @@ describe("загрузка календаря", () => {
 
   it("переадресация во внутреннюю сеть блокируется", async () => {
     const { sync } = await mods();
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => new Response(null, { status: 302, headers: { location: "http://169.254.169.254/latest" } })),
-    );
+    serve(async () => new Response(null, { status: 302, headers: { location: "http://169.254.169.254/latest" } }));
     expect(await sync.fetchCalendar(PUBLIC)).toEqual({ ok: false, error: "blocked" });
   });
 
   it("страница вместо календаря и слишком большой файл — понятные ошибки", async () => {
     const { repo, sync } = await mods();
-    vi.stubGlobal("fetch", vi.fn(async () => calendarResponse("<!doctype html><title>Войти</title>")));
+    serve(async () => calendarResponse("<!doctype html><title>Войти</title>"));
     expect(await sync.fetchCalendar(PUBLIC)).toEqual({ ok: false, error: "not_ics" });
 
-    vi.stubGlobal("fetch", vi.fn(async () => calendarResponse(`BEGIN:VCALENDAR\r\n${"X".repeat(2_200_000)}`)));
+    serve(async () => calendarResponse(`BEGIN:VCALENDAR\r\n${"X".repeat(2_200_000)}`));
     expect(await sync.fetchCalendar(PUBLIC)).toEqual({ ok: false, error: "too_large" });
 
     // Ошибка запоминается, прежняя занятость не стирается.
