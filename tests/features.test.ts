@@ -846,3 +846,26 @@ describe("конфликт с расписанием", () => {
     expect(await checkConflicts(bolat.userId)).toBe(0);
   });
 });
+
+describe("адрес cron", () => {
+  it("без CRON_SECRET не работает, секрет принимается только заголовком", async () => {
+    const { GET } = await import("@/app/api/cron/reminders/route");
+    const call = (headers: Record<string, string> = {}, query = "") =>
+      GET(new Request(`http://x/api/cron/reminders${query}`, { headers }));
+
+    delete process.env.CRON_SECRET;
+    expect((await call()).status).toBe(503);
+
+    process.env.CRON_SECRET = "s3cret-for-tests";
+    try {
+      expect((await call()).status).toBe(401);
+      expect((await call({ authorization: "Bearer wrong" })).status).toBe(401);
+      expect((await call({}, "?secret=s3cret-for-tests")).status).toBe(401);
+      const ok = await call({ authorization: "Bearer s3cret-for-tests" });
+      expect(ok.status).toBe(200);
+      expect((await ok.json()).ok).toBe(true);
+    } finally {
+      delete process.env.CRON_SECRET;
+    }
+  });
+});
