@@ -214,6 +214,9 @@ export const meetings = pgTable(
     place: varchar("place", { length: 256 }).notNull().default(""),
     whenText: varchar("when_text", { length: 256 }).notNull().default(""),
     whenStart: timestamp("when_start", { withTimezone: true }),
+    // Сколько длится встреча, минуты. null — у встреч, созданных раньше: им
+    // длительность достаётся из текста «15:00–16:30» (см. meetingDurationMin).
+    durationMin: integer("duration_min"),
     goal: text("goal").notNull().default(""),
     chatMessageId: bigint("chat_message_id", { mode: "number" }),
     invitees: text("invitees").notNull().default(""), // "123,456" — id приглашённых

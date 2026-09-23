@@ -1,7 +1,7 @@
 import { buildIcs } from "@/core/calendar";
-import { weeklyRule } from "@/core/recurrence";
-import { type DateStr, chatTz } from "@/core/timeutils";
+import { chatTz } from "@/core/timeutils";
 import * as repo from "@/db/repo";
+import { meetingEvent } from "@/lib/group";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -30,15 +30,12 @@ export async function GET(
     return Response.json({ detail: "no calendar data" }, { status: 404 });
   }
 
-  const payload = buildIcs({
-    uid: `meeting-${meetingId}`,
-    summary: meeting.goal || chat.title,
-    start: meeting.whenStart,
-    durationMin: 90,
-    location: meeting.place,
-    description: meeting.goal,
-    rrule: meeting.repeatUntil ? weeklyRule(meeting.repeatUntil as DateStr, chatTz(chat)) : undefined,
-  });
+  const payload = buildIcs(
+    meetingEvent({ ...meeting, whenStart: meeting.whenStart }, chatTz(chat), {
+      summary: meeting.goal || chat.title,
+      description: meeting.goal,
+    }),
+  );
 
   return new Response(payload, {
     headers: {

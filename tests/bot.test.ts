@@ -322,6 +322,12 @@ describe("/meeting", () => {
     // Время выбрано кнопкой, значит известен точный момент — напоминание возможно.
     expect(meetings[0].whenStart).toBeInstanceOf(Date);
     expect(meetings[0].chatMessageId).toBeTruthy();
+    // Кнопка — целое свободное окно, а встреча длится как на сайте по умолчанию,
+    // но не дольше окна.
+    const chat = (await repo.getChat(GROUP_ID))!;
+    const [, h1, m1, h2, m2] = /(\d{1,2}):(\d{2})\s*[–—-]\s*(\d{1,2}):(\d{2})/.exec(meetings[0].whenText)!.map(Number);
+    const usual = chat.minSlotMin >= 15 && chat.minSlotMin <= 720 ? chat.minSlotMin : 60;
+    expect(meetings[0].durationMin).toBe(Math.min(usual, h2 * 60 + m2 - (h1 * 60 + m1)));
   });
 
   it("голос учитывается и карточка перерисовывается", async () => {

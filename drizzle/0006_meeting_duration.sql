@@ -1,0 +1,1 @@
+ALTER TABLE "meetings" ADD COLUMN "duration_min" integer;

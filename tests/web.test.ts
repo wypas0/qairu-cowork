@@ -877,3 +877,38 @@ describe("повторяющиеся встречи на карте", () => {
     expect(series.repeatUntil).toBe(addDays(monday, 16));
   });
 });
+
+describe("длительность встречи", () => {
+  it("одна на карте, в .ics и в ленте; у старых встреч — из текста, без времени — не хранится", async () => {
+    const { repo, group } = await mods();
+    const { buildIcs } = await import("@/core/calendar");
+    const { zonedWallToUtc, chatTz } = await import("@/core/timeutils");
+    const { chat, user } = await makeGroup("Длительность", "Амир");
+    const tz = chatTz(chat);
+    // 15:00 в Алматы (UTC+5) — это 10:00 UTC.
+    const whenStart = zonedWallToUtc("2026-09-16", 15 * 60, tz);
+    const base = { chatId: chat.chatId, initiatorId: user.userId, place: "", goal: "Созвон", invitees: [user.userId] };
+
+    // Сохранённая длительность главнее текста.
+    const fresh = (await repo.getMeeting(
+      (await repo.createMeeting({ ...base, whenText: "ср · 15:00–16:30", whenStart, durationMin: 45 })).id,
+    ))!;
+    expect(fresh.durationMin).toBe(45);
+    expect(group.meetingSpan(fresh, tz)?.end).toBe(15 * 60 + 45);
+    const ics = buildIcs(group.meetingEvent({ ...fresh, whenStart }, tz, { summary: "Созвон", description: "" }));
+    expect(ics).toContain("DTSTART:20260916T100000Z");
+    expect(ics).toContain("DTEND:20260916T104500Z");
+
+    // Встреча из прошлой версии: длительности нет — конец из «15:00–17:00».
+    const legacy = (await repo.getMeeting(
+      (await repo.createMeeting({ ...base, whenText: "ср · 15:00–17:00", whenStart })).id,
+    ))!;
+    expect(legacy.durationMin).toBeNull();
+    expect(group.meetingDurationMin(legacy, tz)).toBe(120);
+    expect(group.meetingDurationMin({ ...legacy, whenText: "после пар" }, tz)).toBe(group.DEFAULT_MEETING_MIN);
+
+    // Без точного времени длительность не сохраняется: считать её не от чего.
+    const timeless = await repo.createMeeting({ ...base, whenText: "как-нибудь", durationMin: 60 });
+    expect((await repo.getMeeting(timeless.id))?.durationMin).toBeNull();
+  });
+});

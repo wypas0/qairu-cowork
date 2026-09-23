@@ -141,8 +141,9 @@ postgresql://postgres.abcdefgh:ПАРОЛЬ@aws-0-eu-central-1.pooler.supabase.c
 [`drizzle/0000_init.sql`](drizzle/0000_init.sql) из проекта → **Run**.
 Затем так же, отдельными запросами, — [`drizzle/0001_admin_login.sql`](drizzle/0001_admin_login.sql)
 [`drizzle/0002_avatars.sql`](drizzle/0002_avatars.sql), [`drizzle/0003_real_name.sql`](drizzle/0003_real_name.sql),
-[`drizzle/0004_recurring_meetings.sql`](drizzle/0004_recurring_meetings.sql)
-и [`drizzle/0005_calendar_and_summary.sql`](drizzle/0005_calendar_and_summary.sql).
+[`drizzle/0004_recurring_meetings.sql`](drizzle/0004_recurring_meetings.sql),
+[`drizzle/0005_calendar_and_summary.sql`](drizzle/0005_calendar_and_summary.sql)
+и [`drizzle/0006_meeting_duration.sql`](drizzle/0006_meeting_duration.sql).
 
 Миграции выполняются **по порядку номеров** и **каждая один раз**. Если база уже
 работает на прошлой версии (`0000` выполнен давно), при обновлении нужно выполнить
@@ -151,7 +152,8 @@ postgresql://postgres.abcdefgh:ПАРОЛЬ@aws-0-eu-central-1.pooler.supabase.c
 первого участника. `0002_avatars.sql` добавляет таблицу фото профиля, `0003_real_name.sql` — колонку настоящего имени,
 `0004_recurring_meetings.sql` — повторяющиеся встречи (колонки `repeat_until` и `reminded_start` у `meetings`),
 `0005_calendar_and_summary.sql` — подписку на личный календарь (`calendar_url`, `calendar_synced_at`,
-`calendar_error` у `users`) и итоги встреч (`summary`, `summary_by`, `summary_at` у `meetings`).
+`calendar_error` у `users`) и итоги встреч (`summary`, `summary_by`, `summary_at` у `meetings`),
+`0006_meeting_duration.sql` — длительность встречи (`duration_min` у `meetings`).
 
 > **Миграцию выполнять до того, как новый код попадёт на Vercel.** Код с новыми
 > колонками на старой базе падает на любой странице со встречами. Теперь это
@@ -350,6 +352,7 @@ DNS-записи, которые покажет Vercel. После этого д
 | Фото профиля не сохраняется («Не удалось загрузить фото») | Не выполнена миграция `0002_avatars.sql` |
 | Сайт падает с ошибкой про `real_name` | Не выполнена миграция `0003_real_name.sql` |
 | Страница группы или бот падают с ошибкой про `repeat_until` или `reminded_start` | Не выполнена миграция `0004_recurring_meetings.sql` |
+| Страница группы или бот падают с ошибкой про `duration_min` | Не выполнена миграция `0006_meeting_duration.sql` |
 | Сборка падает с `[qairu:schema] В базе не хватает: …` | Не выполнена миграция, которую называет сообщение (например, `0005_calendar_and_summary.sql`). Выполнить её в Supabase и сделать Redeploy |
 | Сборка падает с `You are using Node.js … For Next.js, Node.js version ">=20.9.0" is required` | Next 16 требует Node 20.9 или новее: **Vercel → Settings → Build and Deployment → Node.js Version** → 22.x или новее, затем Redeploy |
 | `too many connections` в логах | Взято прямое подключение (5432) вместо пулера (6543). Заменить строку и сделать Redeploy |
@@ -393,7 +396,7 @@ npx next build; npm run e2e
 
 - [ ] 0. `npm test` и `npm run build` локально — зелено
 - [ ] 1. `git init` → коммит → пуш на GitHub
-- [ ] 2. Supabase: проект → пулер-строка (6543) → выполнить `drizzle/0000_init.sql`, затем `0001_admin_login.sql`, `0002_avatars.sql`, `0003_real_name.sql`, `0004_recurring_meetings.sql` и `0005_calendar_and_summary.sql`
+- [ ] 2. Supabase: проект → пулер-строка (6543) → выполнить `drizzle/0000_init.sql`, затем `0001_admin_login.sql`, `0002_avatars.sql`, `0003_real_name.sql`, `0004_recurring_meetings.sql`, `0005_calendar_and_summary.sql` и `0006_meeting_duration.sql`
 - [ ] 3. Vercel: импорт репозитория → `DATABASE_URL` → Deploy
 - [ ] 4. Проверить `/api/healthz` и создание группы
 - [ ] 5. BotFather: `/newbot` → токен → `/setjoingroups` Enable

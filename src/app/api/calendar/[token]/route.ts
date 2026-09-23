@@ -1,11 +1,10 @@
 import type { NextRequest } from "next/server";
 
 import { buildFeed } from "@/core/calendar";
-import { weeklyRule } from "@/core/recurrence";
-import { type DateStr, chatTz } from "@/core/timeutils";
+import { chatTz } from "@/core/timeutils";
 import * as repo from "@/db/repo";
 import { verifyFeedToken } from "@/lib/calendarFeed";
-import { meetingSpan } from "@/lib/group";
+import { meetingEvent } from "@/lib/group";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -33,18 +32,12 @@ export async function GET(request: NextRequest, context: { params: Promise<{ tok
 
   const events = meetings.flatMap((meeting) => {
     const chat = byId.get(meeting.chatId);
-    const span = chat ? meetingSpan(meeting, chatTz(chat)) : null;
-    if (!chat || !span || !meeting.whenStart) return [];
+    if (!chat || !meeting.whenStart) return [];
     return [
-      {
-        uid: `meeting-${meeting.id}`,
+      meetingEvent({ ...meeting, whenStart: meeting.whenStart }, chatTz(chat), {
         summary: meeting.goal || chat.title,
-        start: meeting.whenStart,
-        durationMin: span.end - span.start,
-        location: meeting.place,
         description: chat.title,
-        rrule: meeting.repeatUntil ? weeklyRule(meeting.repeatUntil as DateStr, chatTz(chat)) : undefined,
-      },
+      }),
     ];
   });
 

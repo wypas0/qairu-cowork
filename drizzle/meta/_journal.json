@@ -43,6 +43,13 @@
       "when": 1790074026425,
       "tag": "0005_calendar_and_summary",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790161199272,
+      "tag": "0006_meeting_duration",
+      "breakpoints": true
     }
   ]
 }

@@ -10,7 +10,7 @@ import { nextOccurrence, weeklyRule } from "@/core/recurrence";
 import { type DateStr, formatDM, startsSoon, utcToZonedWall, weekdayOf } from "@/core/timeutils";
 import { weekdayShort } from "@/i18n";
 import { fmtMinutes } from "@/core/intervals";
-import { meetingSpan } from "@/lib/group";
+import { meetingDurationMin, meetingSpan } from "@/lib/group";
 import { ConfirmSubmit } from "./ConfirmSubmit";
 import { RepeatMeetingButton } from "./RepeatMeetingButton";
 import { repeatDetail } from "@/lib/repeat";
@@ -39,9 +39,8 @@ function initial(name: string): string {
  * сходу, а эта ссылка открывает готовое событие в один тап.
  */
 function googleCalendarUrl(meeting: Meeting, tz: string): string | null {
-  const span = meetingSpan(meeting, tz);
-  if (!meeting.whenStart || !span) return null;
-  const end = new Date(meeting.whenStart.getTime() + (span.end - span.start) * 60_000);
+  if (!meeting.whenStart) return null;
+  const end = new Date(meeting.whenStart.getTime() + meetingDurationMin(meeting, tz) * 60_000);
   const stamp = (date: Date) => date.toISOString().replace(/[-:]|\.\d{3}/g, "");
   const params = new URLSearchParams({
     action: "TEMPLATE",

@@ -21,6 +21,8 @@ export async function createMeeting(
     goal: string;
     invitees: number[];
     whenStart?: Date | null;
+    /** Сколько длится встреча, минуты; без точного времени начала не сохраняется. */
+    durationMin?: number | null;
     /** Повторять каждую неделю до этой даты включительно. */
     repeatUntil?: DateStr | null;
   },
@@ -36,6 +38,7 @@ export async function createMeeting(
       goal: args.goal,
       invitees: args.invitees.join(","),
       whenStart: args.whenStart ?? null,
+      durationMin: args.whenStart ? (args.durationMin ?? null) : null,
       // Повторять можно только встречу с точным временем.
       repeatUntil: args.whenStart ? (args.repeatUntil ?? null) : null,
     })

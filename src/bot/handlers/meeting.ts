@@ -20,6 +20,7 @@ import * as repo from "@/db/repo";
 import type { Chat, Meeting, User } from "@/db/schema";
 import { formatDay, t } from "@/i18n";
 import { isGroupAdmin, isTelegramChat } from "@/lib/admin";
+import { meetingEvent, normalizeDuration } from "@/lib/group";
 import {
   FORCE_REPLY,
   answerCallbackQuery,
@@ -50,6 +51,8 @@ type MeetingDraft = {
   when?: string;
   whenDate?: DateStr;
   whenStartMin?: number;
+  /** Конец выбранного окна: встреча не длиннее него. */
+  whenEndMin?: number;
   options?: TimeOption[];
   at: number;
 };
@@ -272,6 +275,7 @@ export async function onTimeButton(query: TgCallbackQuery): Promise<void> {
   draft.when = chosen.label;
   draft.whenDate = chosen.date;
   draft.whenStartMin = chosen.start;
+  draft.whenEndMin = chosen.end;
 
   await editMessageText({
     chat_id: message.chat.id,
@@ -298,6 +302,14 @@ async function finishMeeting(draft: MeetingDraft, goal: string): Promise<void> {
     chat && draft.whenDate && draft.whenStartMin !== undefined
       ? zonedWallToUtc(draft.whenDate, draft.whenStartMin, chatTz(chat))
       : null;
+  // Бот предлагает свободные окна целиком («14:00–18:00»), а не время встречи.
+  // Встреча длится столько, сколько сайт предлагает по умолчанию, — но не
+  // дольше самого окна.
+  const usual = normalizeDuration(chat?.minSlotMin, 60);
+  const windowMin = draft.whenEndMin !== undefined && draft.whenStartMin !== undefined
+    ? draft.whenEndMin - draft.whenStartMin
+    : usual;
+  const durationMin = whenStart ? Math.min(usual, windowMin) : null;
 
   const meeting = await repo.createMeeting({
     chatId: draft.chatId,
@@ -307,6 +319,7 @@ async function finishMeeting(draft: MeetingDraft, goal: string): Promise<void> {
     goal,
     invitees: draft.invitees,
     whenStart,
+    durationMin,
   });
 
   const card = await renderCard(meeting.id, draft.lang);
@@ -560,14 +573,12 @@ export async function onCardButton(query: TgCallbackQuery): Promise<void> {
     chat_id: message.chat.id,
     filename: `qairu-meeting-${meetingId}.ics`,
     mime: "text/calendar",
-    content: buildIcs({
-      uid: `meeting-${meetingId}`,
-      summary: meeting.goal || t(lang, "ics_default_summary"),
-      start: meeting.whenStart,
-      durationMin: 90,
-      location: meeting.place,
-      description: meeting.goal,
-    }),
+    content: buildIcs(
+      meetingEvent({ ...meeting, whenStart: meeting.whenStart }, chatTz(chat), {
+        summary: meeting.goal || t(lang, "ics_default_summary"),
+        description: meeting.goal,
+      }),
+    ),
     caption: t(lang, "ics_caption"),
   });
 }

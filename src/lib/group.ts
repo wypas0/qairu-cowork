@@ -18,7 +18,8 @@ import {
   slotsOfLength,
 } from "@/core/availability";
 import { type Period, gridPeriods } from "@/core/grid";
-import { occurrencesBetween } from "@/core/recurrence";
+import type { IcsInput } from "@/core/calendar";
+import { occurrencesBetween, weeklyRule } from "@/core/recurrence";
 import { fmtInterval } from "@/core/intervals";
 import {
   type DateStr,
@@ -86,30 +87,61 @@ export const DEFAULT_MEETING_MIN = 90;
 /** Встреча на тепловой карте: день и минуты в поясе группы. */
 export type MeetingSpan = { id: number; date: DateStr; start: number; end: number; title: string };
 
+/** Поля встречи, по которым считается её длительность. */
+type TimedText = Pick<Meeting, "whenStart" | "whenText"> & Partial<Pick<Meeting, "durationMin">>;
+
 /**
- * Когда идёт встреча. Длительность отдельно не хранится, но в тексте времени
- * встречи, выбранной в окнах, есть «15:00–16:30» — конец берём оттуда, если
- * начало совпадает с сохранённым. Иначе считаем полтора часа.
+ * Сколько длится встреча, минуты. Одна для карты, файла .ics, ленты календаря,
+ * ссылки в Google Календарь и бота — раньше каждый считал по-своему.
+ *
+ * С 0006 длительность сохраняется при создании. У старых встреч её нет, но
+ * в тексте времени встречи, выбранной в окнах, есть «15:00–16:30» — конец
+ * берём оттуда, если начало совпадает с сохранённым. Иначе полтора часа.
  */
+export function meetingDurationMin(meeting: TimedText, tz: string): number {
+  if (meeting.durationMin) return meeting.durationMin;
+  if (meeting.whenStart) {
+    const { minutes } = utcToZonedWall(meeting.whenStart, tz);
+    const range = /(\d{1,2}):(\d{2})\s*[–—-]\s*(\d{1,2}):(\d{2})/.exec(meeting.whenText);
+    if (range) {
+      const from = Number(range[1]) * 60 + Number(range[2]);
+      const to = Number(range[3]) * 60 + Number(range[4]);
+      if (from === minutes && to > from) return to - from;
+    }
+  }
+  return DEFAULT_MEETING_MIN;
+}
+
+/** Когда идёт встреча — день и минуты в поясе группы; на карте — не дальше полуночи. */
 export function meetingSpan(
-  meeting: Pick<Meeting, "id" | "whenStart" | "whenText" | "goal" | "place">,
+  meeting: Pick<Meeting, "id" | "goal" | "place"> & TimedText,
   tz: string,
 ): MeetingSpan | null {
   if (!meeting.whenStart) return null;
   const { day, minutes } = utcToZonedWall(meeting.whenStart, tz);
-  let end = minutes + DEFAULT_MEETING_MIN;
-  const range = /(\d{1,2}):(\d{2})\s*[–—-]\s*(\d{1,2}):(\d{2})/.exec(meeting.whenText);
-  if (range) {
-    const from = Number(range[1]) * 60 + Number(range[2]);
-    const to = Number(range[3]) * 60 + Number(range[4]);
-    if (from === minutes && to > from) end = to;
-  }
   return {
     id: meeting.id,
     date: day,
     start: minutes,
-    end: Math.min(end, 24 * 60),
+    end: Math.min(minutes + meetingDurationMin(meeting, tz), 24 * 60),
     title: meeting.goal || meeting.place || meeting.whenText,
+  };
+}
+
+/** Встреча событием календаря — одинаково для файла .ics, ленты подписки и бота. */
+export function meetingEvent(
+  meeting: Meeting & { whenStart: Date },
+  tz: string,
+  text: { summary: string; description: string },
+): IcsInput {
+  return {
+    uid: `meeting-${meeting.id}`,
+    summary: text.summary,
+    start: meeting.whenStart,
+    durationMin: meetingDurationMin(meeting, tz),
+    location: meeting.place,
+    description: text.description,
+    rrule: meeting.repeatUntil ? weeklyRule(meeting.repeatUntil as DateStr, tz) : undefined,
   };
 }
 

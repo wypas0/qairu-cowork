@@ -28,7 +28,7 @@ import {
   notifyVote,
 } from "@/lib/notify";
 import { afterJoinPath, afterNamePath } from "@/lib/afterJoin";
-import { isOutdated, semesterCutoff } from "@/lib/group";
+import { DEFAULT_MEETING_MIN, isOutdated, normalizeDuration, semesterCutoff } from "@/lib/group";
 
 /** Не чаще раза в 10 минут на одного адресата — напоминание не должно становиться спамом. */
 const REMIND_WINDOW_MS = 10 * 60 * 1000;
@@ -110,6 +110,7 @@ export async function createMeetingAction(slug: string, formData: FormData): Pro
   const when = String(formData.get("when") ?? "").trim();
 
   let whenStart: Date | null = null;
+  let durationMin: number | null = null;
   let whenText = when;
 
   const bar = when.indexOf("|");
@@ -121,7 +122,8 @@ export async function createMeetingAction(slug: string, formData: FormData): Pro
     const startMin = Number(hours) * 60 + Number(minutes ?? 0);
     if (isDateStr(datePart) && Number.isFinite(startMin)) {
       whenStart = zonedWallToUtc(datePart, startMin, chatTz(chat));
-      const length = Number(duration) || 90;
+      const length = normalizeDuration(Number(duration), DEFAULT_MEETING_MIN);
+      durationMin = length;
       whenText =
         `${formatDay(chat.lang, datePart)} · ` +
         `${fmtMinutes(startMin)}–${fmtMinutes(startMin + length)}`;
@@ -146,6 +148,7 @@ export async function createMeetingAction(slug: string, formData: FormData): Pro
     goal: goal.slice(0, 500),
     invitees: members.map((member) => member.userId),
     whenStart,
+    durationMin,
     repeatUntil: repeatUntil as DateStr | null,
   });
   // Организатор, очевидно, согласен со своей встречей.
