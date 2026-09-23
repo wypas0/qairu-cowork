@@ -7,6 +7,12 @@
  * Время всегда `timestamptz` и всегда читается как `Date` в UTC. В SQLite это
  * приходилось чинить руками (смещение терялось, и время встречи уезжало на
  * пять часов) — Postgres хранит смещение сам.
+ *
+ * Каждая таблица — под RLS без единой политики (`.enableRLS()`). Сайт и бот
+ * ходят в базу владельцем таблиц (роль postgres), на него RLS не действует.
+ * А Data API Supabase — роли anon и authenticated с публичным ключом проекта —
+ * не видит ни строки. Новой таблице тоже нужен `.enableRLS()`: это проверяет
+ * tests/schema.test.ts.
  */
 
 import { relations } from "drizzle-orm";
@@ -47,7 +53,7 @@ export const users = pgTable("users", {
   // переводит сайт. NULL — всё в порядке.
   calendarError: varchar("calendar_error", { length: 32 }),
   createdAt: createdAt(),
-});
+}).enableRLS();
 
 export const chats = pgTable("chats", {
   chatId: bigint("chat_id", { mode: "number" }).primaryKey(),
@@ -69,7 +75,7 @@ export const chats = pgTable("chats", {
   // там администраторов назначает сам Telegram.
   createdBy: bigint("created_by", { mode: "number" }),
   createdAt: createdAt(),
-});
+}).enableRLS();
 
 export const memberships = pgTable(
   "memberships",
@@ -84,7 +90,7 @@ export const memberships = pgTable(
     role: varchar("role", { length: 16 }).notNull().default("member"), // member | admin
   },
   (table) => [primaryKey({ columns: [table.chatId, table.userId] })],
-);
+).enableRLS();
 
 export const ROLE_ADMIN = "admin";
 export const ROLE_MEMBER = "member";
@@ -119,7 +125,7 @@ export const busySlots = pgTable(
     index("ix_busy_slots_user_id").on(table.userId),
     index("ix_busy_user_weekday").on(table.userId, table.weekday),
   ],
-);
+).enableRLS();
 
 /**
  * Отметка «пользователь завершил заполнение расписания».
@@ -131,7 +137,7 @@ export const scheduleState = pgTable("schedule_state", {
     .references(() => users.userId, { onDelete: "cascade" }),
   filled: boolean("filled").notNull().default(false),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}).enableRLS();
 
 /**
  * Вход по логину и паролю — необязательный, поверх токена-ссылки.
@@ -149,7 +155,7 @@ export const credentials = pgTable("credentials", {
   passwordHash: text("password_hash").notNull(),
   createdAt: createdAt(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}).enableRLS();
 
 /**
  * Фото профиля. Лежит в самой базе: у Vercel нет постоянного диска, а отдельное
@@ -164,7 +170,7 @@ export const avatars = pgTable("avatars", {
   mime: varchar("mime", { length: 32 }).notNull(),
   data: text("data").notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}).enableRLS();
 
 /**
  * Уведомления на сайте — для тех, до кого не дотянется бот: людей без
@@ -189,7 +195,7 @@ export const notices = pgTable(
     readAt: timestamp("read_at", { withTimezone: true }),
   },
   (table) => [index("ix_notices_user_chat").on(table.userId, table.chatId)],
-);
+).enableRLS();
 
 /** Персональная ссылка/кука сайта. Выдаётся и после входа по паролю. */
 export const webSessions = pgTable(
@@ -203,7 +209,7 @@ export const webSessions = pgTable(
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("ix_web_sessions_user_id").on(table.userId)],
-);
+).enableRLS();
 
 export const meetings = pgTable(
   "meetings",
@@ -237,7 +243,7 @@ export const meetings = pgTable(
     createdAt: createdAt(),
   },
   (table) => [index("ix_meetings_chat_id").on(table.chatId)],
-);
+).enableRLS();
 
 export const meetingResponses = pgTable(
   "meeting_responses",
@@ -251,7 +257,7 @@ export const meetingResponses = pgTable(
     respondedAt: timestamp("responded_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [primaryKey({ columns: [table.meetingId, table.userId] })],
-);
+).enableRLS();
 
 /**
  * Состояние диалогов бота.
@@ -264,7 +270,7 @@ export const botState = pgTable("bot_state", {
   key: varchar("key", { length: 128 }).primaryKey(),
   data: jsonb("data").notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}).enableRLS();
 
 export const usersRelations = relations(users, ({ many }) => ({
   slots: many(busySlots),

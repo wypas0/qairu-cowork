@@ -56,6 +56,29 @@ export function missingColumns(expected, rows) {
   return missing;
 }
 
+/**
+ * Таблицы, которым миграции включили RLS: таблица → файл. Без него сайт
+ * работает как ни в чём не бывало, поэтому забытую миграцию иначе не заметить.
+ */
+export function expectedRls(files) {
+  const tables = new Map();
+  for (const { name, sql } of files) {
+    for (const match of sql.matchAll(/ALTER TABLE "(\w+)" ENABLE ROW LEVEL SECURITY/g)) tables.set(match[1], name);
+    for (const match of sql.matchAll(/ALTER TABLE "(\w+)" DISABLE ROW LEVEL SECURITY/g)) tables.delete(match[1]);
+  }
+  return tables;
+}
+
+/** Таблицы публичной схемы и включён ли у них RLS. */
+export const RLS_QUERY = `select c.relname, c.relrowsecurity from pg_class c
+  join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind = 'r'`;
+
+/** Где RLS должен быть включён, но нет: [{ file, table }] по строкам RLS_QUERY. */
+export function missingRls(expected, rows) {
+  const enabled = new Set(rows.filter((row) => row.relrowsecurity).map((row) => row.relname));
+  return [...expected].filter(([table]) => !enabled.has(table)).map(([table, file]) => ({ file, table }));
+}
+
 export async function migrationFiles() {
   const names = (await readdir(DIR)).filter((name) => /^\d{4}_.*\.sql$/.test(name)).sort();
   return Promise.all(names.map(async (name) => ({ name, sql: await readFile(`${DIR}${name}`, "utf8") })));
@@ -71,8 +94,10 @@ async function main() {
   const { default: postgres } = await import("postgres");
   const sql = postgres(url, { prepare: false, max: 1, connect_timeout: 10, idle_timeout: 5 });
   let rows;
+  let rlsRows;
   try {
     rows = await sql`select table_name, column_name from information_schema.columns where table_schema = 'public'`;
+    rlsRows = await sql.unsafe(RLS_QUERY);
   } catch (error) {
     log(`база недоступна (${error.message}) — проверка схемы пропущена`);
     return;
@@ -80,15 +105,22 @@ async function main() {
     await sql.end({ timeout: 5 }).catch(() => {});
   }
 
-  const missing = missingColumns(expectedSchema(await migrationFiles()), rows);
-  if (missing.length === 0) {
+  const files = await migrationFiles();
+  const missing = missingColumns(expectedSchema(files), rows);
+  const noRls = missingRls(expectedRls(files), rlsRows);
+  if (missing.length === 0 && noRls.length === 0) {
     log("схема базы совпадает с миграциями");
     return;
   }
 
-  const files = [...new Set(missing.map((item) => item.file))];
-  console.error(`[qairu:schema] В базе не хватает: ${missing.map((item) => `${item.table}.${item.column}`).join(", ")}.`);
-  console.error(`[qairu:schema] Выполни в Supabase → SQL Editor: ${files.map((file) => `drizzle/${file}`).join(", ")},`);
+  const needed = [...new Set([...missing, ...noRls].map((item) => item.file))].sort();
+  if (missing.length > 0) {
+    console.error(`[qairu:schema] В базе не хватает: ${missing.map((item) => `${item.table}.${item.column}`).join(", ")}.`);
+  }
+  if (noRls.length > 0) {
+    console.error(`[qairu:schema] Не включён RLS: ${noRls.map((item) => item.table).join(", ")}.`);
+  }
+  console.error(`[qairu:schema] Выполни в Supabase → SQL Editor: ${needed.map((file) => `drizzle/${file}`).join(", ")},`);
   console.error("[qairu:schema] затем пересобери проект (Redeploy). Сайт остаётся на прошлой версии.");
   process.exit(1);
 }

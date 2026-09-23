@@ -15,6 +15,10 @@ next-env.d.ts
 .env.local
 .env.*.local
 
+# дампы базы (DEPLOY.md, «Резервная копия»): в них все данные пользователей
+qairu-backup*.sql
+*.dump
+
 # Vercel
 .vercel
 

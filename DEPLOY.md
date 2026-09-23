@@ -142,8 +142,9 @@ postgresql://postgres.abcdefgh:ПАРОЛЬ@aws-0-eu-central-1.pooler.supabase.c
 Затем так же, отдельными запросами, — [`drizzle/0001_admin_login.sql`](drizzle/0001_admin_login.sql)
 [`drizzle/0002_avatars.sql`](drizzle/0002_avatars.sql), [`drizzle/0003_real_name.sql`](drizzle/0003_real_name.sql),
 [`drizzle/0004_recurring_meetings.sql`](drizzle/0004_recurring_meetings.sql),
-[`drizzle/0005_calendar_and_summary.sql`](drizzle/0005_calendar_and_summary.sql)
-и [`drizzle/0006_meeting_duration.sql`](drizzle/0006_meeting_duration.sql).
+[`drizzle/0005_calendar_and_summary.sql`](drizzle/0005_calendar_and_summary.sql),
+[`drizzle/0006_meeting_duration.sql`](drizzle/0006_meeting_duration.sql)
+и [`drizzle/0007_row_level_security.sql`](drizzle/0007_row_level_security.sql).
 
 Миграции выполняются **по порядку номеров** и **каждая один раз**. Если база уже
 работает на прошлой версии (`0000` выполнен давно), при обновлении нужно выполнить
@@ -153,7 +154,11 @@ postgresql://postgres.abcdefgh:ПАРОЛЬ@aws-0-eu-central-1.pooler.supabase.c
 `0004_recurring_meetings.sql` — повторяющиеся встречи (колонки `repeat_until` и `reminded_start` у `meetings`),
 `0005_calendar_and_summary.sql` — подписку на личный календарь (`calendar_url`, `calendar_synced_at`,
 `calendar_error` у `users`) и итоги встреч (`summary`, `summary_by`, `summary_at` у `meetings`),
-`0006_meeting_duration.sql` — длительность встречи (`duration_min` у `meetings`).
+`0006_meeting_duration.sql` — длительность встречи (`duration_min` у `meetings`),
+`0007_row_level_security.sql` — включает RLS на всех таблицах. Политик нет намеренно:
+сайт ходит в базу владельцем таблиц (роль `postgres`), на него RLS не действует, а Data API
+Supabase с публичным ключом проекта не видит ни строки. После неё **Advisors → Security
+Advisor** больше не ругается на «RLS disabled in public».
 
 > **Миграцию выполнять до того, как новый код попадёт на Vercel.** Код с новыми
 > колонками на старой базе падает на любой странице со встречами. Теперь это
@@ -353,6 +358,7 @@ DNS-записи, которые покажет Vercel. После этого д
 | Сайт падает с ошибкой про `real_name` | Не выполнена миграция `0003_real_name.sql` |
 | Страница группы или бот падают с ошибкой про `repeat_until` или `reminded_start` | Не выполнена миграция `0004_recurring_meetings.sql` |
 | Страница группы или бот падают с ошибкой про `duration_min` | Не выполнена миграция `0006_meeting_duration.sql` |
+| Сборка падает с `[qairu:schema] Не включён RLS: …` | Не выполнена `0007_row_level_security.sql`. Выполнить её в Supabase и сделать Redeploy |
 | Сборка падает с `[qairu:schema] В базе не хватает: …` | Не выполнена миграция, которую называет сообщение (например, `0005_calendar_and_summary.sql`). Выполнить её в Supabase и сделать Redeploy |
 | Сборка падает с `You are using Node.js … For Next.js, Node.js version ">=20.9.0" is required` | Next 16 требует Node 20.9 или новее: **Vercel → Settings → Build and Deployment → Node.js Version** → 22.x или новее, затем Redeploy |
 | `too many connections` в логах | Взято прямое подключение (5432) вместо пулера (6543). Заменить строку и сделать Redeploy |
@@ -388,7 +394,21 @@ npx next build; npm run e2e
 
 **Изменения в схеме базы:** `npm run db:generate` создаёт новый SQL-файл в
 `drizzle/`; его нужно выполнить в Supabase SQL Editor вручную — Vercel миграции
-сам не накатывает.
+сам не накатывает. Новой таблице в `src/db/schema.ts` нужен `.enableRLS()` — иначе
+упадёт тест `tests/schema.test.ts`.
+
+**Резервная копия.** На бесплатном тарифе Supabase не делает бэкапы, которые можно
+скачать. Перед большой миграцией стоит снять копию самому: нужен `pg_dump` той же
+или более новой версии, что и Postgres в Supabase, а строка подключения — та же, что
+в `DATABASE_URL`, только порт **5432** вместо 6543 (дампу нужен сеансовый режим пулера):
+
+```powershell
+pg_dump "<DATABASE_URL с портом 5432>" --no-owner -f qairu-backup.sql
+```
+
+Файл хранить у себя, не в репозитории: в нём все данные пользователей. Проект Supabase
+Free засыпает после 7 дней без запросов — cron напоминаний каждые 10 минут этого не
+допускает, пока воркфлоу Reminders включён.
 
 ---
 
@@ -396,7 +416,7 @@ npx next build; npm run e2e
 
 - [ ] 0. `npm test` и `npm run build` локально — зелено
 - [ ] 1. `git init` → коммит → пуш на GitHub
-- [ ] 2. Supabase: проект → пулер-строка (6543) → выполнить `drizzle/0000_init.sql`, затем `0001_admin_login.sql`, `0002_avatars.sql`, `0003_real_name.sql`, `0004_recurring_meetings.sql`, `0005_calendar_and_summary.sql` и `0006_meeting_duration.sql`
+- [ ] 2. Supabase: проект → пулер-строка (6543) → выполнить `drizzle/0000_init.sql`, затем `0001_admin_login.sql`, `0002_avatars.sql`, `0003_real_name.sql`, `0004_recurring_meetings.sql`, `0005_calendar_and_summary.sql`, `0006_meeting_duration.sql` и `0007_row_level_security.sql`
 - [ ] 3. Vercel: импорт репозитория → `DATABASE_URL` → Deploy
 - [ ] 4. Проверить `/api/healthz` и создание группы
 - [ ] 5. BotFather: `/newbot` → токен → `/setjoingroups` Enable
