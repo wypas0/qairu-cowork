@@ -26,7 +26,6 @@ export default function OpengraphImage() {
           color: "white",
         }}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element -- картинка внутри генератора PNG, а не страница */}
         <img src={`data:image/svg+xml,${mark}`} width={250} height={250} alt="" />
         <div style={{ display: "flex", flexDirection: "column", gap: 24, maxWidth: 680 }}>
           <div style={{ fontSize: 88, letterSpacing: -2 }}>QairuCowork</div>
