@@ -2,8 +2,9 @@
 
 import "server-only";
 
+import { TIMELESS_MEETING_DAYS } from "@/core/recurrence";
 import type { DateStr } from "@/core/timeutils";
-import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, ne, not, or, sql } from "drizzle-orm";
 import { type Chat, chats, type Meeting, type MeetingResponse, meetingResponses, meetings, memberships, notices } from "../schema";
 import { type Exec, ex } from "./base";
 
@@ -215,6 +216,45 @@ export async function chatMeetings(chatId: number, limit = 20, exec?: Exec): Pro
     .where(eq(meetings.chatId, chatId))
     .orderBy(desc(meetings.createdAt))
     .limit(limit);
+}
+
+/**
+ * Встречи для вкладки «Встречи»: все предстоящие и `archive` последних прошедших.
+ *
+ * Раньше бралось 10 последних созданных, и давно назначенная встреча пропадала
+ * из списка, стоило создать ещё десяток. «Предстоящая» — то же условие, что
+ * meetingIsOver в core/recurrence, только наоборот и в SQL. Каждая ветка
+ * защищена от NULL: иначе NOT(...) дал бы NULL, и встреча не попала бы никуда.
+ */
+export async function chatMeetingsForTab(
+  chatId: number,
+  now: Date,
+  today: DateStr,
+  archive = 10,
+  exec?: Exec,
+): Promise<Meeting[]> {
+  const timelessSince = new Date(now.getTime() - TIMELESS_MEETING_DAYS * 86_400_000);
+  const upcoming = and(
+    ne(meetings.status, "cancelled"),
+    or(
+      and(isNotNull(meetings.repeatUntil), gte(meetings.repeatUntil, today)),
+      and(isNull(meetings.repeatUntil), isNotNull(meetings.whenStart), gte(meetings.whenStart, now)),
+      and(isNull(meetings.repeatUntil), isNull(meetings.whenStart), gte(meetings.createdAt, timelessSince)),
+    ),
+  )!;
+  const ahead = await ex(exec)
+    .select()
+    .from(meetings)
+    .where(and(eq(meetings.chatId, chatId), upcoming))
+    .orderBy(asc(meetings.whenStart))
+    .limit(200);
+  const past = await ex(exec)
+    .select()
+    .from(meetings)
+    .where(and(eq(meetings.chatId, chatId), not(upcoming)))
+    .orderBy(desc(sql`coalesce(${meetings.whenStart}, ${meetings.createdAt})`))
+    .limit(archive);
+  return [...ahead, ...past];
 }
 
 /** Открытые встречи группы с точным временем начала в промежутке [from, to). */

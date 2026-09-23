@@ -56,6 +56,39 @@ export function seriesOver(repeatUntil: DateStr, today: DateStr): boolean {
   return repeatUntil < today;
 }
 
+/** Встреча без точного времени столько дней после создания считается предстоящей. */
+export const TIMELESS_MEETING_DAYS = 14;
+
+/** Поля встречи, по которым видно, позади ли она. */
+export type MeetingTiming = {
+  status: string;
+  whenStart: Date | null;
+  repeatUntil: DateStr | null;
+  createdAt: Date;
+};
+
+/**
+ * Встреча уже позади — уходит в архив: голосовать за прошедшее нечего.
+ * Отменена, серия закончилась или время прошло. Когда встреча без точного
+ * времени, неизвестно, но висеть в предстоящих вечно она не должна — через
+ * TIMELESS_MEETING_DAYS дней после создания она тоже в архиве.
+ *
+ * То же условие в SQL — chatMeetingsForTab в db/queries/meetings.ts.
+ */
+export function meetingIsOver(meeting: MeetingTiming, now: Date, today: DateStr): boolean {
+  if (meeting.status === "cancelled") return true;
+  if (meeting.repeatUntil) return seriesOver(meeting.repeatUntil, today);
+  if (meeting.whenStart) return meeting.whenStart < now;
+  return meeting.createdAt.getTime() < now.getTime() - TIMELESS_MEETING_DAYS * 86_400_000;
+}
+
+/** Когда встреча начнётся ближайший раз: у серии — следующий повтор; без точного времени — null. */
+export function nextStart(meeting: MeetingTiming, tz: string, now: Date): Date | null {
+  if (!meeting.whenStart) return null;
+  if (!meeting.repeatUntil) return meeting.whenStart;
+  return nextOccurrence(meeting.whenStart, meeting.repeatUntil, tz, now);
+}
+
 /** RRULE для календарей: каждую неделю до конца дня `repeatUntil` в поясе группы. */
 export function weeklyRule(repeatUntil: DateStr, tz: string): string {
   const until = zonedWallToUtc(repeatUntil, 23 * 60 + 59, tz)

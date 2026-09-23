@@ -159,14 +159,15 @@ export async function loadGroupState(
   const { quorum = null, duration = null, withMeetings = true } = options;
   const week = normalizeWeek(options.week);
 
+  const now = new Date();
+  const today = todayIn(chatTz(chat), now);
   const members = await repo.chatMembers(chat.chatId);
   const people = await repo.buildPersonSchedules(members);
-  const meetingRows = withMeetings ? await repo.chatMeetings(chat.chatId, 10) : [];
+  const meetingRows = withMeetings ? await repo.chatMeetingsForTab(chat.chatId, now, today) : [];
   const responses = await repo.meetingResponsesForMany(meetingRows.map((row) => row.id));
 
   const filledIds = new Set(people.filter((person) => person.hasData).map((p) => p.userId));
   const names = new Map(members.map((member) => [member.userId, displayName(member)]));
-  const today = todayIn(chatTz(chat));
   const parityOf = parityOfChat(chat);
   const length = normalizeDuration(duration, normalizeDuration(chat.minSlotMin, 60));
   // Тепловая карта — это «эта неделя», а не «7 дней вперёд»: понедельник

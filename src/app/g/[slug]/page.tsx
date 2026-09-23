@@ -14,6 +14,7 @@ import { QrCode } from "@/components/QrCode";
 import { ScrollToAnchor } from "@/components/ScrollToAnchor";
 import { StartChecklist } from "@/components/StartChecklist";
 import { fmtMinutes } from "@/core/intervals";
+import { meetingIsOver, nextStart } from "@/core/recurrence";
 import { chatTz, formatDM, todayIn, utcToZonedWall } from "@/core/timeutils";
 import * as repo from "@/db/repo";
 import { ROLE_ADMIN, displayName, telegramName } from "@/db/schema";
@@ -89,16 +90,17 @@ export default async function GroupPage({
   const notices = await repo.unreadNotices(chat.chatId, user.userId);
   const openMeetings = new Map(state.meetings.map((meeting) => [meeting.id, meeting]));
 
-  // Встреча уходит в архив, когда началась: голосовать за прошедшее нечего.
+  // Встреча уходит в архив, когда началась (meetingIsOver). Предстоящие — по
+  // времени, ближайшая первой; без точного времени — в конце.
   const now = new Date();
   const today = todayIn(chatTz(chat), now);
-  const startedAlready = (meeting: (typeof state.meetings)[number]) =>
-    meeting.status === "cancelled" ||
-    (meeting.repeatUntil
-      ? meeting.repeatUntil < today
-      : meeting.whenStart !== null && meeting.whenStart < now);
-  const upcomingMeetings = state.meetings.filter((meeting) => !startedAlready(meeting));
-  const archivedMeetings = state.meetings.filter(startedAlready);
+  const over = (meeting: (typeof state.meetings)[number]) => meetingIsOver(meeting, now, today);
+  const startsAt = (meeting: (typeof state.meetings)[number]) =>
+    nextStart(meeting, chatTz(chat), now)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+  const upcomingMeetings = state.meetings
+    .filter((meeting) => !over(meeting))
+    .sort((a, b) => startsAt(a) - startsAt(b));
+  const archivedMeetings = state.meetings.filter(over);
   // Встречи, на которые тебя позвали, а ты ещё не ответил, — счётчик на вкладке.
   const awaitingMyAnswer = upcomingMeetings.filter(
     (meeting) =>

@@ -310,3 +310,46 @@ describe("состояние диалогов бота", () => {
     expect(await r.getBotState("mtg:1:2")).toBeNull();
   });
 });
+
+describe("вкладка «Встречи»", () => {
+  it("давняя предстоящая встреча не теряется за новыми прошедшими, в архиве — 10 свежих", async () => {
+    const r = await repo();
+    const { meetingIsOver } = await import("@/core/recurrence");
+    const { addDays, todayIn } = await import("@/core/timeutils");
+    const chatId = -2002;
+    await r.upsertChat(chatId, "Архив");
+    const now = new Date();
+    const today = todayIn("Asia/Almaty", now);
+    const day = 86_400_000;
+    const base = { chatId, initiatorId: 101, place: "", whenText: "", goal: "", invitees: [101] };
+
+    // Первой создана встреча через месяц, после неё — двенадцать прошедших.
+    const ahead = await r.createMeeting({ ...base, goal: "через месяц", whenStart: new Date(now.getTime() + 30 * day) });
+    for (let n = 1; n <= 12; n += 1) {
+      await r.createMeeting({ ...base, goal: `прошла ${n}`, whenStart: new Date(now.getTime() - n * day) });
+    }
+    // Идущая серия, отменённая встреча, встречи без точного времени — свежая и давняя.
+    const series = await r.createMeeting({
+      ...base,
+      goal: "серия",
+      whenStart: new Date(now.getTime() - 20 * day),
+      repeatUntil: addDays(today, 60),
+    });
+    const cancelled = await r.createMeeting({ ...base, goal: "отменена", whenStart: new Date(now.getTime() + 5 * day) });
+    await r.updateMeeting(cancelled.id, { status: "cancelled" });
+    const fresh = await r.createMeeting({ ...base, goal: "когда-нибудь" });
+    const stale = await r.createMeeting({ ...base, goal: "давно без времени" });
+    await r.updateMeeting(stale.id, { createdAt: new Date(now.getTime() - 20 * day) });
+
+    const rows = await r.chatMeetingsForTab(chatId, now, today);
+    const upcoming = rows.filter((meeting) => !meetingIsOver(meeting, now, today));
+    const archived = rows.filter((meeting) => meetingIsOver(meeting, now, today));
+
+    // SQL и meetingIsOver согласны: предстоящие — все и только они.
+    expect(upcoming.map((meeting) => meeting.id).sort()).toEqual([ahead.id, series.id, fresh.id].sort());
+    expect(archived).toHaveLength(10);
+    // Архив — от свежих к старым: отменённая (её время впереди), потом вчерашняя.
+    expect(archived.slice(0, 3).map((meeting) => meeting.goal)).toEqual(["отменена", "прошла 1", "прошла 2"]);
+    expect(archived.map((meeting) => meeting.id)).not.toContain(stale.id);
+  });
+});
