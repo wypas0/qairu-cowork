@@ -117,6 +117,9 @@ async function handleCommand(
     case "cancel":
       await common.cmdCancel(message);
       return;
+    case "id":
+      await common.cmdId(message);
+      return;
 
     case "setup":
       await registration.cmdSetup(message);

@@ -63,6 +63,15 @@ export async function cmdStart(message: TgMessage, args: string[]): Promise<void
   });
 }
 
+/**
+ * /id — номер этого чата. Его вписывают в ALERT_CHAT_ID, чтобы получать от бота
+ * алерты об ошибках сайта: в личке — свой id, в группе — id группы. В меню
+ * команд /id нет — это служебное.
+ */
+export async function cmdId(message: TgMessage): Promise<void> {
+  await sendMessage({ chat_id: message.chat.id, text: `<code>${message.chat.id}</code>`, parse_mode: "HTML" });
+}
+
 export async function cmdHelp(message: TgMessage): Promise<void> {
   const lang = await resolveLang(message.chat, message.from);
   const group = isGroup(message.chat);

@@ -144,6 +144,12 @@ describe("подключение чата и регистрация", () => {
     }
   });
 
+  it("/id отвечает номером чата — его вписывают в ALERT_CHAT_ID", async () => {
+    stub.reset();
+    await handleUpdate(text(PRIVATE_ASEL, ASEL, "/id"));
+    expect(stub.lastText()).toBe(`<code>${ASEL.id}</code>`);
+  });
+
   it("deep-link /start привязывает человека к чату и ведёт на первый шаг в группе", async () => {
     await handleUpdate(text(PRIVATE_ASEL, ASEL, `/start c${GROUP_ID}`));
     const call = stub.last("sendMessage")!;

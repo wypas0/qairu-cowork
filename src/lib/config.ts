@@ -54,3 +54,8 @@ export function defaultLang(): string {
 export function cronSecret(): string {
   return (process.env.CRON_SECRET ?? "").trim();
 }
+
+/** Куда бот шлёт алерты об ошибках сервера: id человека или чата. Пусто — никуда. */
+export function alertChatId(): string {
+  return (process.env.ALERT_CHAT_ID ?? "").trim();
+}

@@ -869,3 +869,43 @@ describe("адрес cron", () => {
     }
   });
 });
+
+describe("алерты об ошибках сервера", () => {
+  it("уходят в ALERT_CHAT_ID: шаблон маршрута, первая строка, digest; повтор — не чаще раза в 10 минут", async () => {
+    const { reportServerError } = await import("@/lib/alerts");
+    const context = { routePath: "/api/calendar/[token]", routeType: "route" };
+    const error = Object.assign(new Error("relation meetings does not exist\nparams: 42,secret"), { digest: "3024488616" });
+    process.env.ALERT_CHAT_ID = "777000";
+    try {
+      await reportServerError(error, { method: "GET" }, context);
+      const call = stub.last("sendMessage")!;
+      expect(call.payload.chat_id).toBe(777000);
+      const body = String(call.payload.text);
+      expect(body).toContain("/api/calendar/[token]");
+      expect(body).toContain("relation meetings does not exist");
+      expect(body).toContain("3024488616");
+      expect(body).not.toContain("secret");
+
+      stub.reset();
+      await reportServerError(error, { method: "GET" }, context);
+      expect(stub.of("sendMessage")).toHaveLength(0);
+    } finally {
+      delete process.env.ALERT_CHAT_ID;
+    }
+  });
+
+  it("обрыв со стороны браузера не шлётся, без ALERT_CHAT_ID — ничего", async () => {
+    const { reportServerError } = await import("@/lib/alerts");
+    const context = { routePath: "/g/[slug]", routeType: "render" };
+    process.env.ALERT_CHAT_ID = "777000";
+    try {
+      await reportServerError(new Error("The destination stream closed early."), { method: "GET" }, context);
+      await reportServerError(Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" }), { method: "GET" }, context);
+      expect(stub.of("sendMessage")).toHaveLength(0);
+    } finally {
+      delete process.env.ALERT_CHAT_ID;
+    }
+    await reportServerError(new Error("настоящая ошибка"), { method: "GET" }, context);
+    expect(stub.of("sendMessage")).toHaveLength(0);
+  });
+});
