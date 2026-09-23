@@ -1,12 +1,13 @@
 import { cookies } from "next/headers";
 import Link from "next/link";
 
-import { translator } from "@/i18n";
+import { tn, translator } from "@/i18n";
 import { SIDEBAR_COOKIE } from "@/lib/cookies";
 import { BrandMark, IconCalendarUser, IconChevronRight, IconClock, IconMeeting, IconPlus } from "./icons";
 import { type GroupNextMeeting, ProfilePanel, type ProfileGroup } from "./ProfilePanel";
 import { profilePanelProps } from "./profilePanelProps";
 import { SidebarToggle } from "./SidebarToggle";
+import { SiteFooter } from "./SiteFooter";
 import { HomeScreenPrompt } from "./TelegramHome";
 import { Topbar } from "./Topbar";
 
@@ -45,7 +46,7 @@ export async function AppShell({
 
   const meetingLabels: MeetingLabels = {
     list: t("w_side_meetings"),
-    count: t("w_side_meetings_n", { n: "{n}" }),
+    count: (n: number) => tn(lang, "w_meetings_count", n),
     going: t("w_side_going", { n: "{n}", total: "{total}" }),
     awaiting: t("w_side_awaiting"),
   };
@@ -124,6 +125,7 @@ export async function AppShell({
           />
         </div>
         {children}
+        <SiteFooter lang={lang} />
         <nav className="bottomnav" aria-label={title}>
           {links.map((link) => (
             <Link
@@ -172,8 +174,8 @@ function GroupLink({
 
 type MeetingLabels = {
   list: string;
-  /** «Встречи: {n}» — литеральный {n}. */
-  count: string;
+  /** «3 встречи» — число в правильной форме. */
+  count: (n: number) => string;
   /** «{n}/{total} идут» — литеральные {n} и {total}. */
   going: string;
   awaiting: string;
@@ -184,7 +186,7 @@ type MeetingLabels = {
  * сколько идут и ждёт ли встреча твоего ответа. Нажатие открывает встречу во
  * вкладке «Встречи».
  *
- * Список текущей группы раскрыт, у остальных свёрнут в строку «Встречи: 3 ·
+ * Список текущей группы раскрыт, у остальных свёрнут в строку «3 встречи ·
  * Завтра, 16:00» — как рабочие пространства в Slack: при пяти группах со
  * встречами сайдбар иначе превращается в ленту.
  */
@@ -205,7 +207,7 @@ function GroupMeetings({
       <summary className="sidebar-fold-head">
         <IconChevronRight size={14} className="sidebar-fold-icon" />
         <span className="sidebar-fold-text">
-          {labels.count.replace("{n}", String(meetings.length))}
+          {labels.count(meetings.length)}
           <span className="sidebar-fold-when"> · {meetings[0].when}</span>
         </span>
         {awaiting && <span className="sidebar-dot" title={labels.awaiting} aria-label={labels.awaiting} />}

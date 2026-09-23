@@ -62,6 +62,11 @@ export class PersonSchedule {
   dated: Map<DateStr, Interval[]>;
   /** сессия, поездка, «занят целиком» */
   ranges: DateRangeSlot[];
+  /**
+   * День недели -> «могу, но не хочу» (вид «soft»). Это не занятость: человек
+   * свободен и в окна попадает, но такие окна предлагаются в последнюю очередь.
+   */
+  softWeekly: Map<number, Interval[]>;
   hasData: boolean;
 
   constructor(init: {
@@ -71,6 +76,7 @@ export class PersonSchedule {
     weeklyParity?: Map<number, Map<number, Interval[]>>;
     dated?: Map<DateStr, Interval[]>;
     ranges?: DateRangeSlot[];
+    softWeekly?: Map<number, Interval[]>;
     hasData?: boolean;
   }) {
     this.userId = init.userId;
@@ -79,7 +85,13 @@ export class PersonSchedule {
     this.weeklyParity = init.weeklyParity ?? new Map();
     this.dated = init.dated ?? new Map();
     this.ranges = init.ranges ?? [];
+    this.softWeekly = init.softWeekly ?? new Map();
     this.hasData = init.hasData ?? true;
+  }
+
+  /** Нежелательное время в этот день — свободное, но неудобное. */
+  softOn(day: DateStr): Interval[] {
+    return merge([...(this.softWeekly.get(weekdayOf(day)) ?? [])]);
   }
 
   busyOn(day: DateStr, parity: number | null = null, bufferMin = 0): Interval[] {
@@ -99,6 +111,25 @@ export class PersonSchedule {
     }
     return merge(busy);
   }
+}
+
+/**
+ * Кто из свободных на отрезке отметил его как нежелательный: свободен, но
+ * предпочёл бы другое время. Касание границей не считается.
+ */
+export function softIdsFor(
+  people: readonly PersonSchedule[],
+  day: DateStr,
+  interval: Interval,
+  freeIds: readonly number[],
+): number[] {
+  return people
+    .filter(
+      (person) =>
+        freeIds.includes(person.userId) &&
+        person.softOn(day).some(([start, end]) => start < interval[1] && interval[0] < end),
+    )
+    .map((person) => person.userId);
 }
 
 /** Свободное окно и кто в нём свободен. */
@@ -256,6 +287,8 @@ export function topSlots(
 export type FixedSlot = {
   interval: Interval;
   freeIds: number[];
+  /** Свободные, которым это время неудобно. */
+  softIds: number[];
 };
 
 export type DaySlots = {
@@ -303,7 +336,9 @@ export function slotsOfLength(
       for (let start = dayStart; start + duration <= dayEnd; start += step) {
         const interval: Interval = [start, start + duration];
         const freeIds = whoIsFree(freeByUser, interval);
-        if (freeIds.length >= threshold) slots.push({ interval, freeIds });
+        if (freeIds.length >= threshold) {
+          slots.push({ interval, freeIds, softIds: softIdsFor(withData, day, interval, freeIds) });
+        }
       }
     }
     days.push({ day, slots });
@@ -322,6 +357,8 @@ export type HeatCell = {
   startMin: number;
   endMin: number;
   freeIds: number[];
+  /** Свободные в этой клетке, которым она неудобна. */
+  softIds: number[];
 };
 
 export type HeatDay = {
@@ -368,16 +405,17 @@ export function heatmap(
     const day = addDays(startDay, offset);
     const freeByUser = freeByUserFor(withData, day, dayStart, dayEnd, parityOf, bufferMin);
     const cells: HeatCell[] = [];
+    const cell = (start: number, end: number): HeatCell => {
+      const freeIds = whoIsFree(freeByUser, [start, end]);
+      return { startMin: start, endMin: end, freeIds, softIds: softIdsFor(withData, day, [start, end], freeIds) };
+    };
     if (rows) {
-      for (const row of rows) {
-        cells.push({ startMin: row.start, endMin: row.end, freeIds: whoIsFree(freeByUser, [row.start, row.end]) });
-      }
+      for (const row of rows) cells.push(cell(row.start, row.end));
       result.push({ day, cells });
       continue;
     }
     for (let start = dayStart; start < dayEnd; start += step) {
-      const end = Math.min(start + step, dayEnd);
-      cells.push({ startMin: start, endMin: end, freeIds: whoIsFree(freeByUser, [start, end]) });
+      cells.push(cell(start, Math.min(start + step, dayEnd)));
     }
     result.push({ day, cells });
   }

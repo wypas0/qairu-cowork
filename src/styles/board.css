@@ -1,0 +1,367 @@
+/* Доска группы: лучшее время, кто должен прийти, недели, варианты. */
+
+/* --- лучшие окна недели ---
+   Строки в одной рамке, а не высокие карточки: на телефоне три карточки
+   занимали весь первый экран, а таблица уезжала на три экрана вниз. */
+.best-list {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+}
+.best-item {
+  display: flex;
+  align-items: center;
+  gap: 8px 16px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+}
+.best-item + .best-item {
+  border-top: 1px solid var(--border);
+}
+.best-time {
+  min-width: 132px;
+  font-variant-numeric: tabular-nums;
+}
+.best-text {
+  flex: 1;
+  min-width: 160px;
+  display: grid;
+  gap: 2px;
+}
+.best-days {
+  font-size: 15px;
+  font-weight: 600;
+}
+.best-item .btn {
+  flex: none;
+}
+/* Крестик закрытия стоит в строке заголовка и не раздувает её высоту. */
+.best-head {
+  flex-wrap: nowrap;
+  margin-bottom: 4px;
+}
+.best-close {
+  width: 32px;
+  height: 32px;
+  margin: -4px -6px -4px 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+.best-close:hover {
+  color: var(--text);
+}
+.best-collapsed .card-head {
+  margin-bottom: 0;
+}
+
+/* --- «кто должен прийти» --- */
+.who-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.who-head .label {
+  margin: 0;
+}
+.who-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  max-height: 264px;
+  overflow-y: auto;
+}
+.who-list li + li {
+  border-top: 1px solid var(--border);
+}
+.who-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 8px 12px;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 20px;
+  cursor: pointer;
+  transition: background-color 150ms var(--ease);
+}
+.who-row:hover {
+  background: color-mix(in srgb, var(--hover) 60%, transparent);
+}
+.who-row input {
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  flex: none;
+  accent-color: var(--accent);
+}
+.who-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.who-row.off {
+  cursor: default;
+  color: var(--muted);
+}
+.who-row.off:hover {
+  background: transparent;
+}
+.who-row.spotted {
+  background: var(--accent-soft);
+}
+
+/* --- переключатель недель --- */
+.weeknav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.weeknav .btn-quiet {
+  width: 32px;
+  padding: 0;
+}
+.weeknav > .small {
+  min-width: 108px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+/* --- выбор дня и варианты встречи --- */
+.daypicker {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.daychip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: var(--r-full);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 150ms var(--ease), border-color 150ms var(--ease),
+    color 150ms var(--ease), transform 150ms var(--ease);
+}
+.daychip:hover {
+  background: var(--hover);
+}
+.daychip:active {
+  transform: scale(0.97);
+  transition-duration: 75ms;
+}
+.daychip .count {
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+  color: var(--muted);
+}
+.daychip.empty {
+  color: var(--muted);
+}
+.daychip.active {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--ink-text);
+}
+.daychip.active .count {
+  color: inherit;
+  opacity: 0.7;
+}
+.slotlist {
+  max-height: 420px;
+  overflow-y: auto;
+}
+.slotrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.slotinfo {
+  min-width: 0;
+}
+.slotrow .btn {
+  flex: none;
+}
+.slotrow.past {
+  opacity: 0.55;
+}
+
+.who-hint {
+  margin: 6px 0 0;
+}
+.windows-meta {
+  margin: 2px 0 6px;
+}
+
+/* --- карта на телефоне: один день крупными строками ---
+   Таблица из семи столбцов на узком экране превращается в мелкие клетки,
+   по которым не попасть пальцем. Здесь переключение: на широком экране —
+   таблица недели, на узком — строки выбранного дня. */
+.heat-mobile {
+  display: none;
+}
+@media (max-width: 639px) {
+  .heat-desktop {
+    display: none !important;
+  }
+  .heat-mobile {
+    display: block;
+  }
+}
+.heat-days {
+  display: flex;
+  gap: 6px;
+  margin: 4px -16px 12px;
+  padding: 0 16px 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.heat-days::-webkit-scrollbar {
+  display: none;
+}
+.heat-days .daychip {
+  flex: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0;
+  height: 48px;
+  min-width: 56px;
+  padding: 0 10px;
+  line-height: 16px;
+}
+.daychip-date {
+  font-size: 12px;
+  font-weight: 400;
+  opacity: 0.7;
+}
+.heat-days .daychip.today:not(.active) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.agenda {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  touch-action: pan-y;
+}
+.agenda-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 56px 52px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  min-height: 52px;
+  padding: 6px 10px 6px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 150ms var(--ease), transform 150ms var(--ease);
+}
+.agenda-row:active {
+  transform: scale(0.99);
+  transition-duration: 75ms;
+}
+.agenda-row.past {
+  opacity: 0.45;
+}
+.agenda-row.current {
+  border-color: var(--danger);
+  box-shadow: inset 3px 0 0 var(--danger);
+}
+.agenda-time {
+  display: grid;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.agenda-time b {
+  color: var(--text);
+  font-size: 13px;
+}
+.agenda-count {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 40px;
+  border-radius: var(--r-md);
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+}
+/* Счётчик на светлых ступенях — тёмный, на тёмных — белый. */
+.agenda-count.h0,
+.agenda-count.h1,
+.agenda-count.h2 {
+  color: #03263a;
+}
+.agenda-count.h3,
+.agenda-count.h4,
+.agenda-count.h5,
+.agenda-count.meeting {
+  color: #ffffff;
+}
+.agenda-count.meeting {
+  background: var(--danger);
+}
+.agenda-count.mine::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(135deg, transparent 0 5px, var(--mine-stripe) 5px 7px);
+  pointer-events: none;
+}
+.agenda-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 18px;
+}
+.agenda-who {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.agenda-soft {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+/* На широком экране карта длинная, а «Общие окна» короткие: карточка
+   прилипает к верху, чтобы выбор дня и людей был под рукой при прокрутке. */
+@media (min-width: 1024px) {
+  .board-grid {
+    align-items: start;
+  }
+  .board-grid > .windows-card {
+    position: sticky;
+    top: 16px;
+  }
+}

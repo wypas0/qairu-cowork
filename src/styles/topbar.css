@@ -1,0 +1,169 @@
+/* Шапка страницы и обёртка контента. */
+
+/* --- шапка --- */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: calc(12px + var(--safe-top)) max(20px, var(--safe-right)) 12px max(20px, var(--safe-left));
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  text-decoration: none;
+  color: var(--text);
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.brand b {
+  font-weight: 600;
+  color: var(--muted);
+}
+.brand-mark {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  color: var(--accent);
+}
+.topbar .spacer {
+  margin-left: auto;
+}
+.topbar .btn {
+  flex: none;
+}
+
+/* Кнопка профиля в левом верхнем углу шапки. */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: var(--r-full);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  transition: background-color 150ms var(--ease), border-color 150ms var(--ease), transform 150ms var(--ease);
+}
+.icon-btn:hover {
+  background: var(--hover);
+  border-color: var(--hairline);
+}
+.icon-btn:active {
+  transform: scale(0.94);
+  transition-duration: 75ms;
+}
+
+.wrap {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 32px max(16px, var(--safe-right)) calc(64px + var(--safe-bottom)) max(16px, var(--safe-left));
+}
+.foot {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 8px max(16px, var(--safe-right)) calc(40px + var(--safe-bottom)) max(16px, var(--safe-left));
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 18px;
+}
+/* На страницах группы подвал живёт в основной колонке, а общий — скрыт. */
+body:has(.shell) > .foot {
+  display: none;
+}
+.foot-inner {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 16px 40px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.foot-about {
+  display: grid;
+  gap: 6px;
+  max-width: 440px;
+  justify-items: start;
+}
+.foot-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+}
+.foot-brand b {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+/* Контакты: кому написать о баге и чей это проект. */
+.foot-contacts {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+.foot-contact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin: 0;
+}
+.foot-contact a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--accent);
+  font-weight: 500;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.foot-contact a:hover {
+  text-decoration: underline;
+}
+
+@media (min-width: 640px) {
+  .wrap,
+  .foot {
+    padding-left: max(24px, var(--safe-left));
+    padding-right: max(24px, var(--safe-right));
+  }
+}
+@media (min-width: 1024px) {
+  .wrap {
+    padding-top: 48px;
+    padding-left: max(32px, var(--safe-left));
+    padding-right: max(32px, var(--safe-right));
+  }
+  .foot {
+    padding-left: max(32px, var(--safe-left));
+    padding-right: max(32px, var(--safe-right));
+  }
+}
+@media (max-width: 560px) {
+  .topbar {
+    gap: 8px;
+  }
+  .brand {
+    font-size: 15px;
+  }
+  .wrap {
+    padding-top: 20px;
+  }
+}

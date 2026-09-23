@@ -1,0 +1,125 @@
+/* Типографика: роли из дизайн-кода. */
+
+/* --- типографика: роли из дизайн-кода --- */
+.type-display {
+  font-size: 40px;
+  line-height: 44px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.type-title-1,
+h1 {
+  font-size: 32px;
+  line-height: 36px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0 0 8px;
+}
+.type-title-2 {
+  font-size: 28px;
+  line-height: 34px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.type-title-3 {
+  font-size: 20px;
+  line-height: 26px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.type-headline,
+h2 {
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  margin: 0 0 12px;
+}
+h3 {
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+.type-lead,
+.lead {
+  font-size: 17px;
+  line-height: 26px;
+  font-weight: 400;
+  letter-spacing: -0.005em;
+  color: var(--muted);
+}
+.type-body {
+  font-size: 15px;
+  line-height: 22px;
+}
+.type-secondary {
+  font-size: 14px;
+  line-height: 20px;
+}
+.type-meta,
+.small {
+  font-size: 13px;
+  line-height: 18px;
+}
+.type-caption {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+}
+.eyebrow {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  color: var(--muted);
+}
+p {
+  margin: 0 0 12px;
+}
+.muted {
+  color: var(--muted);
+}
+/* Цифры в колонках не должны прыгать по ширине. Моноширинного шрифта
+   в интерфейсе нет — есть табличные цифры Inter. */
+.mono,
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (min-width: 640px) {
+  .type-display {
+    font-size: 56px;
+    line-height: 60px;
+  }
+  .type-title-1,
+  h1 {
+    font-size: 40px;
+    line-height: 44px;
+  }
+  .type-lead,
+  .lead {
+    font-size: 19px;
+    line-height: 28px;
+  }
+}
+
+/* Заголовок страницы: тихая подпись, заголовок, лид, действие справа. */
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+.page-head > div {
+  min-width: 0;
+}
+.page-head h1 {
+  margin: 2px 0 0;
+}
+.page-head .lead {
+  margin: 8px 0 0;
+  max-width: 62ch;
+}

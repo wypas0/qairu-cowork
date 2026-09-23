@@ -1,0 +1,449 @@
+/* Списки, код группы, участники, разделы страницы группы. */
+
+/* --- списки --- */
+.people {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  border: 1px solid transparent;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background-color 150ms var(--ease);
+}
+.chip:hover {
+  background: var(--hover);
+}
+.chip.ok {
+  background: var(--accent-soft);
+  border-color: transparent;
+}
+.chip.warn {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--muted);
+}
+
+.windows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.windows li {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.windows li:last-child {
+  border-bottom: 0;
+}
+.windows .when {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.daygroup {
+  margin-bottom: 16px;
+}
+.daygroup > h3 {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.meeting {
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 16px;
+  margin-bottom: 12px;
+}
+.meeting.cancelled {
+  opacity: 0.55;
+}
+.meeting.cancelled .mtitle {
+  text-decoration: line-through;
+}
+.mtitle {
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 600;
+}
+.votes {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: var(--r-lg);
+  background: var(--accent-soft);
+  border: 1px solid transparent;
+  font-size: 14px;
+  line-height: 20px;
+  margin-bottom: 12px;
+}
+.notice.warn {
+  background: transparent;
+  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+  color: var(--text);
+}
+.notice-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  flex-wrap: wrap;
+}
+.notice-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* --- новая встреча: наверху раздела, свёрнутой кнопкой --- */
+.new-meeting {
+  margin-bottom: 16px;
+}
+.meeting-form {
+  margin-bottom: 20px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+}
+
+/* Дата конца серии — под галочкой, с отступом как у её подписи. */
+.repeat-until {
+  max-width: 240px;
+  margin: 4px 0 0 26px;
+}
+
+/* --- подписка на календарь группы --- */
+.calendar-sub {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.calendar-sub .dated-actions {
+  margin-top: 8px;
+}
+
+/* --- «С чего начать» --- */
+.start-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.start-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.start-step:last-child {
+  border-bottom: 0;
+}
+.start-mark {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+.start-step.done .start-mark {
+  background: color-mix(in srgb, var(--success) 16%, transparent);
+  color: var(--success);
+}
+.start-text {
+  flex: 1;
+  min-width: 0;
+}
+.start-text b {
+  font-size: 15px;
+  font-weight: 600;
+}
+.start-text p {
+  margin: 2px 0 0;
+}
+.start-step.done .start-text b {
+  color: var(--muted);
+  font-weight: 500;
+}
+/* На узком экране кнопка шага уходит под его текст, а не сжимает его в столбик. */
+@media (max-width: 560px) {
+  .start-step {
+    flex-wrap: wrap;
+  }
+  .start-text {
+    flex-basis: calc(100% - 40px);
+  }
+  .start-step .btn {
+    margin-left: 40px;
+  }
+}
+
+/* --- код группы --- */
+/* Код читают вслух и переписывают с доски, поэтому он крупный, с разрядкой
+   и разбит пробелом пополам. */
+.invite-code {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 8px 0 6px;
+}
+.invite-code .code {
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+}
+.join-code input {
+  flex: 1 1 220px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.join-code .btn {
+  flex: 0 0 auto;
+}
+.join-code input::placeholder {
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+/* --- участники --- */
+.roster {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+.roster-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  flex-wrap: wrap;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.roster-row:last-child {
+  border-bottom: 0;
+}
+.roster-who {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.roster-who b {
+  font-size: 15px;
+  font-weight: 600;
+}
+.roster-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--success);
+}
+.dot.warn {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--muted);
+}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: var(--r-full);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+/* Расписание с прошлого семестра: не «нет», но и не «готово». */
+.dot.stale {
+  background: var(--warning);
+}
+.badge.soon {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+.badge.stale {
+  background: color-mix(in srgb, var(--warning) 22%, transparent);
+  color: var(--text);
+}
+.semester-box {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  max-width: 560px;
+}
+.badge.ok {
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+  color: var(--success);
+}
+
+/* --- разделы страницы группы --- */
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+.tab {
+  height: 36px;
+  padding: 0 16px;
+  flex: none;
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 150ms var(--ease), border-color 150ms var(--ease),
+    color 150ms var(--ease), transform 150ms var(--ease);
+}
+.tab:hover {
+  background: var(--hover);
+}
+.tab:active {
+  transform: scale(0.97);
+  transition-duration: 75ms;
+}
+.tab.active {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--ink-text);
+}
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.tab .count-badge {
+  margin-left: 0;
+}
+/* На телефоне четыре вкладки должны помещаться целиком: «Настройки»
+   обрезались справа, и не было видно, что вкладки можно листать. */
+@media (max-width: 560px) {
+  .tabs {
+    gap: 6px;
+  }
+  .tab {
+    height: 34px;
+    padding: 0 11px;
+    font-size: 13px;
+  }
+}
+
+/* --- подписка на личный календарь --- */
+.calendar-status {
+  display: grid;
+  gap: 4px;
+  margin-top: 12px;
+}
+.calendar-status p {
+  margin: 0;
+}
+.calendar-host {
+  overflow-wrap: anywhere;
+}
+.calendar-form {
+  margin-top: 12px;
+}
+
+/* --- QR-код приглашения --- */
+.qr .qr-bg {
+  fill: var(--qr-bg);
+}
+.qr .qr-ink {
+  fill: var(--qr-ink);
+}
+.invite-qr {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+}
+.invite-qr .qr {
+  width: 132px;
+  height: 132px;
+  flex: none;
+  border-radius: var(--r-md);
+}
+.invite-qr-text {
+  display: grid;
+  gap: 6px;
+  flex: 1;
+  min-width: 180px;
+  justify-items: start;
+}
+.invite-qr-text p {
+  margin: 0;
+}
+.qr-page {
+  min-height: 100vh;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 12px;
+  padding: 24px 16px calc(24px + var(--safe-bottom));
+  text-align: center;
+}
+.qr-page h1 {
+  margin: 0;
+}
+.qr-large {
+  width: min(80vw, 62vh);
+  height: min(80vw, 62vh);
+  border-radius: var(--r-lg);
+}
+.qr-code-line {
+  margin: 4px 0 0;
+  font-size: 20px;
+}
+.qr-url {
+  margin: 0;
+  overflow-wrap: anywhere;
+}

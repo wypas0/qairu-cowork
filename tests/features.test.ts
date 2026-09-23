@@ -766,3 +766,83 @@ describe("настоящее имя и тема", () => {
     expect(normalizeTheme(undefined)).toBe("system");
   });
 });
+
+describe("итоги встречи", () => {
+  it("первая запись рассылается тем, кто не шёл, правка — нет", async () => {
+    const { repo, notify } = await mods();
+    const { chat, owner } = await webGroup("Итоги");
+    const went = await webMember(chat.chatId, "Пришёл");
+    const skipped = await webMember(chat.chatId, "Не пришёл");
+    const tg = await telegramMember(chat.chatId, "Молчал");
+    const meeting = await repo.createMeeting({
+      chatId: chat.chatId,
+      initiatorId: owner.userId,
+      place: "Библиотека",
+      whenText: "вчера",
+      goal: "Разбор задач",
+      invitees: [owner.userId, went.userId, skipped.userId, tg.userId],
+    });
+    await repo.setResponse({ meetingId: meeting.id, userId: went.userId, answer: "yes" });
+    await repo.setResponse({ meetingId: meeting.id, userId: skipped.userId, answer: "no" });
+
+    expect(await repo.setMeetingSummary(meeting.id, "  Решили: делим задачи  ", owner.userId)).toEqual({ first: true });
+    const saved = (await repo.getMeeting(meeting.id))!;
+    expect(saved.summary).toBe("Решили: делим задачи");
+    expect(saved.summaryBy).toBe(owner.userId);
+
+    // Автору и тем, кто пришёл, итоги не нужны.
+    const delivery = await notify.notifySummary(chat, saved, owner, saved.summary);
+    expect(delivery).toEqual({ telegram: 1, site: 1 });
+    expect(await repo.unreadNotices(chat.chatId, went.userId)).toHaveLength(0);
+    expect((await repo.unreadNotices(chat.chatId, skipped.userId)).map((row) => row.kind)).toEqual(["summary"]);
+    const dm = stub.of("sendMessage").find((call) => call.payload.chat_id === tg.userId);
+    expect(String(dm?.payload.text)).toContain("Решили: делим задачи");
+
+    // Правка опечатки — уже не первая запись: второй рассылки не будет.
+    expect(await repo.setMeetingSummary(meeting.id, "Решили: делим задачи поровну", owner.userId)).toEqual({ first: false });
+    // Стёртые итоги стирают и автора.
+    await repo.setMeetingSummary(meeting.id, "   ", owner.userId);
+    expect((await repo.getMeeting(meeting.id))!.summaryBy).toBeNull();
+  });
+});
+
+describe("конфликт с расписанием", () => {
+  it("идёт на встречу, а потом занял это время — предупреждаем его и создателя один раз", async () => {
+    const { repo } = await mods();
+    const { checkConflicts } = await import("@/lib/conflicts");
+    const { zonedWallToUtc, todayIn, addDays } = await import("@/core/timeutils");
+    const { chat, owner } = await webGroup("Конфликт");
+    const asel = await webMember(chat.chatId, "Асель");
+    const bolat = await webMember(chat.chatId, "Болат");
+
+    // Встреча послезавтра в 15:00–16:30 по Алматы.
+    const day = addDays(todayIn("Asia/Almaty"), 2);
+    const meeting = await repo.createMeeting({
+      chatId: chat.chatId,
+      initiatorId: owner.userId,
+      place: "",
+      whenText: "15:00–16:30",
+      whenStart: zonedWallToUtc(day, 15 * 60, "Asia/Almaty"),
+      goal: "Проект",
+      invitees: [owner.userId, asel.userId, bolat.userId],
+    });
+    await repo.setResponse({ meetingId: meeting.id, userId: asel.userId, answer: "yes" });
+    await repo.setResponse({ meetingId: meeting.id, userId: bolat.userId, answer: "no" });
+
+    // Пока расписание свободно — конфликта нет.
+    expect(await checkConflicts(asel.userId)).toBe(0);
+
+    // Асель заняла 16:00–18:00 в этот день.
+    await repo.addDatedSlot({ userId: asel.userId, day, start: 16 * 60, end: 18 * 60 });
+    expect(await checkConflicts(asel.userId)).toBe(1);
+    expect((await repo.unreadNotices(chat.chatId, asel.userId)).map((row) => row.kind)).toContain("conflict");
+    expect((await repo.unreadNotices(chat.chatId, owner.userId)).map((row) => row.kind)).toContain("conflict_other");
+
+    // Второй раз о том же не пишем.
+    expect(await checkConflicts(asel.userId)).toBe(0);
+
+    // Кто ответил «нет», тому конфликт не важен.
+    await repo.addDatedSlot({ userId: bolat.userId, day, start: 15 * 60, end: 17 * 60 });
+    expect(await checkConflicts(bolat.userId)).toBe(0);
+  });
+});

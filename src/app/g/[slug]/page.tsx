@@ -3,13 +3,14 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { AppShell } from "@/components/AppShell";
-import { Board } from "@/components/Board";
+import { Board } from "@/components/board/Board";
 import { ConfirmSubmit } from "@/components/ConfirmSubmit";
 import { FlashToast } from "@/components/FlashToast";
 import { GroupTabs, type GroupTabKey } from "@/components/GroupTabs";
 import { CopyButton } from "@/components/CopyButton";
 import { MeetingCard } from "@/components/MeetingCard";
 import { MeetingForm } from "@/components/MeetingForm";
+import { QrCode } from "@/components/QrCode";
 import { ScrollToAnchor } from "@/components/ScrollToAnchor";
 import { StartChecklist } from "@/components/StartChecklist";
 import { fmtMinutes } from "@/core/intervals";
@@ -32,17 +33,14 @@ import { BEST_COOKIE } from "@/lib/cookies";
 import { formatCode } from "@/lib/invite";
 import { baseUrl } from "@/lib/url";
 import {
-  cancelMeetingAction,
   changeCodeAction,
   newSemesterAction,
   createMeetingAction,
   dismissNoticeAction,
-  pingNonRespondersAction,
   remindFillAction,
   removeMemberAction,
   saveSettingsAction,
   setRoleAction,
-  voteAction,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -145,6 +143,9 @@ export default async function GroupPage({
     const meeting = notice.meetingId !== null ? openMeetings.get(notice.meetingId) : undefined;
     const goal = meeting?.goal || meeting?.whenText || notice.text || "—";
     if (notice.kind === "meeting") return t("w_notice_meeting", { name: from, goal });
+    if (notice.kind === "summary") return t("w_notice_summary", { name: from, goal });
+    if (notice.kind === "conflict") return t("w_notice_conflict", { goal });
+    if (notice.kind === "conflict_other") return t("w_notice_conflict_other", { name: from, goal });
     if (notice.kind === "meeting_change") {
       return t("w_notice_change", { name: from, goal, text: notice.text || "—" });
     }
@@ -177,6 +178,8 @@ export default async function GroupPage({
                 ? t("w_sent", { tg: sent[1], site: sent[2] })
                 : savedSettings
                   ? t("w_saved_settings")
+                : query.saved === "summary"
+                  ? t("w_summary_saved")
                 : query.code === "changed"
                   ? t("w_code_changed")
                   : null
@@ -278,13 +281,16 @@ export default async function GroupPage({
                     notFilled: t("w_not_filled"),
                     heatTitle: t("w_heat_title"),
                     heatHint: t("w_heat_hint"),
+                    heatHintMobile: t("w_heat_hint_mobile"),
                     breakRow: t("w_break_row", { m: "{m}" }),
                     legendNone: t("w_legend_none"),
                     legendAll: t("w_legend_all"),
                     legendMeeting: t("w_legend_meeting"),
                     legendMine: t("w_legend_mine"),
+                    legendSoft: t("w_legend_soft"),
                     freeNames: t("w_free_names"),
                     busyNames: t("w_busy_names"),
+                    softNames: t("w_soft_names", { names: "{names}" }),
                     nobody: t("w_nobody"),
                     windowsTitle: t("w_windows_title"),
                     windowsEmpty: t("w_windows_empty"),
@@ -366,6 +372,11 @@ export default async function GroupPage({
                           invitees={repo.inviteeIds(meeting)}
                           viewerId={user.userId}
                           canManage={false}
+                          canSummarize={
+                            isAdmin ||
+                            meeting.initiatorId === user.userId ||
+                            repo.inviteeIds(meeting).includes(user.userId)
+                          }
                           past
                         />
                       ))}
@@ -520,6 +531,18 @@ export default async function GroupPage({
                   <div className="row">
                     <input type="text" readOnly value={inviteUrl} aria-label={t("w_invite")} />
                     <CopyButton value={inviteUrl} label={t("w_copy")} copiedLabel={t("w_copied")} />
+                  </div>
+
+                  {/* QR — для аудитории: вывел на экран, все отсканировали камерой. */}
+                  <div className="invite-qr">
+                    <QrCode value={inviteUrl} label={t("w_qr_label", { title: chat.title })} />
+                    <div className="invite-qr-text">
+                      <b>{t("w_qr_title")}</b>
+                      <p className="small muted">{t("w_qr_hint")}</p>
+                      <Link className="btn btn-sm" href={`/g/${slug}/qr`}>
+                        {t("w_qr_full")}
+                      </Link>
+                    </div>
                   </div>
                 </section>
               </>

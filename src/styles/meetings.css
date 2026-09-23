@@ -1,0 +1,210 @@
+/* Встречи: мета-строка, ответы, настройки группы. */
+
+/* --- мета-строка и ответы на встречу --- */
+/* Иконки стоят на базовой линии строки — поднимаем до её середины. */
+.meeting-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-top: 4px;
+}
+.meeting-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.tally {
+  display: flex;
+  gap: 14px;
+  margin-top: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.tally span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+/* Карточка встречи: кто идёт, кто нет, кто молчит. */
+.meeting-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.answers {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+.answer-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.answer-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 132px;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.answer-label.answer-yes {
+  color: var(--success);
+}
+.answer-label.answer-no {
+  color: var(--danger);
+}
+.marks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+/* Кружок с инициалом вместо фото: фотографии есть не у всех, а имя есть всегда. */
+.mark {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+}
+/* Тех, кто идёт, видно и по кружкам: это главная строка карточки. */
+.answer-group.group-yes .mark {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+.comments {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.comments .icon {
+  color: var(--muted);
+}
+.change-details {
+  margin-top: 12px;
+}
+.change-details summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+.past-meetings {
+  margin-top: 16px;
+}
+.past-meetings > summary {
+  cursor: pointer;
+  padding: 8px 0;
+}
+.cell-popover-meeting {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.pp-chevron,
+.pp-ok {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* --- ответы на встречу --- */
+.responses {
+  margin-top: 12px;
+}
+.responses summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+.responses ul {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.response-comment {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-left: 22px;
+}
+.response-comment .icon {
+  margin-top: 2px;
+}
+.change-form {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.change-form input {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+.settings-summary {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+}
+
+/* --- настройки группы: узкая форма под короткие значения --- */
+.settings-form {
+  max-width: 560px;
+}
+fieldset.field {
+  border: 0;
+  margin: 0 0 16px;
+  padding: 0;
+  min-width: 0;
+}
+fieldset.field > legend {
+  padding: 0;
+}
+fieldset.field .field {
+  margin-bottom: 0;
+}
+
+/* --- прошедшая встреча: итоги и «повторить» --- */
+.meeting-after {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+.summary {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+}
+.summary-text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.summary-by {
+  margin: 0;
+}
+.summary-form {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+}
+.summary-form textarea {
+  width: 100%;
+  resize: vertical;
+}
+.summary-form .btn {
+  justify-self: start;
+}

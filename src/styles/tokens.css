@@ -1,0 +1,220 @@
+/* Токены цвета и формы, тёмная тема, базовые стили элементов. */
+
+/* Палитра задана токенами на :root; тёмная тема переопределяет только их,
+   поэтому ни одному компоненту не нужен вариант `dark:`. */
+
+:root {
+  /* --- холст и поверхности --- */
+  --bg: #f4f6fa;
+  --surface: #ffffff; /* card */
+  --popover: #ffffff; /* всплывающие слои: шторка, окно, подсказка */
+  --surface-2: #e9eef5; /* secondary: тихая заливка контрола */
+  --border: #dee3e9;
+  --hairline: #ced0d4; /* обводка на hover, разделители посильнее */
+  --text: #0a1628;
+  --muted: #5d6c7b;
+  --hover: #e8f0fc; /* заливка строки под курсором */
+
+  /* --- действие --- */
+  --accent: #0064e0; /* кобальт — цвет действия и только его */
+  --accent-deep: #0457cb;
+  --accent-soft: #e8f0fc;
+  --accent-text: #ffffff;
+  --ring: #0064e0;
+
+  /* --- инверсия: navy на светлой теме, белый на тёмной --- */
+  --ink: #0a1628;
+  --ink-text: #ffffff;
+
+  /* --- семантика --- */
+  --success: #1f8f3a;
+  --warning: #f7b928;
+  --danger: #e41e3f;
+
+  /* Редактор «Моё расписание»: пустая клетка — тихая поверхность,
+     занятая — залита кобальтом (это отметка человека, а не украшение). */
+  --slot-free: #eef2f7;
+  --slot-free-border: #dee3e9;
+  --slot-busy: #0064e0;
+  /* Штриховка «тут занят ты» поверх общей карты. */
+  --mine-stripe: rgba(10, 22, 40, 0.3);
+  /* Кто свободен и кто занят в клетке: ярко-голубой и тёмно-синий, как края шкалы карты. */
+  --who-free: #45d6ff;
+  --who-free-text: #03263a;
+  --who-busy: #0b2059;
+  --who-busy-text: #e6efff;
+  /* «Неудобно» в своём расписании. */
+  --soft-fill: #fdf0cc;
+  /* QR-код всегда тёмный на белом — в любой теме, иначе камеры его не читают. */
+  --qr-bg: #ffffff;
+  --qr-ink: #0a1628;
+
+  /* Тепловая карта группы: от очень яркого голубого «свободны все» (h0)
+     к тёмно-синему «никого» (h5). Светлота убывает монотонно, поэтому шкала
+     читается и без различения оттенков. У каждой клетки тонкая обводка
+     --heat-edge: соседние клетки одной ступени не сливаются в пятно. */
+  --heat-0: #45d6ff;
+  --heat-1: #33abf5;
+  --heat-2: #2582e0;
+  --heat-3: #1a5cbf;
+  --heat-4: #133c8f;
+  --heat-5: #0b2059;
+  --heat-edge: rgba(10, 22, 40, 0.22);
+
+  /* --- радиусы, ровно те роли, что в дизайн-коде --- */
+  --r-sm: 6px; /* мелкий контрол */
+  --r-md: 8px;
+  --r-input: 10px; /* поля ввода */
+  --r-lg: 12px; /* строка списка, чип-вкладка */
+  --r-xl: 16px; /* рамка списка, карточка в сетке */
+  --r-2xl: 24px; /* одиночная панель объекта */
+  --r-3xl: 32px; /* диалог */
+  --r-full: 9999px; /* кнопки, бейджи, аватары */
+
+  /* Тень бывает только у всплывающего слоя. У карточек её нет. */
+  --shadow-float: 0 8px 28px rgba(10, 22, 40, 0.16), 0 2px 6px rgba(10, 22, 40, 0.08);
+
+  /* Безопасные зоны. В браузере их даёт env(), внутри Telegram —
+     TelegramChrome из значений мини-аппа: env() там всегда ноль. */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+
+  --ease: cubic-bezier(0.23, 1, 0.32, 1);
+  --sans: var(--font-inter), system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #070e1c;
+    --surface: #0d1729;
+    --popover: #101c33;
+    --surface-2: #16253d;
+    --border: rgba(255, 255, 255, 0.09);
+    --hairline: rgba(255, 255, 255, 0.14);
+    --text: #eef2f8;
+    --muted: #8c9bb3;
+    --hover: #172a47;
+
+    --accent: #1b76f2;
+    --accent-deep: #0f66df;
+    --accent-soft: #172a47;
+    --accent-text: #ffffff;
+    --ring: #3b8dff;
+
+    --ink: #ffffff;
+    --ink-text: #0a1628;
+
+    --success: #3ccc5f;
+    --warning: #ffc63d;
+    --danger: #ff5d72;
+
+    --slot-free: #17263f;
+    --slot-free-border: rgba(255, 255, 255, 0.16);
+    --slot-busy: #1b76f2;
+    --mine-stripe: rgba(7, 14, 28, 0.42);
+    --who-free: #45d6ff;
+    --who-free-text: #03263a;
+    --who-busy: #12307a;
+    --who-busy-text: #e6efff;
+    --soft-fill: #3a3217;
+
+    --heat-0: #45d6ff;
+    --heat-1: #33abf5;
+    --heat-2: #2582e0;
+    --heat-3: #1d62c9;
+    --heat-4: #1a4aa8;
+    --heat-5: #12307a;
+    --heat-edge: rgba(255, 255, 255, 0.2);
+
+    --shadow-float: 0 10px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35);
+  }
+}
+
+/* Тёмная тема, выбранная вручную в панели профиля, — те же токены. */
+:root[data-theme="dark"] {
+  --bg: #070e1c;
+  --surface: #0d1729;
+  --popover: #101c33;
+  --surface-2: #16253d;
+  --border: rgba(255, 255, 255, 0.09);
+  --hairline: rgba(255, 255, 255, 0.14);
+  --text: #eef2f8;
+  --muted: #8c9bb3;
+  --hover: #172a47;
+
+  --accent: #1b76f2;
+  --accent-deep: #0f66df;
+  --accent-soft: #172a47;
+  --accent-text: #ffffff;
+  --ring: #3b8dff;
+
+  --ink: #ffffff;
+  --ink-text: #0a1628;
+
+  --success: #3ccc5f;
+  --warning: #ffc63d;
+  --danger: #ff5d72;
+
+  --slot-free: #17263f;
+  --slot-free-border: rgba(255, 255, 255, 0.16);
+  --slot-busy: #1b76f2;
+  --mine-stripe: rgba(7, 14, 28, 0.42);
+  --who-free: #45d6ff;
+  --who-free-text: #03263a;
+  --who-busy: #12307a;
+  --who-busy-text: #e6efff;
+  --soft-fill: #3a3217;
+
+  --heat-0: #45d6ff;
+  --heat-1: #33abf5;
+  --heat-2: #2582e0;
+  --heat-3: #1d62c9;
+  --heat-4: #1a4aa8;
+  --heat-5: #12307a;
+  --heat-edge: rgba(255, 255, 255, 0.2);
+
+  --shadow-float: 0 10px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: light dark;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 400 15px/22px var(--sans);
+  -webkit-text-size-adjust: 100%;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--accent);
+}
+
+/* Одно кольцо фокуса на весь сайт. */
+:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--ring) 40%, transparent);
+  outline-offset: 2px;
+}
+
+/* Tailwind-preflight делает svg блочным. Наши иконки живут в строке текста,
+   поэтому возвращаем им строчное поведение и сажаем на середину строки. */
+.icon {
+  display: inline-block;
+  vertical-align: -0.2em;
+  flex: none;
+}

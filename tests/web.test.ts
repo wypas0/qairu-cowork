@@ -542,9 +542,9 @@ describe("вход из Telegram Mini App", () => {
 
 describe("лучшее время и переход по неделям", () => {
   it("предлагает окна, где свободно больше всего людей, и не предлагает занятое встречей", async () => {
-    const { repo, group } = await mods();
+    const { repo } = await mods();
     const { chat, user } = await makeGroup("Лучшее время", "Амир");
-    const { todayIn, zonedWallToUtc } = await import("@/core/timeutils");
+    const { zonedWallToUtc } = await import("@/core/timeutils");
 
     const guest = await repo.createWebUser({ fullName: "Асель", lang: "ru" });
     await repo.addMembership(chat.chatId, guest.userId);
@@ -573,7 +573,7 @@ describe("лучшее время и переход по неделям", () => 
       whenText: "занято",
       goal: "Занято",
       invitees: [user.userId, guest.userId],
-      whenStart: zonedWallToUtc(first.dates[0].date as ReturnType<typeof todayIn>, first.start, tz),
+      whenStart: zonedWallToUtc(first.dates[0].date as import("@/core/timeutils").DateStr, first.start, tz),
     });
 
     const after = await board(chat.slug!, { quorum: 1 });
@@ -756,10 +756,22 @@ describe("окна склеиваются в диапазоны", () => {
       { interval: [720, 750], freeIds: [1, 2] },
     ]);
     expect(runs).toEqual([
-      { interval: [480, 570], freeIds: [1, 2, 3] },
-      { interval: [570, 600], freeIds: [1, 2] },
+      { interval: [480, 570], freeIds: [1, 2, 3], softIds: [] },
+      { interval: [570, 600], freeIds: [1, 2], softIds: [] },
       // Разрыв во времени — отдельное окно, даже с тем же составом.
-      { interval: [720, 750], freeIds: [1, 2] },
+      { interval: [720, 750], freeIds: [1, 2], softIds: [] },
+    ]);
+  });
+
+  it("не склеивает варианты, если кому-то неудобна только часть", async () => {
+    const { group } = await mods();
+    const runs = group.mergeRuns([
+      { interval: [480, 510], freeIds: [1, 2], softIds: [] },
+      { interval: [510, 540], freeIds: [1, 2], softIds: [2] },
+    ]);
+    expect(runs).toEqual([
+      { interval: [480, 510], freeIds: [1, 2], softIds: [] },
+      { interval: [510, 540], freeIds: [1, 2], softIds: [2] },
     ]);
   });
 });

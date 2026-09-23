@@ -1,8 +1,9 @@
-import type { NextRequest } from "next/server";
+import { type NextRequest, after } from "next/server";
 
 import { cleanIncomingSlots } from "@/core/grid";
 import * as repo from "@/db/repo";
 import { currentTelegramUser } from "@/lib/auth";
+import { checkConflictsQuietly } from "@/lib/conflicts";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -26,6 +27,9 @@ export async function POST(request: NextRequest, context: { params: Promise<{ sl
   }
 
   const cleaned = cleanIncomingSlots(payload.slots);
-  await repo.replaceWeeklySlots(user.userId, [0, 1, 2, 3, 4, 5, 6], cleaned, "web");
+  // Редактор присылает всю неделю целиком, включая «неудобно».
+  await repo.replaceWeeklySlots(user.userId, [0, 1, 2, 3, 4, 5, 6], cleaned, "web", undefined, { withSoft: true });
+  // Не легла ли теперь чья-то встреча на занятое время — уже после ответа браузеру.
+  after(() => checkConflictsQuietly(user.userId));
   return Response.json({ ok: true, saved: cleaned.length });
 }

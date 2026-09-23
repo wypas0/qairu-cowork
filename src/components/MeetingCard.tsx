@@ -1,6 +1,7 @@
 import {
   cancelMeetingAction,
   pingNonRespondersAction,
+  saveSummaryAction,
   voteAction,
 } from "@/app/g/[slug]/actions";
 import type { Meeting, MeetingResponse } from "@/db/schema";
@@ -8,8 +9,11 @@ import { translator } from "@/i18n";
 import { nextOccurrence, weeklyRule } from "@/core/recurrence";
 import { type DateStr, formatDM, startsSoon, utcToZonedWall, weekdayOf } from "@/core/timeutils";
 import { weekdayShort } from "@/i18n";
+import { fmtMinutes } from "@/core/intervals";
 import { meetingSpan } from "@/lib/group";
 import { ConfirmSubmit } from "./ConfirmSubmit";
+import { RepeatMeetingButton } from "./RepeatMeetingButton";
+import { repeatDetail } from "@/lib/repeat";
 import {
   IconClock,
   IconComment,
@@ -68,6 +72,7 @@ export function MeetingCard({
   invitees,
   viewerId,
   canManage,
+  canSummarize = false,
   past = false,
 }: {
   slug: string;
@@ -79,6 +84,8 @@ export function MeetingCard({
   invitees: number[];
   viewerId: number;
   canManage: boolean;
+  /** Может записать итоги: приглашён, создал встречу или староста. */
+  canSummarize?: boolean;
   past?: boolean;
 }) {
   const t = translator(lang);
@@ -231,6 +238,50 @@ export function MeetingCard({
           )}
         </>
       )}
+      {/* Прошедшая встреча: итоги и «повторить». Для отменённой — только повтор. */}
+      {past && (
+        <div className="meeting-after">
+          {!cancelled && (meeting.summary || canSummarize) && (
+            <div className="summary">
+              <b className="small">{t("w_summary_title")}</b>
+              {meeting.summary && (
+                <>
+                  <p className="summary-text">{meeting.summary}</p>
+                  {meeting.summaryBy !== null && meeting.summaryAt && (
+                    <p className="small muted summary-by">
+                      {t("w_summary_by", {
+                        name: names.get(meeting.summaryBy) ?? "—",
+                        date: formatDM(utcToZonedWall(meeting.summaryAt, tz).day),
+                      })}
+                    </p>
+                  )}
+                </>
+              )}
+              {canSummarize && (
+                <details className="summary-edit" open={!meeting.summary}>
+                  {meeting.summary && <summary className="small">{t("w_summary_edit")}</summary>}
+                  <form action={saveSummaryAction.bind(null, slug, meeting.id)} className="summary-form">
+                    <textarea
+                      name="summary"
+                      rows={3}
+                      maxLength={2000}
+                      defaultValue={meeting.summary}
+                      placeholder={t("w_summary_ph")}
+                      aria-label={t("w_summary_title")}
+                    />
+                    <button className="btn btn-sm" type="submit">
+                      {t("w_summary_save")}
+                    </button>
+                  </form>
+                </details>
+              )}
+            </div>
+          )}
+          <div className="votes">
+            <RepeatMeetingButton detail={repeatDetail(meeting, tz, lang, now)} label={t("w_repeat_meeting")} />
+          </div>
+        </div>
+      )}
     </article>
   );
 }
@@ -248,12 +299,10 @@ function whenLabel(
 ): string {
   const span = meeting.repeatUntil ? meetingSpan(meeting, tz) : null;
   if (!span || !meeting.whenStart) return meeting.whenText;
-  const hhmm = (minutes: number) =>
-    `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
   const day = utcToZonedWall(meeting.whenStart, tz).day;
   return t("w_repeat_meta", {
     day: weekdayShort(lang, weekdayOf(day)),
-    time: `${hhmm(span.start)}–${hhmm(span.end)}`,
+    time: `${fmtMinutes(span.start)}–${fmtMinutes(span.end)}`,
     until: formatDM(meeting.repeatUntil as DateStr),
   });
 }

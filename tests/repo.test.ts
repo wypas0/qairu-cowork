@@ -150,6 +150,31 @@ describe("расписание", () => {
     expect(people.find((person) => person.userId === 102)?.hasData).toBe(false);
   });
 
+  it("«неудобно» хранится отдельно и не стирается импортом", async () => {
+    const r = await repo();
+    await r.upsertUser({ userId: 131, username: null, fullName: "Дана", lang: "ru" });
+    // Редактор сохраняет и пары, и отметки «неудобно».
+    await r.replaceWeeklySlots(
+      131,
+      [0],
+      [
+        { weekday: 0, start: 540, end: 630, kind: "class" },
+        { weekday: 0, start: 720, end: 840, kind: r.SOFT_KIND },
+      ],
+      "web",
+      undefined,
+      { withSoft: true },
+    );
+    // Импорт текстом приносит только пары и не должен трогать «неудобно».
+    await r.replaceWeeklySlots(131, [0], [{ weekday: 0, start: 600, end: 690, kind: "class" }], "import");
+
+    const [person] = await r.buildPersonSchedules([(await r.getUser(131))!]);
+    expect(person.weekly.get(0)).toEqual([[600, 690]]);
+    expect(person.softWeekly.get(0)).toEqual([[720, 840]]);
+    // «Неудобно» — не занятость.
+    expect(person.busyOn("2026-09-07")).toEqual([[600, 690]]);
+  });
+
   it("удаляет только разовые записи, оставляя неделю", async () => {
     const r = await repo();
     const removed = await r.deleteDatedSlots(101);

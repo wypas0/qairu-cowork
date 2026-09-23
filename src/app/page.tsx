@@ -7,7 +7,6 @@ import { OpenLastGroup } from "@/components/TelegramHome";
 import { userGroups } from "@/components/profilePanelProps";
 import { TelegramSignIn } from "@/components/TelegramSignIn";
 import { Topbar } from "@/components/Topbar";
-import * as repo from "@/db/repo";
 import { displayName } from "@/db/schema";
 import { LANG_NAMES, normalizeLang, translator } from "@/i18n";
 import { pageUser } from "@/lib/gate";

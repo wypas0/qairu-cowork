@@ -1,0 +1,202 @@
+/* Карточки, сетка блоков, подвал редактора, первый экран, шаблоны. */
+
+/* --- блоки ---
+   `.card` — это `.surface` из дизайн-кода: обводка и фон карточки, без тени.
+   Две роли: рамка вокруг списка строк и карточка одного объекта. */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  padding: 20px;
+  margin-bottom: 20px;
+}
+@media (min-width: 640px) {
+  .card {
+    padding: 24px;
+  }
+}
+.grid-2 {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+/* Без min-width:0 элемент грида растягивается под min-width таблицы,
+   и вместо прокрутки внутри .gridwrap разъезжается вся страница. */
+.grid-2 > * {
+  min-width: 0;
+}
+@media (min-width: 900px) {
+  .grid-2 {
+    grid-template-columns: 1.55fr 1fr;
+  }
+}
+
+/* --- подвал редактора расписания --- */
+/* Сохранение идёт само, поэтому внизу не кнопка, а состояние: что уже
+   записано, сколько занято за неделю и как откатить последний шаг. */
+.editor-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px 16px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.savestate {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.savestate .icon.ok {
+  color: var(--success);
+}
+.editor-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+/* Выбрали на первом экране фото или текст — этот путь идёт первым на любой
+   ширине, а сетка ниже служит для проверки и правки результата. */
+.grid-2.import-first > :first-child {
+  order: 2;
+}
+
+/* --- первый экран «Как внести пары?» --- */
+/* Строки с волосяными линиями, иконка без кружка — по дизайн-коду. */
+.choose-list {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  overflow: hidden;
+}
+.choose-list li + li {
+  border-top: 1px solid var(--border);
+}
+.choose-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 16px 18px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 150ms var(--ease);
+}
+.choose-row:hover {
+  background: color-mix(in srgb, var(--hover) 60%, transparent);
+}
+.choose-row:active {
+  background: var(--hover);
+  transition-duration: 0ms;
+}
+/* Кобальт — только для действия, иконка наследует спокойный цвет. */
+.choose-row > .icon:first-child {
+  color: var(--muted);
+}
+.choose-text {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+.choose-text b {
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 600;
+}
+
+/* --- быстрые шаблоны над сеткой --- */
+.templates {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 4px 0 12px;
+}
+
+/* --- проверка импорта над сеткой --- */
+.review-bar {
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+
+/* --- разовая занятость в два нажатия --- */
+.dated-quick {
+  margin: 4px 0 20px;
+}
+.dated-details {
+  margin-top: 16px;
+}
+.dated-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+.dated-list {
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+/* --- заголовок карточки с кнопкой справа --- */
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.card-head h2 {
+  margin: 0;
+}
+
+/* Пустое состояние: что здесь будет и что для этого сделать. */
+.empty {
+  border: 1px dashed var(--border);
+  border-radius: var(--r-xl);
+  padding: 32px 24px;
+  text-align: center;
+}
+.empty h3 {
+  margin: 0;
+  font-size: 17px;
+  line-height: 22px;
+}
+.empty p {
+  margin: 6px auto 0;
+  max-width: 40ch;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--muted);
+}
+.empty .btn {
+  margin-top: 20px;
+}
+
+/* Скелетон на месте данных, пока они грузятся. */
+.skeleton {
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  animation: skeleton-pulse 1.6s ease-in-out infinite;
+}
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}

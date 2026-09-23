@@ -1,5 +1,5 @@
-# Прежняя Python-версия остаётся в репозитории как справка,
-# но в сборку Vercel ей ехать незачем.
-legacy-python/
+# Тесты и локальные скрипты в сборку Vercel не нужны.
 tests/
 scripts/dev/
+e2e/
+playwright.config.ts

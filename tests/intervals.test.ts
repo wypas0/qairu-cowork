@@ -155,3 +155,29 @@ describe("whoIsFree", () => {
     expect(whoIsFree(free, [480, 900])).toEqual([1]);
   });
 });
+
+describe("время суток из строки", () => {
+  it("понимает часы и часы с минутами", async () => {
+    const { parseClock } = await import("@/core/intervals");
+    expect(parseClock("9")).toBe(540);
+    expect(parseClock(" 09:30 ")).toBe(570);
+    expect(parseClock("24:00")).toBe(1440);
+  });
+
+  it("отвергает не время", async () => {
+    const { parseClock } = await import("@/core/intervals");
+    expect(parseClock("25:00")).toBeNull();
+    expect(parseClock("10:75")).toBeNull();
+    expect(parseClock("полдень")).toBeNull();
+  });
+});
+
+describe("QR-код приглашения", () => {
+  it("строит путь модулей и одинаков для одной ссылки", async () => {
+    const { qrShape } = await import("@/core/qr");
+    const shape = qrShape("https://qairu-cowork.vercel.app/g/abc12345");
+    expect(shape.size).toBeGreaterThanOrEqual(25);
+    expect(shape.path.startsWith("M0 0h7")).toBe(true); // левый верхний «глаз» — 7 модулей
+    expect(qrShape("https://qairu-cowork.vercel.app/g/abc12345")).toEqual(shape);
+  });
+});

@@ -4,7 +4,7 @@ import "server-only";
 
 import { computeAvailability, parityFromSemesterStart, topSlots } from "@/core/availability";
 import { buildIcs } from "@/core/calendar";
-import { fmtInterval } from "@/core/intervals";
+import { fmtInterval, fmtMinutes } from "@/core/intervals";
 import { escapeHtml } from "@/core/textutils";
 import { nextOccurrence } from "@/core/recurrence";
 import {
@@ -648,8 +648,7 @@ export async function sendDueReminders(now = new Date()): Promise<number> {
     if (!next || next.getTime() - now.getTime() > chat.reminderMin * 60_000) continue;
     if (meeting.remindedStart && meeting.remindedStart.getTime() === next.getTime()) continue;
     const wall = utcToZonedWall(next, tz);
-    const minutes = `${String(Math.floor(wall.minutes / 60)).padStart(2, "0")}:${String(wall.minutes % 60).padStart(2, "0")}`;
-    due.push({ meeting, chat, when: `${formatDay(chat.lang, wall.day)} · ${minutes}` });
+    due.push({ meeting, chat, when: `${formatDay(chat.lang, wall.day)} · ${fmtMinutes(wall.minutes)}` });
     // Отмечаем именно этот повтор: следующий получит своё напоминание.
     await repo.updateMeeting(meeting.id, { remindedStart: next });
   }

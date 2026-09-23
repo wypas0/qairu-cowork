@@ -1,5 +1,6 @@
 "use server";
 
+import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
@@ -7,6 +8,8 @@ import { parseDatedBusy } from "@/core/dated";
 import { chatTz, todayIn } from "@/core/timeutils";
 import * as repo from "@/db/repo";
 import { currentUser } from "@/lib/auth";
+import { normalizeCalendarUrl, syncCalendar } from "@/lib/calendarSync";
+import { checkConflictsQuietly } from "@/lib/conflicts";
 import { connectUrl } from "@/lib/gate";
 
 async function requireMember(slug: string) {
@@ -41,6 +44,7 @@ export async function addDatedBusyAction(slug: string, formData: FormData): Prom
   } else {
     await repo.addDatedSlot({ userId: user.userId, day: dateFrom, start, end, label, kind: "other" });
   }
+  after(() => checkConflictsQuietly(user.userId));
 
   revalidatePath(`/g/${slug}`);
   revalidatePath(`/g/${slug}/me`);
@@ -53,4 +57,38 @@ export async function deleteDatedBusyAction(slug: string, slotId: number): Promi
   revalidatePath(`/g/${slug}`);
   revalidatePath(`/g/${slug}/me`);
   redirect(`/g/${slug}/me?at=dated`);
+}
+
+/** Подключить календарь по ссылке и сразу его загрузить. */
+export async function saveCalendarAction(slug: string, formData: FormData): Promise<void> {
+  const { user } = await requireMember(slug);
+  const url = normalizeCalendarUrl(String(formData.get("calendar_url") ?? ""));
+  if (!url) redirect(`/g/${slug}/me?cal=bad_url&at=calendar`);
+  await repo.setCalendarUrl(user.userId, url);
+  const result = await syncCalendar(user.userId, url);
+  if (result.ok) after(() => checkConflictsQuietly(user.userId));
+  revalidatePath(`/g/${slug}`);
+  revalidatePath(`/g/${slug}/me`);
+  redirect(`/g/${slug}/me?cal=${result.ok ? "ok" : result.error}&at=calendar`);
+}
+
+/** Загрузить календарь заново, не дожидаясь cron. */
+export async function refreshCalendarAction(slug: string): Promise<void> {
+  const { user } = await requireMember(slug);
+  const url = (await repo.getUser(user.userId))?.calendarUrl;
+  if (!url) redirect(`/g/${slug}/me?at=calendar`);
+  const result = await syncCalendar(user.userId, url);
+  if (result.ok) after(() => checkConflictsQuietly(user.userId));
+  revalidatePath(`/g/${slug}`);
+  revalidatePath(`/g/${slug}/me`);
+  redirect(`/g/${slug}/me?cal=${result.ok ? "ok" : result.error}&at=calendar`);
+}
+
+/** Отключить календарь: занятость из него пропадает. */
+export async function removeCalendarAction(slug: string): Promise<void> {
+  const { user } = await requireMember(slug);
+  await repo.setCalendarUrl(user.userId, null);
+  revalidatePath(`/g/${slug}`);
+  revalidatePath(`/g/${slug}/me`);
+  redirect(`/g/${slug}/me?cal=removed&at=calendar`);
 }

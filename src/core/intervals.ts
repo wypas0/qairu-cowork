@@ -109,6 +109,15 @@ export function fmtMinutes(value: number): string {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
+/** '9:30' / '09:30' / '9' -> минуты от полуночи; null, если это не время суток. */
+export function parseClock(value: string): number | null {
+  const match = /^(\d{1,2})(?::(\d{1,2}))?$/.exec(value.trim());
+  if (!match) return null;
+  const minutes = Number(match[2] ?? 0);
+  const total = Number(match[1]) * 60 + minutes;
+  return minutes < 60 && total <= 24 * 60 ? total : null;
+}
+
 export function fmtInterval(interval: Interval): string {
   return `${fmtMinutes(interval[0])}–${fmtMinutes(interval[1])}`;
 }

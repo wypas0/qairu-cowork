@@ -4,11 +4,10 @@ import { cookies, headers } from "next/headers";
 import { Suspense } from "react";
 
 import { NavProgress } from "@/components/NavProgress";
+import { SiteFooter } from "@/components/SiteFooter";
 import { TelegramAuth } from "@/components/TelegramAuth";
 import { TelegramChrome } from "@/components/TelegramChrome";
-import { IconGlobe, IconSend } from "@/components/icons";
-import { normalizeLang, t } from "@/i18n";
-import { CONTACTS, telegramUrl } from "@/lib/contacts";
+import { normalizeLang } from "@/i18n";
 import { THEME_COOKIE, normalizeTheme } from "@/lib/theme";
 import "./globals.css";
 
@@ -27,7 +26,9 @@ const FAVICON =
 export const metadata: Metadata = {
   title: "QairuCowork",
   description: "Находит общие свободные окна у студентов из одной группы.",
-  icons: { icon: FAVICON },
+  icons: { icon: FAVICON, apple: "/icon-192.png" },
+  // Установка на iPhone: «На экран Домой» открывает сайт отдельным окном.
+  appleWebApp: { capable: true, title: "QairuCowork", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {
@@ -35,6 +36,10 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   colorScheme: "light dark",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f4f6fa" },
+    { media: "(prefers-color-scheme: dark)", color: "#070e1c" },
+  ],
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
@@ -61,35 +66,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <NavProgress />
         </Suspense>
         {children}
-        <footer className="foot">
-          <span>{t(lang, "w_footer")}</span>
-          <div className="foot-contacts">
-            {CONTACTS.developerTelegram && (
-              <p className="foot-contact">
-                <span>{t(lang, "w_contact_dev")}</span>
-                <a href={telegramUrl(CONTACTS.developerTelegram)} target="_blank" rel="noopener noreferrer">
-                  <IconSend size={14} />@{CONTACTS.developerTelegram.replace(/^@/, "")}
-                </a>
-              </p>
-            )}
-            {(CONTACTS.hub.site || CONTACTS.hub.telegram) && (
-              <p className="foot-contact">
-                <span>{t(lang, "w_contact_hub")}</span>
-                {CONTACTS.hub.site && (
-                  <a href={CONTACTS.hub.site} target="_blank" rel="noopener noreferrer">
-                    <IconGlobe size={14} />
-                    {CONTACTS.hub.site.replace(/^https?:\/\//, "").replace(/\/$/, "")}
-                  </a>
-                )}
-                {CONTACTS.hub.telegram && (
-                  <a href={telegramUrl(CONTACTS.hub.telegram)} target="_blank" rel="noopener noreferrer">
-                    <IconSend size={14} />@{CONTACTS.hub.telegram.replace(/^@/, "")}
-                  </a>
-                )}
-              </p>
-            )}
-          </div>
-        </footer>
+        {/* На страницах группы подвал рисует AppShell — в основной колонке. */}
+        <SiteFooter lang={lang} />
         {/* Скрипт Mini App должен загрузиться до того, как клиентский вход
             попробует прочитать window.Telegram.WebApp. */}
         <script src="https://telegram.org/js/telegram-web-app.js" async />

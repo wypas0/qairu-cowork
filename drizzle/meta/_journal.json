@@ -36,6 +36,13 @@
       "when": 1790013224298,
       "tag": "0004_recurring_meetings",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790074026425,
+      "tag": "0005_calendar_and_summary",
+      "breakpoints": true
     }
   ]
 }

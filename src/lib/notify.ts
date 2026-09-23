@@ -226,6 +226,89 @@ export async function notifyChangeProposal(
   ]);
 }
 
+/**
+ * Итоги прошедшей встречи — тем приглашённым, кто не собирался прийти или
+ * не ответил: пришедшие и так знают, что решили.
+ */
+export async function notifySummary(
+  chat: Chat,
+  meeting: Meeting,
+  author: User,
+  summary: string,
+): Promise<Delivery> {
+  const delivery: Delivery = { telegram: 0, site: 0 };
+  const going = new Set(
+    (await repo.meetingResponsesFor(meeting.id)).filter((row) => row.answer === "yes").map((row) => row.userId),
+  );
+  const targets = repo.inviteeIds(meeting).filter((id) => !going.has(id) && id !== author.userId);
+  if (targets.length === 0) return delivery;
+
+  const byId = await repo.usersByIds(targets);
+  const text = t(chat.lang, "notify_summary", {
+    name: escapeHtml(displayName(author)),
+    goal: escapeHtml(meeting.goal || meeting.whenText || "—"),
+    summary: escapeHtml(summary),
+  });
+  const button = siteButton(chat, chat.lang);
+  const siteRows: Parameters<typeof repo.addNotices>[0] = [];
+  for (const id of targets) {
+    const user = byId.get(id);
+    if (!user) continue;
+    if (await directMessage(user, text, button ? keyboard([[button]]) : undefined)) {
+      delivery.telegram += 1;
+      continue;
+    }
+    siteRows.push({
+      chatId: chat.chatId,
+      userId: id,
+      kind: "summary",
+      meetingId: meeting.id,
+      fromUserId: author.userId,
+      text: meeting.goal,
+    });
+  }
+  await repo.addNotices(siteRows);
+  delivery.site = siteRows.length;
+  return delivery;
+}
+
+/**
+ * Конфликт расписания: человек идёт на встречу, но теперь в это время занят.
+ * Пишем ему самому и создателю встречи; кого не достать ботом — баннером.
+ */
+export async function notifyConflict(chat: Chat, meeting: Meeting, user: User, when: string): Promise<void> {
+  const goal = escapeHtml(meeting.goal || meeting.whenText || "—");
+  const button = siteButton(chat, chat.lang);
+  const markup = button ? keyboard([[button]]) : undefined;
+
+  const self = t(chat.lang, "notify_conflict_self", { goal, when: escapeHtml(when) });
+  if (!(await directMessage(user, self, markup))) {
+    await repo.addNotices([
+      { chatId: chat.chatId, userId: user.userId, kind: "conflict", meetingId: meeting.id, text: meeting.goal },
+    ]);
+  }
+
+  if (meeting.initiatorId === user.userId) return;
+  const initiator = await repo.getUser(meeting.initiatorId);
+  if (!initiator) return;
+  const other = t(chat.lang, "notify_conflict_other", {
+    name: escapeHtml(displayName(user)),
+    goal,
+    when: escapeHtml(when),
+  });
+  if (await directMessage(initiator, other, markup)) return;
+  await repo.addNotices([
+    {
+      chatId: chat.chatId,
+      userId: initiator.userId,
+      kind: "conflict_other",
+      meetingId: meeting.id,
+      fromUserId: user.userId,
+      text: meeting.goal,
+    },
+  ]);
+}
+
 /** Напомнить приглашённым, которые ещё не ответили на встречу. */
 export async function notifyNonResponders(
   chat: Chat,

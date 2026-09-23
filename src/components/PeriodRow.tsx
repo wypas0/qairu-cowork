@@ -1,19 +1,20 @@
 import type { Period } from "@/core/grid";
 import { BREAK_ROW_MIN } from "@/core/grid";
+import { fmtMinutes } from "@/core/intervals";
 
-export function hhmm(minutes: number): string {
-  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
-}
-
-/** Ячейка времени слева: номер пары и её начало–конец, как на портале. */
+/**
+ * Ячейка времени слева: номер пары и начало в первой строке, конец — второй,
+ * приглушённо. Три строки (номер, начало, конец) раздували каждый ряд карты
+ * выше клетки.
+ */
 export function PeriodTime({ period }: { period: Period }) {
   return (
     <td className="timecol period">
-      {period.n > 0 && <b className="period-n">{period.n}</b>}
-      <span className="period-time">
-        {hhmm(period.start)} –<br />
-        {hhmm(period.end)}
+      <span className="period-line">
+        {period.n > 0 && <b className="period-n">{period.n}</b>}
+        <span className="period-start">{fmtMinutes(period.start)}</span>
       </span>
+      <span className="period-end">{fmtMinutes(period.end)}</span>
     </td>
   );
 }

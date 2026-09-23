@@ -1,0 +1,33 @@
+# Напоминания о встречах каждые 10 минут.
+#
+# На тарифе Vercel Hobby собственный cron срабатывает раз в сутки (vercel.json),
+# поэтому «напомнить за 30 минут» без этого почти не работало. GitHub Actions
+# бесплатно дёргает тот же адрес чаще; сам адрес не шлёт одно напоминание
+# дважды, так что лишний вызов ничего не ломает.
+#
+# Нужно один раз: Settings → Secrets and variables → Actions → New repository
+# secret, имя CRON_SECRET, значение — то же, что в переменной CRON_SECRET на
+# Vercel. Адрес сайта можно поменять переменной SITE_URL (вкладка Variables).
+name: Reminders
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Разослать напоминания и обновить календари
+        env:
+          SITE_URL: ${{ vars.SITE_URL || 'https://qairu-cowork.vercel.app' }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "CRON_SECRET не задан в секретах репозитория — пропускаю."
+            exit 0
+          fi
+          curl --fail-with-body --silent --show-error --max-time 60 \
+            -H "Authorization: Bearer $CRON_SECRET" "$SITE_URL/api/cron/reminders"

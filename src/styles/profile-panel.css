@@ -1,0 +1,313 @@
+/* Выезжающая панель профиля. */
+
+/* --- панель профиля ---
+   Слева-сверху экрана открывается кнопка профиля, поэтому и сама панель
+   растёт из того же угла: на широких экранах — шторка слева, заподлицо с
+   левым краем (скруглены только правые углы); на узких — шторка снизу,
+   заподлицо с нижним краем экрана (скруглены только верхние углы). Радиус
+   углов панели, таким образом, определяется тем, у какого края окна она
+   стоит, а не выбирается произвольно под конкретную ширину. */
+.profile-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 22, 40, 0.4);
+  z-index: 60;
+  display: flex;
+  align-items: flex-end;
+}
+.profile-panel {
+  background: var(--popover);
+  width: 100%;
+  max-height: 82vh;
+  overflow-y: auto;
+  padding: 20px 20px calc(20px + var(--safe-bottom));
+  border-radius: var(--r-3xl) var(--r-3xl) 0 0;
+  box-shadow: var(--shadow-float);
+}
+@media (min-width: 720px) {
+  .profile-overlay {
+    align-items: stretch;
+  }
+  .profile-panel {
+    width: 380px;
+    max-height: 100vh;
+    height: 100%;
+    border-radius: 0 var(--r-3xl) var(--r-3xl) 0;
+    padding: 24px 24px 24px max(24px, var(--safe-left));
+  }
+}
+/* Заголовок с кнопкой «Закрыть» — у всплывающего окна клетки тепловой карты. */
+.profile-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+/* Содержимое панели столбиком: блок «аккаунт» прижат к низу шторки. */
+.profile-panel {
+  display: flex;
+  flex-direction: column;
+}
+.pp-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.pp-avatar {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-full);
+  background: var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
+  font-size: 15px;
+}
+.pp-who {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.pp-who b {
+  font-size: 15px;
+  font-weight: 600;
+}
+.pp-who b,
+.pp-who span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pp-close {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border: 0;
+  border-radius: var(--r-full);
+  background: transparent;
+  color: var(--muted);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 150ms var(--ease), color 150ms var(--ease);
+}
+.pp-close:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.pp-section {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+.pp-title {
+  display: flex;
+  gap: 6px;
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  color: var(--muted);
+}
+.pp-groups {
+  list-style: none;
+  margin: 0 -8px;
+  padding: 0;
+}
+.pp-groups li {
+  display: flex;
+  align-items: center;
+  border-radius: var(--r-lg);
+  transition: background-color 150ms var(--ease);
+}
+.pp-groups li:hover {
+  background: color-mix(in srgb, var(--hover) 60%, transparent);
+}
+.pp-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  padding: 8px;
+  color: var(--text);
+  text-decoration: none;
+}
+.pp-group-mark {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-full);
+  background: var(--accent);
+  color: var(--accent-text);
+  font-size: 12px;
+  font-weight: 600;
+}
+.pp-group-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+}
+.pp-leave {
+  width: 32px;
+  height: 32px;
+  margin-right: 4px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--r-full);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0.6;
+  transition: color 150ms var(--ease), opacity 150ms var(--ease);
+}
+.pp-groups li:hover .pp-leave,
+.pp-leave:focus-visible {
+  opacity: 1;
+}
+.pp-leave:hover {
+  color: var(--danger);
+}
+.pp-join {
+  display: flex;
+  gap: 8px;
+}
+.pp-join input {
+  flex: 1;
+  min-width: 0;
+}
+.pp-join .btn {
+  flex: none;
+}
+.pp-wide {
+  width: 100%;
+  margin-top: 8px;
+}
+.pp-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 16px;
+}
+/* Кнопка «кто ты» на главном экране панели — ведёт в аккаунт. */
+.pp-me {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  margin: -6px 0 -6px -8px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--r-lg);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 150ms var(--ease);
+}
+.pp-me:hover,
+.pp-me:focus-visible {
+  background: color-mix(in srgb, var(--hover) 60%, transparent);
+}
+.pp-chevron {
+  margin-left: auto;
+  color: var(--muted);
+  display: inline-flex;
+}
+img.pp-avatar {
+  object-fit: cover;
+  background: var(--surface-2);
+}
+.pp-avatar-lg {
+  width: 88px;
+  height: 88px;
+  font-size: 32px;
+}
+.pp-photo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+.pp-photo-name {
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 600;
+  margin-top: 4px;
+}
+.pp-photo-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 6px;
+}
+.pp-menu {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0;
+  margin: 0 -8px;
+}
+.pp-menu form {
+  display: contents;
+}
+.pp-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 8px;
+  border: 0;
+  border-radius: var(--r-lg);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 150ms var(--ease);
+}
+.pp-menu-item:hover,
+.pp-menu-item:focus-visible {
+  background: color-mix(in srgb, var(--hover) 60%, transparent);
+}
+.pp-menu-sub {
+  display: block;
+}
+.pp-danger {
+  color: var(--danger);
+}
+/* Фото на кнопке профиля в шапке. */
+.icon-btn:has(.icon-avatar) {
+  padding: 0;
+  overflow: hidden;
+}
+.icon-avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+@media (hover: none) {
+  .pp-leave {
+    opacity: 1;
+  }
+}

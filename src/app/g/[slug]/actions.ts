@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
-import { fmtMinutes } from "@/core/intervals";
+import { fmtMinutes, parseClock } from "@/core/intervals";
 import {
   type DateStr,
   addDays,
@@ -24,6 +24,7 @@ import {
   notifyFillSchedule,
   notifyMeetingCreated,
   notifyNonResponders,
+  notifySummary,
   notifyVote,
 } from "@/lib/notify";
 import { afterJoinPath, afterNamePath } from "@/lib/afterJoin";
@@ -180,6 +181,27 @@ export async function voteAction(
  * Сменить код группы. Старый код и ссылка на нём перестают работать, поэтому
  * возвращаемся уже на новый адрес.
  */
+/**
+ * Итоги прошедшей встречи. Писать может приглашённый, создатель встречи
+ * или староста; при первой записи итоги уходят тем, кто не пришёл.
+ */
+export async function saveSummaryAction(slug: string, meetingId: number, formData: FormData): Promise<void> {
+  const { chat, user } = await requireMember(slug);
+  const meeting = await repo.getMeeting(meetingId);
+  if (!meeting || meeting.chatId !== chat.chatId) back(slug);
+  const allowed =
+    meeting.initiatorId === user.userId ||
+    repo.inviteeIds(meeting).includes(user.userId) ||
+    (await isGroupAdmin(chat, user.userId));
+  if (!allowed) back(slug, { err: "not_admin" }, `#meeting-${meetingId}`);
+
+  const summary = String(formData.get("summary") ?? "");
+  const { first } = await repo.setMeetingSummary(meetingId, summary, user.userId);
+  if (!first) back(slug, { saved: "summary" }, `#meeting-${meetingId}`);
+  const delivery = await notifySummary(chat, meeting, user, summary.trim());
+  back(slug, { ...deliveryParams(delivery), saved: "summary" }, `#meeting-${meetingId}`);
+}
+
 export async function changeCodeAction(slug: string): Promise<void> {
   const { chat } = await requireAdmin(slug);
   const next = await repo.regenerateSlug(chat.chatId);
@@ -220,18 +242,11 @@ export async function pingNonRespondersAction(slug: string, meetingId: number): 
   back(slug, deliveryParams(delivery), `#meeting-${meetingId}`);
 }
 
-function hhmm(value: string, fallback: number): number {
-  const match = /^(\d{1,2})(?::(\d{1,2}))?$/.exec(value.trim());
-  if (!match) return fallback;
-  const total = Number(match[1]) * 60 + Number(match[2] ?? 0);
-  return total >= 0 && total <= 24 * 60 ? total : fallback;
-}
-
 export async function saveSettingsAction(slug: string, formData: FormData): Promise<void> {
   const { chat } = await requireAdmin(slug);
 
-  const start = hhmm(String(formData.get("day_start") ?? ""), chat.dayStartMin);
-  const end = hhmm(String(formData.get("day_end") ?? ""), chat.dayEndMin);
+  const start = parseClock(String(formData.get("day_start") ?? "")) ?? chat.dayStartMin;
+  const end = parseClock(String(formData.get("day_end") ?? "")) ?? chat.dayEndMin;
   const minSlot = Number(formData.get("min_slot") ?? chat.minSlotMin);
   const buffer = Number(formData.get("buffer") ?? chat.travelBufferMin);
   const semester = String(formData.get("semester") ?? "").trim();
@@ -314,7 +329,7 @@ export async function newSemesterAction(slug: string): Promise<void> {
 
 /** Назначить или снять администратора сайта. */
 export async function setRoleAction(slug: string, formData: FormData): Promise<void> {
-  const { chat, user } = await requireAdmin(slug);
+  const { chat } = await requireAdmin(slug);
   const targetId = Number(formData.get("user_id"));
   const role = String(formData.get("role") ?? "") === ROLE_ADMIN ? ROLE_ADMIN : ROLE_MEMBER;
   if (!Number.isFinite(targetId) || !(await repo.isMember(chat.chatId, targetId))) {

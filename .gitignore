@@ -31,3 +31,12 @@ Thumbs.db
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# артефакты graphify — к коду отношения не имеют
+graphify-out/
+.graphifyignore
+
+# отчёты сквозных тестов
+playwright-report/
+test-results/
+e2e/.state.json

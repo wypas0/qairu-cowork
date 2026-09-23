@@ -9,13 +9,19 @@ import { ScheduleEditor } from "@/components/ScheduleEditor";
 import { TelegramBackButton } from "@/components/TelegramButtons";
 import { gridPeriods, periodOverlaps } from "@/core/grid";
 import { fmtMinutes } from "@/core/intervals";
-import { addDays, chatTz, compareDates, formatDM, formatDMY, todayIn } from "@/core/timeutils";
+import { addDays, chatTz, compareDates, formatDM, formatDMY, todayIn, utcToZonedWall } from "@/core/timeutils";
 import * as repo from "@/db/repo";
 import { WEEKDAY_NAMES, WEEKDAY_SHORT, isLang, translator } from "@/i18n";
 import { pageUser } from "@/lib/gate";
 import { SLOT_STEP } from "@/lib/config";
 import { hasVision } from "@/lib/vision";
-import { addDatedBusyAction, deleteDatedBusyAction } from "./actions";
+import {
+  addDatedBusyAction,
+  deleteDatedBusyAction,
+  refreshCalendarAction,
+  removeCalendarAction,
+  saveCalendarAction,
+} from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +31,17 @@ const IMPORT_PLACEHOLDER = [
   "Ср нет пар",
   "Сб 18:00-22:00 работа",
 ].join("\n");
+
+/** Итог действий с календарём: ключ строки и тон тоста. */
+const CALENDAR_RESULTS: Record<string, { key: string; tone: "ok" | "error" }> = {
+  ok: { key: "w_cal_sub_ok", tone: "ok" },
+  removed: { key: "w_cal_sub_removed", tone: "ok" },
+  bad_url: { key: "w_cal_err_bad_url", tone: "error" },
+  blocked: { key: "w_cal_err_blocked", tone: "error" },
+  unreachable: { key: "w_cal_err_unreachable", tone: "error" },
+  not_ics: { key: "w_cal_err_not_ics", tone: "error" },
+  too_large: { key: "w_cal_err_too_large", tone: "error" },
+};
 
 const DATED_ERRORS: Record<string, string> = {
   date: "w_dated_err_date",
@@ -54,22 +71,30 @@ export default async function MySchedulePage({
   const lang = chat.lang;
   const t = translator(lang);
   const slots = await repo.getSlots(user.userId);
-  const dated = await repo.datedSlots(user.userId);
+  // Занятость из подключённого календаря в список разовых не выводим: её
+  // десятки, и правится она в самом календаре.
+  const dated = (await repo.datedSlots(user.userId)).filter((slot) => slot.source !== repo.CALENDAR_SOURCE);
   const periods = gridPeriods(chat.dayStartMin, chat.dayEndMin, SLOT_STEP);
   const today = todayIn(chatTz(chat));
 
   const initialBusy: string[] = [];
   for (const slot of slots) {
     if (slot.weekday === null || slot.specificDate !== null || slot.dateFrom !== null) continue;
+    // «Неудобно» редактор хранит рядом с занятостью, с префиксом «~».
+    const prefix = slot.kind === repo.SOFT_KIND ? "~" : "";
     for (const period of periods) {
       if (periodOverlaps(period, slot.startMin, slot.endMin)) {
-        initialBusy.push(`${slot.weekday}:${period.start}`);
+        initialBusy.push(`${prefix}${slot.weekday}:${period.start}`);
       }
     }
   }
 
   const errorKey = typeof query.err === "string" ? DATED_ERRORS[query.err] : undefined;
   const added = query.added === "1";
+  const calendarResult = typeof query.cal === "string" ? CALENDAR_RESULTS[query.cal] : undefined;
+  const calendarHost = user.calendarUrl ? safeHost(user.calendarUrl) : null;
+  const calendarCount = user.calendarUrl ? await repo.calendarSlotCount(user.userId, today) : 0;
+  const syncedWall = user.calendarSyncedAt ? utcToZonedWall(user.calendarSyncedAt, chatTz(chat)) : null;
 
   return (
     <>
@@ -133,6 +158,10 @@ export default async function MySchedulePage({
             importPlaceholder: IMPORT_PLACEHOLDER,
             legendFree: t("w_legend_free"),
             legendBusy: t("w_legend_busy"),
+            legendSoft: t("w_legend_soft_mine"),
+            brushLabel: t("w_brush_label"),
+            brushBusy: t("w_brush_busy"),
+            brushSoft: t("w_brush_soft"),
             breakRow: t("w_break_row", { m: "{m}" }),
             photoTitle: t("w_photo_title"),
             photoHint: t("w_photo_hint"),
@@ -231,8 +260,78 @@ export default async function MySchedulePage({
           )}
           </div>
         </section>
+
+        {/* ============ подписка на личный календарь ============ */}
+        <section className="card" id="calendar">
+          <h2>{t("w_cal_sub_title")}</h2>
+          <p className="small muted">{t("w_cal_sub_lead")}</p>
+          <FlashToast
+            message={calendarResult ? t(calendarResult.key) : null}
+            tone={calendarResult?.tone}
+            params={["cal"]}
+          />
+
+          {calendarHost ? (
+            <div className="calendar-status">
+              <p className="calendar-host">
+                <b>{t("w_cal_sub_connected", { host: calendarHost })}</b>
+              </p>
+              <p className="small muted">
+                {user.calendarError
+                  ? t(`w_cal_err_${user.calendarError}`)
+                  : syncedWall
+                    ? t("w_cal_sub_synced", {
+                        date: formatDM(syncedWall.day),
+                        time: fmtMinutes(syncedWall.minutes),
+                        n: calendarCount,
+                      })
+                    : t("w_cal_sub_never")}
+              </p>
+              <div className="dated-actions">
+                <form action={refreshCalendarAction.bind(null, slug)}>
+                  <button className="btn btn-sm" type="submit">
+                    {t("w_cal_sub_refresh")}
+                  </button>
+                </form>
+                <form action={removeCalendarAction.bind(null, slug)}>
+                  <ConfirmSubmit className="btn btn-sm btn-quiet btn-danger" confirm={t("w_cal_sub_remove_confirm")}>
+                    {t("w_cal_sub_remove")}
+                  </ConfirmSubmit>
+                </form>
+              </div>
+            </div>
+          ) : (
+            <form action={saveCalendarAction.bind(null, slug)} className="calendar-form">
+              <div className="field">
+                <label htmlFor="calendar_url">{t("w_cal_sub_url")}</label>
+                <input
+                  id="calendar_url"
+                  name="calendar_url"
+                  type="url"
+                  inputMode="url"
+                  required
+                  maxLength={2000}
+                  placeholder="https://calendar.google.com/calendar/ical/…/basic.ics"
+                />
+              </div>
+              <p className="small muted">{t("w_cal_sub_help")}</p>
+              <button className="btn btn-primary" type="submit">
+                {t("w_cal_sub_connect")}
+              </button>
+            </form>
+          )}
+        </section>
       </main>
       </AppShell>
     </>
   );
+}
+
+/** Только адрес сайта из ссылки: сама ссылка — секрет, её на странице не показываем. */
+function safeHost(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return "—";
+  }
 }

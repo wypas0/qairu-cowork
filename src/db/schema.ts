@@ -38,6 +38,14 @@ export const users = pgTable("users", {
   // Настоящее имя, которое человек написал в профиле. Отдельно от full_name:
   // то — имя из Telegram, его бот обновляет сам; это показывается рядом с ним.
   realName: varchar("real_name", { length: 60 }),
+  // Подписка на личный календарь (.ics по ссылке из Google, Outlook, портала
+  // вуза): занятость из него обновляется сама. Ссылка — секрет человека,
+  // наружу она не отдаётся.
+  calendarUrl: text("calendar_url"),
+  calendarSyncedAt: timestamp("calendar_synced_at", { withTimezone: true }),
+  // Почему последняя загрузка не удалась: код ошибки, а не текст — его
+  // переводит сайт. NULL — всё в порядке.
+  calendarError: varchar("calendar_error", { length: 32 }),
   createdAt: createdAt(),
 });
 
@@ -219,6 +227,10 @@ export const meetings = pgTable(
     // Начало повтора, о котором уже напомнили. Одного флага reminder_sent
     // повторяющейся встрече мало: напоминать нужно перед каждым повтором.
     remindedStart: timestamp("reminded_start", { withTimezone: true }),
+    // Итоги прошедшей встречи: что решили. Пишет любой приглашённый.
+    summary: text("summary").notNull().default(""),
+    summaryBy: bigint("summary_by", { mode: "number" }),
+    summaryAt: timestamp("summary_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
   (table) => [index("ix_meetings_chat_id").on(table.chatId)],

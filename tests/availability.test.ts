@@ -419,3 +419,41 @@ describe("варианты встречи ровно заданной длины
     expect(days[0].slots).toHaveLength(2);
   });
 });
+
+describe("нежелательное время", () => {
+  // Асель занята с 9 до 10, а 12:00–14:00 ей неудобно, но она свободна.
+  const asel = new PersonSchedule({
+    userId: 1,
+    name: "Асель",
+    weekly: new Map([[0, [[540, 600] as Interval]]]),
+    softWeekly: new Map([[0, [[720, 840] as Interval]]]),
+  });
+  const bolat = new PersonSchedule({ userId: 2, name: "Болат" });
+
+  it("не делает человека занятым", () => {
+    expect(asel.busyOn(MONDAY)).toEqual([[540, 600]]);
+    expect(asel.softOn(MONDAY)).toEqual([[720, 840]]);
+    expect(asel.softOn(TUESDAY)).toEqual([]);
+  });
+
+  it("клетка знает, кому из свободных она неудобна", () => {
+    const [day] = heatmap([asel, bolat], MONDAY, {
+      daysAhead: 1,
+      rows: [
+        { start: 660, end: 720 },
+        { start: 720, end: 780 },
+      ],
+    });
+    expect(day.cells[0]).toMatchObject({ freeIds: [1, 2], softIds: [] });
+    expect(day.cells[1]).toMatchObject({ freeIds: [1, 2], softIds: [1] });
+  });
+
+  it("вариант встречи тоже", () => {
+    const { days } = slotsOfLength([asel, bolat], MONDAY, { daysAhead: 1, duration: 60, step: 60, dayStart: 660, dayEnd: 840 });
+    expect(days[0].slots.map((slot) => [slot.interval[0], slot.softIds])).toEqual([
+      [660, []],
+      [720, [1]],
+      [780, [1]],
+    ]);
+  });
+});

@@ -140,18 +140,24 @@ postgresql://postgres.abcdefgh:ПАРОЛЬ@aws-0-eu-central-1.pooler.supabase.c
 **SQL Editor → New query** → вставить целиком содержимое файла
 [`drizzle/0000_init.sql`](drizzle/0000_init.sql) из проекта → **Run**.
 Затем так же, отдельными запросами, — [`drizzle/0001_admin_login.sql`](drizzle/0001_admin_login.sql)
-[`drizzle/0002_avatars.sql`](drizzle/0002_avatars.sql), [`drizzle/0003_real_name.sql`](drizzle/0003_real_name.sql)
-и [`drizzle/0004_recurring_meetings.sql`](drizzle/0004_recurring_meetings.sql).
+[`drizzle/0002_avatars.sql`](drizzle/0002_avatars.sql), [`drizzle/0003_real_name.sql`](drizzle/0003_real_name.sql),
+[`drizzle/0004_recurring_meetings.sql`](drizzle/0004_recurring_meetings.sql)
+и [`drizzle/0005_calendar_and_summary.sql`](drizzle/0005_calendar_and_summary.sql).
 
 Миграции выполняются **по порядку номеров** и **каждая один раз**. Если база уже
 работает на прошлой версии (`0000` выполнен давно), при обновлении нужно выполнить
 только `0001_admin_login.sql`: он добавит роли участников, вход по паролю и
 уведомления на сайте, а создателем каждой старой группы с сайта сделает её
 первого участника. `0002_avatars.sql` добавляет таблицу фото профиля, `0003_real_name.sql` — колонку настоящего имени,
-`0004_recurring_meetings.sql` — повторяющиеся встречи (колонки `repeat_until` и `reminded_start` у `meetings`).
+`0004_recurring_meetings.sql` — повторяющиеся встречи (колонки `repeat_until` и `reminded_start` у `meetings`),
+`0005_calendar_and_summary.sql` — подписку на личный календарь (`calendar_url`, `calendar_synced_at`,
+`calendar_error` у `users`) и итоги встреч (`summary`, `summary_by`, `summary_at` у `meetings`).
 
 > **Миграцию выполнять до того, как новый код попадёт на Vercel.** Код с новыми
-> колонками на старой базе падает на любой странице со встречами.
+> колонками на старой базе падает на любой странице со встречами. Теперь это
+> ловит сама сборка: `scripts/check-schema.mjs` сверяет базу с файлами `drizzle/`
+> и, если чего-то не хватает, роняет сборку с сообщением, какой файл выполнить, —
+> на сайте при этом остаётся прошлая версия.
 
 ✅ **Готово, когда:** в **Table Editor** появились таблицы `users`, `chats`,
 `memberships`, `busy_slots`, `meetings`, `credentials`, `notices`, `avatars` и остальные.
@@ -271,25 +277,29 @@ postgresql://postgres.abcdefgh:ПАРОЛЬ@aws-0-eu-central-1.pooler.supabase.c
 
 ---
 
-## Шаг 6. Напоминания о встречах (cron)
+## Шаг 6. Напоминания о встречах и обновление календарей (cron)
 
-Уже настроено в [`vercel.json`](vercel.json): Vercel раз в сутки в 06:00 UTC
-дёргает `/api/cron/reminders`, и бот рассылает напоминания о встречах ближайшего дня.
-Переменную `CRON_SECRET` Vercel подставляет сам — заводить её руками не нужно.
+Адрес `/api/cron/reminders` рассылает напоминания о встречах и заодно обновляет
+подключённые личные календари (не чаще раза в 3 часа на человека).
 
-Если раза в сутки достаточно — делать ничего не надо. **На тарифе Hobby чаще нельзя.**
+- **Vercel** дёргает его раз в сутки ([`vercel.json`](vercel.json)) — на тарифе
+  Hobby чаще нельзя, поэтому «напомнить за 30 минут» так почти не работает.
+- **GitHub Actions** дёргает его каждые 10 минут
+  ([`.github/workflows/reminders.yml`](.github/workflows/reminders.yml)) — бесплатно.
+  Нужно один раз завести общий секрет:
 
-Если нужна точность «за 30 минут до встречи», два пути:
+  1. Придумать случайную строку (например, `openssl rand -hex 32` или любой
+     генератор паролей) — это `CRON_SECRET`.
+  2. **Vercel → Settings → Environment Variables** → `CRON_SECRET` = эта строка,
+     окружение Production → **Redeploy**.
+  3. **GitHub → репозиторий → Settings → Secrets and variables → Actions →
+     New repository secret** → имя `CRON_SECRET`, значение — та же строка.
+  4. Если адрес сайта не `https://qairu-cowork.vercel.app` — там же, во вкладке
+     **Variables**, завести `SITE_URL` со своим адресом.
 
-- **Vercel Pro** — поменять расписание в `vercel.json` на `*/5 * * * *`;
-- **бесплатно** — оставить как есть и повесить внешний пингер
-  ([cron-job.org](https://cron-job.org), GitHub Actions) каждые 5 минут на адрес:
-
-  ```
-  https://ваш-адрес.vercel.app/api/cron/reminders?secret=ЗНАЧЕНИЕ_CRON_SECRET
-  ```
-
-  Тогда `CRON_SECRET` нужно задать в Vercel явно — своей случайной строкой.
+  Проверка: **GitHub → Actions → Reminders → Run workflow** — шаг должен
+  закончиться ответом `{"ok":true,...}`. Без секрета воркфлоу просто пропускает
+  запуск, ничего не ломая.
 
 ---
 
@@ -320,7 +330,7 @@ DNS-записи, которые покажет Vercel. После этого д
 | `BOT_TOKEN` | для бота | токен от BotFather; без него сайт работает, бота нет |
 | `NEXT_PUBLIC_SITE_URL` | нет | только если свой домен или локальный туннель |
 | `TELEGRAM_WEBHOOK_SECRET` | нет | по умолчанию выводится из `BOT_TOKEN` |
-| `CRON_SECRET` | нет | Vercel подставляет сам; задать, если нужен внешний пингер |
+| `CRON_SECRET` | для напоминаний | общий секрет с GitHub Actions (шаг 6); без него адрес cron открыт всем |
 | `DEFAULT_TZ` | нет | по умолчанию `Asia/Almaty` |
 | `DEFAULT_LANG` | нет | по умолчанию `ru` |
 | `OPENAI_API_KEY` | для фото | распознавание расписания со скриншота; без ключа кнопки загрузки нет |
@@ -337,12 +347,14 @@ DNS-записи, которые покажет Vercel. После этого д
 | Фото профиля не сохраняется («Не удалось загрузить фото») | Не выполнена миграция `0002_avatars.sql` |
 | Сайт падает с ошибкой про `real_name` | Не выполнена миграция `0003_real_name.sql` |
 | Страница группы или бот падают с ошибкой про `repeat_until` или `reminded_start` | Не выполнена миграция `0004_recurring_meetings.sql` |
+| Сборка падает с `[qairu:schema] В базе не хватает: …` | Не выполнена миграция, которую называет сообщение (например, `0005_calendar_and_summary.sql`). Выполнить её в Supabase и сделать Redeploy |
 | `too many connections` в логах | Взято прямое подключение (5432) вместо пулера (6543). Заменить строку и сделать Redeploy |
 | Бот молчит на `/start` | Вебхук не зарегистрирован: `BOT_TOKEN` добавлен, но Redeploy не сделан. Проверить: `https://api.telegram.org/botТОКЕН/getWebhookInfo` — там должен быть ваш адрес и пустой `last_error_message` |
 | Бота нельзя добавить в группу | Не сделан `/setjoingroups → Enable` у BotFather |
 | Бот в группе не отвечает на команды | Не отправлен `/setup`, либо у бота нет прав администратора |
 | Адрес сайта поменялся, бот отвечает на старом | Зарегистрировать вебхук без пересборки: `https://новый-адрес/api/telegram/setup?secret=СЕКРЕТ`. Секрет — первые 48 hex-символов от `sha256("qairu-webhook:" + BOT_TOKEN)`; его печатает `npm run bot:webhook` |
-| Напоминания не приходят | Cron на Hobby идёт раз в сутки. См. шаг 6 |
+| Напоминания не приходят | Не заведён `CRON_SECRET` в Vercel и в секретах GitHub (шаг 6), либо воркфлоу Reminders выключен во вкладке Actions |
+| Календарь не подключается | Нужна ссылка iCal (.ics), которая открывается без входа: в Google — «Секретный адрес в формате iCal». Ссылки во внутреннюю сеть сайт не загружает намеренно |
 
 **Где смотреть логи:** Vercel → проект → **Deployments** → нужный деплой →
 **Runtime Logs** (ошибки бота и сайта) и **Build Logs** (ошибки сборки и вебхука).
@@ -358,8 +370,14 @@ git push
 ```
 
 Vercel соберёт и выкатит сам, вебхук перерегистрируется в той же сборке.
-Правило одно: **перед пушем прогнать `npm test` и `npm run build`** — упавшая
-сборка не выкатится, но и рабочая версия останется старой.
+Каждый пуш проверяет GitHub Actions ([`ci.yml`](.github/workflows/ci.yml)): типы,
+линтер, тесты, сборка и сквозные тесты в браузере. Красная проверка на GitHub —
+повод не ждать, пока сломается прод. Локально то же самое:
+
+```powershell
+npm run typecheck; npm run lint; npm test
+npx next build; npm run e2e
+```
 
 **Изменения в схеме базы:** `npm run db:generate` создаёт новый SQL-файл в
 `drizzle/`; его нужно выполнить в Supabase SQL Editor вручную — Vercel миграции
@@ -371,10 +389,11 @@ Vercel соберёт и выкатит сам, вебхук перерегис�
 
 - [ ] 0. `npm test` и `npm run build` локально — зелено
 - [ ] 1. `git init` → коммит → пуш на GitHub
-- [ ] 2. Supabase: проект → пулер-строка (6543) → выполнить `drizzle/0000_init.sql`, затем `0001_admin_login.sql`, `0002_avatars.sql`, `0003_real_name.sql` и `0004_recurring_meetings.sql`
+- [ ] 2. Supabase: проект → пулер-строка (6543) → выполнить `drizzle/0000_init.sql`, затем `0001_admin_login.sql`, `0002_avatars.sql`, `0003_real_name.sql`, `0004_recurring_meetings.sql` и `0005_calendar_and_summary.sql`
 - [ ] 3. Vercel: импорт репозитория → `DATABASE_URL` → Deploy
 - [ ] 4. Проверить `/api/healthz` и создание группы
 - [ ] 5. BotFather: `/newbot` → токен → `/setjoingroups` Enable
 - [ ] 6. Vercel: добавить `BOT_TOKEN` → **Redeploy**
 - [ ] 7. Проверить бота: `/start`, `/schedule`, `/setup` в группе
-- [ ] 8. По желанию: домен, `/setmenubutton`, внешний пингер для напоминаний
+- [ ] 8. `CRON_SECRET` в Vercel и в секретах GitHub — напоминания каждые 10 минут (шаг 6)
+- [ ] 9. По желанию: домен, `/setmenubutton`

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { PICK_EVENT } from "./Board";
+import { PICK_EVENT } from "./pick";
 
 export type GroupTabKey = "time" | "meetings" | "members" | "settings";
 

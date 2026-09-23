@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { PICK_EVENT, type PickDetail } from "./Board";
+import { PICK_EVENT, type PickDetail } from "./pick";
 import { IconPlus } from "./icons";
 
 export type MeetingFormLabels = {
@@ -42,6 +42,8 @@ export function MeetingForm({
   const [picked, setPicked] = useState<PickDetail | null>(null);
   const [typed, setTyped] = useState("");
   const [repeat, setRepeat] = useState(false);
+  // «Повторить встречу» приносит цель и место; счётчик пересоздаёт поля с ними.
+  const [preset, setPreset] = useState({ goal: "", place: "", version: 0 });
   const formRef = useRef<HTMLFormElement>(null);
   const goalRef = useRef<HTMLInputElement>(null);
 
@@ -51,6 +53,13 @@ export function MeetingForm({
       setPicked(detail);
       setTyped("");
       setOpen(true);
+      if (detail.goal !== undefined || detail.place !== undefined) {
+        setPreset((current) => ({
+          goal: detail.goal ?? "",
+          place: detail.place ?? "",
+          version: current.version + 1,
+        }));
+      }
       // Ждём кадр: форма только что развернулась.
       requestAnimationFrame(() => {
         formRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -77,16 +86,26 @@ export function MeetingForm({
         <label htmlFor="goal">{labels.goal}</label>
         <input
           ref={goalRef}
+          key={`goal-${preset.version}`}
           id="goal"
           name="goal"
           type="text"
           maxLength={300}
           placeholder={labels.goalPh}
+          defaultValue={preset.goal}
         />
       </div>
       <div className="field">
         <label htmlFor="place">{labels.place}</label>
-        <input id="place" name="place" type="text" maxLength={200} placeholder={labels.placePh} />
+        <input
+          key={`place-${preset.version}`}
+          id="place"
+          name="place"
+          type="text"
+          maxLength={200}
+          placeholder={labels.placePh}
+          defaultValue={preset.place}
+        />
       </div>
       <div className="field">
         <label htmlFor="when-text">{labels.when}</label>

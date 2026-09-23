@@ -1,5 +1,6 @@
 "use client";
 
+import { fmtMinutes } from "@/core/intervals";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -7,7 +8,7 @@ import type { Period } from "@/core/grid";
 import { periodOverlaps } from "@/core/grid";
 import { haptic, whenReady } from "@/lib/telegram";
 import { IconCamera, IconCheck, IconChevronRight, IconGrid, IconText } from "./icons";
-import { BreakRow, PeriodTime, hhmm } from "./PeriodRow";
+import { BreakRow, PeriodTime } from "./PeriodRow";
 import { TelegramMainButton } from "./TelegramButtons";
 import { toast } from "./toast";
 
@@ -47,6 +48,11 @@ export type EditorLabels = {
   importPlaceholder: string;
   legendFree: string;
   legendBusy: string;
+  /** «Неудобно» в легенде и на кисти. */
+  legendSoft: string;
+  brushLabel: string;
+  brushBusy: string;
+  brushSoft: string;
   breakRow: string; // «Перерыв {m} мин»
   photoTitle: string;
   photoHint: string;
@@ -67,6 +73,19 @@ export type EditorLabels = {
   photoEmpty: string;
   photoEmptyOne: string; // «{n}»
 };
+
+/**
+ * «Неудобно» лежит в том же множестве клеток, что и «занят», с этим
+ * префиксом: отмена, шаблоны и автосохранение работают с обоими сразу.
+ * Клетка бывает либо занятой, либо неудобной, но не обеими.
+ */
+const SOFT = "~";
+type Brush = "busy" | "soft";
+
+/** Ключ клетки в множестве для этой кисти. */
+function own(key: string, kind: Brush): string {
+  return kind === "soft" ? SOFT + key : key;
+}
 
 /** Сколько держать палец на клетке, чтобы начать мазок, и сколько ему можно сместиться. */
 const HOLD_MS = 320;
@@ -207,6 +226,12 @@ export function ScheduleEditor({
   const textRef = useRef<HTMLTextAreaElement>(null);
   const painting = useRef(false);
   const paintTo = useRef(true);
+  // Чем красим: «занят» (пары, работа) или «неудобно» (могу, но не хочу).
+  const [brush, setBrush] = useState<Brush>("busy");
+  const brushRef = useRef<Brush>("busy");
+  useEffect(() => {
+    brushRef.current = brush;
+  }, [brush]);
   const rootRef = useRef<HTMLDivElement>(null);
   // Последняя клетка под пальцем: тактильный отклик даём на каждую новую, а не на каждое событие.
   const lastPainted = useRef<string | null>(null);
@@ -236,16 +261,27 @@ export function ScheduleEditor({
     });
   }, []);
 
-  const apply = useCallback((keys: string[], value: boolean) => {
+  const apply = useCallback((keys: string[], value: boolean, kind: Brush = "busy") => {
     if (keys.length === 0) return;
     setBusy((previous) => {
       let changed = false;
       const next = new Set(previous);
       for (const key of keys) {
-        if (value ? !next.has(key) : next.has(key)) {
+        const mine = own(key, kind);
+        const other = own(key, kind === "soft" ? "busy" : "soft");
+        if (value) {
+          if (!next.has(mine)) {
+            next.add(mine);
+            changed = true;
+          }
+          // Занятая клетка не может быть заодно «неудобной» и наоборот.
+          if (next.has(other)) {
+            next.delete(other);
+            changed = true;
+          }
+        } else if (next.has(mine)) {
+          next.delete(mine);
           changed = true;
-          if (value) next.add(key);
-          else next.delete(key);
         }
       }
       if (!changed) return previous;
@@ -286,10 +322,10 @@ export function ScheduleEditor({
       // Один мазок — один шаг отмены, поэтому запоминаем состояние в начале.
       pushHistory();
       painting.current = true;
-      paintTo.current = !busyRef.current.has(key);
+      paintTo.current = !busyRef.current.has(own(key, brushRef.current));
       lastPainted.current = key;
       haptic("select");
-      apply([key], paintTo.current);
+      apply([key], paintTo.current, brushRef.current);
       try {
         rootRef.current?.setPointerCapture(pointerId);
       } catch {
@@ -314,7 +350,7 @@ export function ScheduleEditor({
       if (tap) {
         pushHistory();
         haptic("select");
-        apply([tap.key], !busyRef.current.has(tap.key));
+        apply([tap.key], !busyRef.current.has(own(tap.key, brushRef.current)), brushRef.current);
       }
       painting.current = false;
       if (rootRef.current) rootRef.current.style.touchAction = "";
@@ -371,7 +407,7 @@ export function ScheduleEditor({
       lastPainted.current = cell.dataset.key;
       haptic("select");
     }
-    apply([cell.dataset.key], paintTo.current);
+    apply([cell.dataset.key], paintTo.current, brushRef.current);
   }
 
   function onKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
@@ -380,7 +416,7 @@ export function ScheduleEditor({
     if (!cell?.dataset.key) return;
     event.preventDefault();
     pushHistory();
-    apply([cell.dataset.key], !busy.has(cell.dataset.key));
+    apply([cell.dataset.key], !busy.has(own(cell.dataset.key, brush)), brush);
   }
 
   function toggleDay(weekday: number) {
@@ -406,28 +442,32 @@ export function ScheduleEditor({
 
   function clearAll() {
     pushHistory();
-    apply(
-      weekdayNames.flatMap((_, weekday) => periods.map((period) => cellKey(weekday, period.start))),
-      false,
-    );
+    const keys = weekdayNames.flatMap((_, weekday) => periods.map((period) => cellKey(weekday, period.start)));
+    apply(keys, false, "busy");
+    apply(keys, false, "soft");
   }
 
-  /** Собрать клетки обратно в интервалы: подряд занятые пары — одна занятость вместе с перерывами. */
-  function collect(): { weekday: number; start: number; end: number }[] {
-    const slots: { weekday: number; start: number; end: number }[] = [];
-    for (let weekday = 0; weekday < 7; weekday += 1) {
-      let runStart: number | null = null;
-      let previousEnd = 0;
-      for (const period of periods) {
-        if (busy.has(cellKey(weekday, period.start))) {
-          if (runStart === null) runStart = period.start;
-          previousEnd = period.end;
-        } else if (runStart !== null) {
-          slots.push({ weekday, start: runStart, end: previousEnd });
-          runStart = null;
+  /**
+   * Собрать клетки обратно в интервалы: подряд занятые пары — одна занятость
+   * вместе с перерывами. «Неудобно» собирается так же, отдельным видом.
+   */
+  function collect(): { weekday: number; start: number; end: number; kind: string }[] {
+    const slots: { weekday: number; start: number; end: number; kind: string }[] = [];
+    for (const [kind, name] of [["busy", "class"], ["soft", "soft"]] as const) {
+      for (let weekday = 0; weekday < 7; weekday += 1) {
+        let runStart: number | null = null;
+        let previousEnd = 0;
+        for (const period of periods) {
+          if (busy.has(own(cellKey(weekday, period.start), kind))) {
+            if (runStart === null) runStart = period.start;
+            previousEnd = period.end;
+          } else if (runStart !== null) {
+            slots.push({ weekday, start: runStart, end: previousEnd, kind: name });
+            runStart = null;
+          }
         }
+        if (runStart !== null) slots.push({ weekday, start: runStart, end: previousEnd, kind: name });
       }
-      if (runStart !== null) slots.push({ weekday, start: runStart, end: previousEnd });
     }
     return slots;
   }
@@ -455,7 +495,9 @@ export function ScheduleEditor({
     } finally {
       setSaving(false);
     }
-    // collect() читает busy и periods, поэтому пересобираем при их смене.
+    // collect() читает busy и periods — они в списке, сама функция пересоздаётся
+    // на каждом рендере, и с ней сохранение запускалось бы после каждого кадра.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busy, periods, router, slug, labels.saveError]);
 
   // Сетку не сохраняют кнопкой: ждём паузы в рисовании и сохраняем сами.
@@ -503,10 +545,14 @@ export function ScheduleEditor({
    * бы частично.
    */
   function applyParsed(slots: ParsedSlot[], errors: string[]) {
-    const next = new Set<string>();
+    // Отметки «неудобно» распознавание не приносит — их оставляем как были.
+    const next = new Set<string>([...busy].filter((key) => key.startsWith(SOFT)));
     for (const slot of slots) {
       for (const period of periods) {
-        if (periodOverlaps(period, slot.start, slot.end)) next.add(cellKey(slot.weekday, period.start));
+        if (!periodOverlaps(period, slot.start, slot.end)) continue;
+        const key = cellKey(slot.weekday, period.start);
+        next.add(key);
+        next.delete(own(key, "soft"));
       }
     }
     // Повторный импорт поверх непроверенного сравниваем с исходной сеткой, а не с черновиком.
@@ -635,7 +681,7 @@ export function ScheduleEditor({
   // Часы занятости за неделю: страховка от главной ошибки — закрасить наоборот.
   const busyHours =
     Math.round(
-      ([...busy].reduce((sum, key) => {
+      ([...busy].filter((key) => !key.startsWith(SOFT)).reduce((sum, key) => {
         const start = Number(key.split(":")[1]);
         const period = periods.find((entry) => entry.start === start);
         return sum + (period ? period.end - period.start : 0);
@@ -707,6 +753,24 @@ export function ScheduleEditor({
           </button>
         </div>
 
+        {/* Кисть: «занят» — пары и работа, «неудобно» — могу, но лучше не надо.
+            Такие окна группа увидит, но предложит их последними. */}
+        <div className="brush" role="radiogroup" aria-label={labels.brushLabel}>
+          {(["busy", "soft"] as const).map((kind) => (
+            <button
+              key={kind}
+              type="button"
+              role="radio"
+              aria-checked={brush === kind}
+              className={`brush-option${brush === kind ? " active" : ""}`}
+              onClick={() => setBrush(kind)}
+            >
+              <i className={kind === "busy" ? "swatch-busy" : "swatch-soft-mine"} />
+              {kind === "busy" ? labels.brushBusy : labels.brushSoft}
+            </button>
+          ))}
+        </div>
+
         {reviewing && preview && (
           <div className="notice review-bar" role="status">
             <span>{labels.importReview.replace("{n}", String(preview.slots.length))}</span>
@@ -759,14 +823,15 @@ export function ScheduleEditor({
                   {weekdayNames.map((name, weekday) => {
                     const key = cellKey(weekday, period.start);
                     const isBusy = busy.has(key);
+                    const isSoft = busy.has(own(key, "soft"));
                     return (
                       <td
                         key={key}
-                        className={`cell${isBusy ? " busy" : ""}`}
+                        className={`cell${isBusy ? " busy" : ""}${isSoft ? " soft" : ""}`}
                         tabIndex={0}
                         role="button"
                         aria-pressed={isBusy}
-                        aria-label={`${name} ${hhmm(period.start)}–${hhmm(period.end)}`}
+                        aria-label={`${name} ${fmtMinutes(period.start)}–${fmtMinutes(period.end)}`}
                         data-key={key}
                       />
                     );
@@ -782,6 +847,8 @@ export function ScheduleEditor({
           <span>{labels.legendFree}</span>
           <i className="swatch-busy" />
           <span>{labels.legendBusy}</span>
+          <i className="swatch-soft-mine" />
+          <span>{labels.legendSoft}</span>
         </div>
 
         {/* Сохранять руками нечего — главная кнопка просто возвращает в группу. */}

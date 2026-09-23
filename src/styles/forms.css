@@ -1,0 +1,159 @@
+/* Поля ввода и кнопки. */
+
+/* --- элементы формы --- */
+label,
+.label {
+  display: block;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--muted);
+  margin: 0 0 6px;
+}
+input[type="text"],
+input[type="number"],
+input[type="date"],
+input[type="time"],
+input[type="password"],
+select,
+textarea {
+  width: 100%;
+  min-height: 44px;
+  padding: 11px 14px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--r-input);
+  font: inherit;
+  transition: border-color 150ms var(--ease);
+}
+textarea {
+  min-height: 96px;
+  resize: vertical;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+/* 16px не даёт iOS Safari автоматически зумить страницу при фокусе на поле.
+   Идёт после базовых правил выше (включая textarea), иначе они бы
+   перекрыли этот размер по порядку каскада. */
+@media (max-width: 560px) {
+  input[type="text"],
+  input[type="number"],
+  input[type="date"],
+  input[type="time"],
+  input[type="password"],
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  border-color: var(--accent);
+}
+input:disabled {
+  opacity: 0.5;
+}
+.field {
+  margin-bottom: 16px;
+}
+.row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.row > * {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 20px;
+  margin: 0 0 12px;
+  cursor: pointer;
+}
+.checkbox input {
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  accent-color: var(--accent);
+}
+input[type="range"] {
+  accent-color: var(--accent);
+  min-height: 0;
+}
+
+/* --- кнопки: только пилюли, вес 600 --- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 18px;
+  border-radius: var(--r-full);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background-color 150ms var(--ease), border-color 150ms var(--ease),
+    color 150ms var(--ease), transform 150ms var(--ease);
+}
+.btn:hover {
+  background: var(--hover);
+  border-color: var(--hairline);
+}
+.btn:active {
+  transform: scale(0.97);
+  transition-duration: 75ms;
+}
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+.btn-primary:hover {
+  background: var(--accent-deep);
+  border-color: var(--accent-deep);
+}
+.btn-quiet {
+  background: transparent;
+  border-color: transparent;
+}
+.btn-quiet:hover {
+  background: var(--hover);
+  border-color: transparent;
+}
+.btn-danger {
+  color: var(--danger);
+}
+.btn-danger:hover {
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+}
+.btn-sm {
+  height: 32px;
+  padding: 0 14px;
+  font-size: 13px;
+  line-height: 18px;
+}
+.btn-lg {
+  height: 44px;
+  padding: 0 22px;
+}
+.btn[disabled] {
+  opacity: 0.5;
+  cursor: default;
+}
+.btn[disabled]:active {
+  transform: none;
+}

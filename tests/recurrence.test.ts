@@ -88,3 +88,37 @@ describe("предстоящие встречи группы", () => {
     expect(result.size).toBe(0);
   });
 });
+
+describe("повторить встречу", () => {
+  it("тот же день недели и время — ближайшие, что ещё не прошли", async () => {
+    const { repeatDetail } = await import("@/lib/repeat");
+    // Встреча была в среду 9 сентября, 15:00–16:30; сегодня вторник 22-го.
+    const meeting = {
+      id: 1,
+      goal: "Разбор задач",
+      place: "Библиотека",
+      whenText: "15:00–16:30",
+      whenStart: zonedWallToUtc("2026-09-09", 15 * 60, TZ),
+    } as Parameters<typeof repeatDetail>[0];
+    const detail = repeatDetail(meeting, TZ, "ru", zonedWallToUtc("2026-09-22", 12 * 60, TZ));
+    expect(detail).toEqual({
+      goal: "Разбор задач",
+      place: "Библиотека",
+      value: "2026-09-23T15:00|90",
+      text: "среда, 23 сентября · 15:00–16:30",
+    });
+  });
+
+  it("встреча без точного времени повторяется своим текстом", async () => {
+    const { repeatDetail } = await import("@/lib/repeat");
+    const meeting = { id: 2, goal: "Созвон", place: "", whenText: "после пар", whenStart: null } as Parameters<
+      typeof repeatDetail
+    >[0];
+    expect(repeatDetail(meeting, TZ, "ru", new Date())).toEqual({
+      goal: "Созвон",
+      place: "",
+      value: "после пар",
+      text: "после пар",
+    });
+  });
+});

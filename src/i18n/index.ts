@@ -75,10 +75,26 @@ export type TParams = Record<string, string | number>;
 
 export function t(lang: string, key: StringKey | string, params: TParams = {}): string {
   const resolved: Lang = isLang(lang) ? lang : DEFAULT_LANG;
-  const template = LANGS[resolved][key] ?? RU[key] ?? key;
+  const template = LANGS[resolved][key] ?? (RU as Strings)[key] ?? key;
   return template.replace(/\{(\w+)\}/g, (whole, name: string) =>
     Object.prototype.hasOwnProperty.call(params, name) ? String(params[name]) : whole,
   );
+}
+
+/**
+ * Строка с числом в правильной форме: «1 встреча», «3 встречи», «5 встреч».
+ *
+ * Форма выбирается по правилам языка (Intl.PluralRules): в русском их четыре
+ * — one, few, many, other (дробные), в казахском и английском две. Ключи
+ * лежат рядом: `key_one`, `key_few`, `key_many`, `key_other`; число
+ * подставляется в `{n}`.
+ */
+export function tn(lang: string, key: string, n: number, params: TParams = {}): string {
+  const resolved: Lang = isLang(lang) ? lang : DEFAULT_LANG;
+  const category = new Intl.PluralRules(resolved).select(n);
+  const dict = LANGS[resolved];
+  const form = [`${key}_${category}`, `${key}_other`, `${key}_many`].find((name) => name in dict);
+  return t(resolved, form ?? key, { n, ...params });
 }
 
 /** Готовая функция перевода для одного языка — удобно прокидывать в компоненты. */

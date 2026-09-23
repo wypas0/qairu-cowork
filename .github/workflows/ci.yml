@@ -1,0 +1,39 @@
+# Проверка каждого пуша и пулл-реквеста: типы, линтер, тесты, сборка.
+# Vercel собирает проект, но тесты не запускает — без этого коммит с
+# упавшими тестами уехал бы на прод.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      # Без DATABASE_URL и BOT_TOKEN сборка пропускает проверку схемы и вебхук.
+      - run: npm run build
+      # Сквозные тесты: настоящий браузер против собранного сайта с базой в памяти.
+      - run: npx playwright install --with-deps chromium
+      - run: npm run e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report
+          retention-days: 7

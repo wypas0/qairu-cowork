@@ -1,0 +1,557 @@
+/* Сетка недели: карта группы и редактор своего расписания. */
+
+/* --- сетка недели --- */
+.gridwrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+table.week {
+  border-collapse: separate;
+  border-spacing: 3px;
+  width: 100%;
+  min-width: 560px;
+}
+table.week th {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+  color: var(--text);
+  padding: 4px 2px 8px;
+  text-align: center;
+  white-space: nowrap;
+}
+table.week th .small {
+  font-weight: 400;
+}
+table.week th.timecol,
+table.week td.timecol {
+  width: 52px;
+  min-width: 52px;
+  font-size: 12px;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  text-align: right;
+  padding-right: 8px;
+  white-space: nowrap;
+}
+table.week td.cell {
+  height: 22px;
+  border-radius: var(--r-sm);
+  background: var(--heat-5);
+  cursor: pointer;
+  position: relative;
+  transition: background-color 150ms var(--ease);
+}
+.h0 {
+  background: var(--heat-0) !important;
+}
+.h1 {
+  background: var(--heat-1) !important;
+}
+.h2 {
+  background: var(--heat-2) !important;
+}
+.h3 {
+  background: var(--heat-3) !important;
+}
+.h4 {
+  background: var(--heat-4) !important;
+}
+.h5 {
+  background: var(--heat-5) !important;
+}
+.h0,
+.h1,
+.h2,
+.h3,
+.h4,
+.h5 {
+  box-shadow: inset 0 0 0 1px var(--heat-edge);
+}
+td.cell.busy {
+  background: var(--slot-busy) !important;
+}
+/* Штриховка «тут занят ты» должна читаться на любой ступени шкалы:
+   на тёмных клетках — светлая, на светлых — тёмная. */
+.h0,
+.h1 {
+  --mine-stripe: rgba(3, 20, 40, 0.4);
+}
+.h2,
+.h3,
+.h4,
+.h5 {
+  --mine-stripe: rgba(255, 255, 255, 0.4);
+}
+
+/* --- сетка по парам, как на портале университета --- */
+/* Колонки дней одной ширины: подпись встречи в клетке не должна раздвигать свой день. */
+table.week.periods {
+  table-layout: fixed;
+}
+table.week.periods td.cell {
+  height: 40px;
+  border-radius: var(--r-md);
+}
+/* Сегодняшний день: заголовок столбца выделен, как в календарях. */
+table.week th.today {
+  color: var(--accent);
+}
+table.week th.today .small {
+  display: inline-block;
+  margin-top: 2px;
+  padding: 0 6px;
+  border-radius: var(--r-full);
+  background: var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+/* Прошедшее время приглушено: назначать на него встречу поздно. */
+table.week td.cell.past {
+  opacity: 0.45;
+  filter: saturate(0.2);
+}
+/* Линия «сейчас» внутри текущей клетки сегодняшнего дня. */
+.now-line {
+  position: absolute;
+  left: -3px;
+  right: -3px;
+  height: 2px;
+  margin-top: -1px;
+  background: var(--danger);
+  border-radius: var(--r-full);
+  pointer-events: none;
+  z-index: 1;
+}
+.now-line::before {
+  content: "";
+  position: absolute;
+  left: -3px;
+  top: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-full);
+  background: var(--danger);
+}
+/* Протяжка мышью: выбранные клетки обведены цветом действия. */
+table.week.dragging {
+  user-select: none;
+  -webkit-user-select: none;
+}
+table.week td.cell.inrange {
+  opacity: 1;
+  box-shadow: inset 0 0 0 3px var(--accent), inset 0 0 0 5px var(--accent-text);
+}
+/* Подсветка одного человека: где он занят — клетки уходят в тень. */
+table.week.spotting td.cell.spot-off {
+  opacity: 0.18;
+}
+.rows-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 8px 0 0;
+}
+table.week.periods td.timecol.period {
+  width: 64px;
+  min-width: 64px;
+  text-align: left;
+  vertical-align: middle;
+  padding: 0 8px 0 2px;
+  line-height: 1.25;
+}
+.period-line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.period-n {
+  min-width: 12px;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+.period-start {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.period-end {
+  display: block;
+  padding-left: 18px;
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+table.week tr.break-row td {
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 16px;
+  padding: 4px 10px;
+  border-radius: var(--r-full);
+  text-align: left;
+}
+
+/* На телефоне неделя должна помещаться целиком: иначе сетку приходится
+   таскать вбок пальцем, а палец здесь занят закрашиванием клеток. */
+@media (max-width: 560px) {
+  table.week {
+    /* Неделя целиком помещается в экран: остаются лишние 2-3 px от
+       border-spacing, их добирает обычная прокрутка внутри .gridwrap. */
+    min-width: 0;
+    border-spacing: 2px;
+  }
+  table.week th {
+    font-size: 12px;
+    line-height: 16px;
+  }
+  table.week th.timecol,
+  table.week td.timecol,
+  table.week.periods td.timecol.period {
+    width: 50px;
+    min-width: 50px;
+    padding-right: 4px;
+  }
+  /* «1 08:00» в узкой колонке: номер пары над временем, иначе время
+     заезжало на первую клетку. */
+  .period-line {
+    display: grid;
+    gap: 0;
+  }
+  table.week.periods td.cell {
+    height: 40px;
+  }
+  .period-n,
+  .period-start {
+    font-size: 11px;
+  }
+  .period-end {
+    padding-left: 0;
+    font-size: 10px;
+  }
+}
+
+/* На телефоне таблица длиннее экрана, и строка с днями уезжала вверх —
+   становилось непонятно, какой это день. Прилипает под шапкой сайта.
+   overflow: clip вместо auto: скролл-контейнер ломает прилипание, а неделя
+   на телефоне и так помещается в ширину. */
+@media (max-width: 560px) {
+  .gridwrap {
+    overflow-x: clip;
+  }
+  table.week thead th {
+    position: sticky;
+    top: calc(65px + var(--safe-top));
+    z-index: 2;
+    background: var(--surface);
+  }
+  /* «21.09» в колонке шириной ~40px слипалось с соседней датой. */
+  table.week thead th .small {
+    font-size: 10px;
+    letter-spacing: -0.02em;
+  }
+}
+
+/* --- редактор своего расписания --- */
+table.week.editor td.cell {
+  background: var(--slot-free);
+  box-shadow: inset 0 0 0 1px var(--slot-free-border);
+}
+table.week.editor td.cell.busy {
+  background: var(--slot-busy) !important;
+  box-shadow: none;
+}
+/* «Неудобно» — не занятость: янтарная заливка с обводкой, чтобы не путать с парами. */
+table.week.editor td.cell.soft {
+  background: var(--soft-fill);
+  box-shadow: inset 0 0 0 1.5px var(--warning);
+}
+.legend i.swatch-soft-mine,
+.brush i.swatch-soft-mine {
+  background: var(--soft-fill);
+  box-shadow: inset 0 0 0 1.5px var(--warning);
+}
+
+/* Кисть редактора: переключатель «Занят / Неудобно». */
+.brush {
+  display: inline-flex;
+  gap: 4px;
+  margin: 4px 0 12px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+}
+.brush-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--r-full);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 150ms var(--ease), color 150ms var(--ease);
+}
+.brush-option.active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.brush-option i {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  display: inline-block;
+}
+.brush i.swatch-busy {
+  background: var(--slot-busy);
+}
+.legend i.swatch-free {
+  background: var(--slot-free);
+  box-shadow: inset 0 0 0 1px var(--slot-free-border);
+}
+.legend i.swatch-busy {
+  background: var(--slot-busy);
+}
+
+/* --- своя занятость поверх общей карты --- */
+/* Штриховка, а не другой цвет: цвет уже занят шкалой «сколько людей свободно». */
+table.week td.cell.mine::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0 5px,
+    var(--mine-stripe) 5px 7px
+  );
+  pointer-events: none;
+}
+.legend i.swatch-mine {
+  background-color: var(--heat-2);
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0 5px,
+    var(--mine-stripe) 5px 7px
+  );
+}
+
+/* --- назначенные встречи на тепловой карте --- */
+table.week td.cell.meeting,
+.legend i.swatch-meeting {
+  background: var(--danger);
+}
+table.week td.cell.meeting {
+  overflow: hidden;
+}
+.cell-meeting {
+  /* Поверх клетки: подпись не должна увеличивать высоту ряда. */
+  position: absolute;
+  inset: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  padding: 4px 6px;
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 600;
+  color: #ffffff;
+  text-align: left;
+  word-break: break-word;
+  pointer-events: none;
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--muted);
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.legend i {
+  width: 18px;
+  height: 12px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+/* Шкала в легенде — сплошной полоской, отметки — подписанными парами. */
+.legend-scale {
+  display: inline-flex;
+  gap: 2px;
+}
+.legend-scale i {
+  width: 16px;
+  border-radius: 2px;
+}
+.legend-scale i:first-child {
+  border-radius: 4px 2px 2px 4px;
+}
+.legend-scale i:last-child {
+  border-radius: 2px 4px 4px 2px;
+}
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 6px;
+}
+.legend i.swatch-soft {
+  position: relative;
+  background: var(--heat-1);
+  box-shadow: inset 0 0 0 1px var(--heat-edge);
+}
+.legend i.swatch-soft::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 5px;
+  height: 5px;
+  border-radius: var(--r-full);
+  background: var(--warning);
+  box-shadow: 0 0 0 1.5px rgba(10, 22, 40, 0.45);
+}
+
+/* «Кому-то неудобно» — точка в углу клетки: цвет клетки уже занят шкалой. */
+.soft-mark {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--r-full);
+  background: var(--warning);
+  box-shadow: 0 0 0 2px rgba(10, 22, 40, 0.45);
+  pointer-events: none;
+}
+
+/* --- окно с деталями клетки тепловой карты --- */
+.cell-popover-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 22, 40, 0.4);
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.cell-popover {
+  background: var(--popover);
+  border: 1px solid var(--border);
+  border-radius: var(--r-3xl);
+  box-shadow: var(--shadow-float);
+  width: min(92vw, 340px);
+  padding: 24px;
+}
+.cell-popover .when {
+  margin: 2px 0 4px;
+}
+.cell-popover-meeting {
+  margin: 0 0 4px;
+  font-weight: 600;
+  color: var(--danger);
+}
+
+/* --- подсказка «кто свободен» при наведении на клетку --- */
+.cell-tooltip {
+  position: fixed;
+  z-index: 60;
+  transform: translate(-50%, calc(-100% - 8px));
+  max-width: min(300px, calc(100vw - 32px));
+  padding: 10px 12px;
+  border-radius: var(--r-lg);
+  background: var(--ink);
+  color: var(--ink-text);
+  box-shadow: var(--shadow-float);
+  pointer-events: none;
+  font-size: 13px;
+  line-height: 18px;
+}
+.cell-tooltip.below {
+  transform: translate(-50%, 8px);
+}
+.cell-tooltip-head {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+/* Таблица «Свободны | Заняты» в подсказке и в окне клетки. */
+.who-table {
+  width: 100%;
+  margin: 6px 0 4px;
+  border-collapse: separate;
+  border-spacing: 0 4px;
+  table-layout: fixed;
+  font-size: 13px;
+  line-height: 18px;
+}
+.who-table th {
+  padding: 0 6px 2px 0;
+  text-align: left;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.who-table td {
+  padding: 0 6px 0 0;
+  vertical-align: top;
+}
+.who-count {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+.who-pill {
+  display: inline-block;
+  max-width: 100%;
+  padding: 1px 8px;
+  border-radius: var(--r-full);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: top;
+}
+.who-pill.free {
+  background: var(--who-free);
+  color: var(--who-free-text);
+}
+.who-pill.busy {
+  background: var(--who-busy);
+  color: var(--who-busy-text);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+}
+.who-pill.soft {
+  outline: 1.5px dashed var(--warning);
+  outline-offset: 1px;
+}
+.who-soft {
+  margin: 2px 0 4px;
+  font-size: 12px;
+  line-height: 16px;
+  opacity: 0.85;
+}
+.who-none {
+  opacity: 0.6;
+}
+.cell-tooltip {
+  min-width: 220px;
+}

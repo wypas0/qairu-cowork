@@ -261,6 +261,8 @@ export type BoardSlot = {
   text: string;
   count: number;
   missing: string[];
+  /** Свободны, но им это время неудобно. */
+  soft: string[];
 };
 
 /** Сериализуемая порция данных для клиентской доски. */
@@ -303,6 +305,8 @@ export type BoardPayload = {
       free: string[];
       /** Те же свободные, но id: по ним карта подсвечивает одного человека. */
       freeIds: number[];
+      /** Свободны, но им это время неудобно. */
+      soft: string[];
       missing: string[];
       /** Занят ли в этой клетке тот, кто смотрит на карту. */
       mine: boolean;
@@ -365,6 +369,7 @@ export function toBoardPayload(state: GroupState, lang: string, viewerId?: numbe
         count: cell.freeIds.length,
         free: freeNames(cell.freeIds),
         freeIds: [...cell.freeIds],
+        soft: cell.softIds.map((id) => state.names.get(id) ?? "?"),
         missing: missingNames(cell.freeIds),
         mine: viewerHasData && !cell.freeIds.includes(viewerId!),
       })),
@@ -379,6 +384,7 @@ export function toBoardPayload(state: GroupState, lang: string, viewerId?: numbe
         text: fmtInterval(run.interval),
         count: run.freeIds.length,
         missing: slotMissing(run.freeIds),
+        soft: run.softIds.map((id) => state.names.get(id) ?? "?"),
       })),
     })),
     missing: state.missing.map((member) => displayName(member)),
@@ -421,10 +427,12 @@ export function bestSlots(state: GroupState, lang: string): BoardBest[] {
         ),
     );
     if (free.length === 0) continue;
-    // Из окон с одинаковым числом людей берём то, что ближе к середине дня:
-    // иначе «лучшим» всегда оказывается 8 утра — просто потому, что оно первое.
+    // Из окон с одинаковым числом людей берём то, что меньше всем неудобно,
+    // а при равенстве — ближе к середине дня: иначе «лучшим» всегда
+    // оказывается 8 утра — просто потому, что оно первое.
     const best = free.reduce((a, b) => {
       if (b.freeIds.length !== a.freeIds.length) return b.freeIds.length > a.freeIds.length ? b : a;
+      if (b.softIds.length !== a.softIds.length) return b.softIds.length < a.softIds.length ? b : a;
       return distanceToNoon(b.interval[0]) < distanceToNoon(a.interval[0]) ? b : a;
     });
     candidates.push({
@@ -436,10 +444,14 @@ export function bestSlots(state: GroupState, lang: string): BoardBest[] {
       text: fmtInterval(best.interval),
       count: best.freeIds.length,
       missing: missingNames(best.freeIds),
+      soft: best.softIds.map((id) => state.names.get(id) ?? "?"),
     });
   }
 
-  candidates.sort((a, b) => b.count - a.count || a.date.localeCompare(b.date) || a.start - b.start);
+  candidates.sort(
+    (a, b) =>
+      b.count - a.count || a.soft.length - b.soft.length || a.date.localeCompare(b.date) || a.start - b.start,
+  );
 
   // Одинаковое время с одинаковым составом в разные дни — одна строка.
   const groups: BoardBest[] = [];
@@ -449,7 +461,8 @@ export function bestSlots(state: GroupState, lang: string): BoardBest[] {
         group.start === candidate.start &&
         group.end === candidate.end &&
         group.count === candidate.count &&
-        group.missing.join("|") === candidate.missing.join("|"),
+        group.missing.join("|") === candidate.missing.join("|") &&
+        group.soft.join("|") === candidate.soft.join("|"),
     );
     const day = { date: candidate.date, label: candidate.label, short: candidate.short };
     if (same) same.dates.push(day);
@@ -460,6 +473,7 @@ export function bestSlots(state: GroupState, lang: string): BoardBest[] {
         text: candidate.text,
         count: candidate.count,
         missing: candidate.missing,
+        soft: candidate.soft,
         dates: [day],
       });
     }
@@ -475,18 +489,25 @@ export function bestSlots(state: GroupState, lang: string): BoardBest[] {
  * ответ «с 8 до 10:30 свободны все», а не перечень всех стартов.
  */
 export function mergeRuns(
-  slots: readonly { interval: readonly [number, number]; freeIds: readonly number[] }[],
-): { interval: [number, number]; freeIds: number[] }[] {
-  const runs: { interval: [number, number]; freeIds: number[] }[] = [];
+  slots: readonly { interval: readonly [number, number]; freeIds: readonly number[]; softIds?: readonly number[] }[],
+): { interval: [number, number]; freeIds: number[]; softIds: number[] }[] {
+  const runs: { interval: [number, number]; freeIds: number[]; softIds: number[] }[] = [];
   const sameIds = (a: readonly number[], b: readonly number[]) =>
     a.length === b.length && a.every((id) => b.includes(id));
   for (const slot of slots) {
     const last = runs[runs.length - 1];
+    const softIds = slot.softIds ?? [];
     // Соседние варианты перекрываются: следующий начинается раньше, чем кончился прошлый.
-    if (last && slot.interval[0] <= last.interval[1] && sameIds(last.freeIds, slot.freeIds)) {
+    // Сливаем только с тем же составом — и свободных, и тех, кому неудобно.
+    if (
+      last &&
+      slot.interval[0] <= last.interval[1] &&
+      sameIds(last.freeIds, slot.freeIds) &&
+      sameIds(last.softIds, softIds)
+    ) {
       last.interval[1] = Math.max(last.interval[1], slot.interval[1]);
     } else {
-      runs.push({ interval: [slot.interval[0], slot.interval[1]], freeIds: [...slot.freeIds] });
+      runs.push({ interval: [slot.interval[0], slot.interval[1]], freeIds: [...slot.freeIds], softIds: [...softIds] });
     }
   }
   return runs;
