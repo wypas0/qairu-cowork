@@ -12,7 +12,7 @@ import {
   saveRealNameAction,
 } from "@/app/profile/actions";
 import type { Theme } from "@/lib/theme";
-import { IconCheck, IconChevronLeft, IconChevronRight, IconClose } from "./icons";
+import { BrandMark, IconCheck, IconChevronLeft, IconChevronRight, IconClose } from "./icons";
 import { ThemeSwitch } from "./ThemeSwitch";
 
 export type ProfileGroup = {
@@ -505,7 +505,7 @@ export function ProfilePanel({ user, groups, theme, botEnabled, labels }: Profil
                           <li key={group.chatId}>
                             <Link className="pp-group" href={`/g/${group.slug}`} onClick={close}>
                               <span className="pp-group-mark" aria-hidden="true">
-                                {(group.title.trim()[0] ?? "#").toUpperCase()}
+                                <BrandMark size={18} />
                               </span>
                               <span className="pp-group-title">{group.title}</span>
                               {group.pending ? <span className="count-badge">{group.pending}</span> : null}

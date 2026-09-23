@@ -230,6 +230,9 @@ postgresql://postgres.abcdefgh:ПАРОЛЬ@aws-0-eu-central-1.pooler.supabase.c
 /setuserpic     — аватар бота
 ```
 
+Картинка для `/setuserpic` (640×640, знак продукта) лежит на самом сайте:
+`https://<адрес сайта>/bot-avatar.png` — скачать и отправить BotFather.
+
 ✅ **Готово, когда:** токен на руках и добавление в группы разрешено.
 
 ---

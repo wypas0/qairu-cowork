@@ -160,7 +160,7 @@ function GroupLink({
       title={group.title}
     >
       <span className="sidebar-mark" aria-hidden="true">
-        {group.title.trim()[0]?.toUpperCase() ?? "?"}
+        <BrandMark size={14} />
       </span>
       <span className="sidebar-title">{group.title}</span>
       {group.pending ? (

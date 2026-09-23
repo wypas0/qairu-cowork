@@ -1,16 +1,14 @@
 import { ImageResponse } from "next/og";
 
+import { BRAND_COLOR, brandMarkSvg } from "./brand";
+
 /**
- * Иконка приложения: знак продукта (кольцо с ножкой, как BrandMark) белым на
- * кобальте. Знак занимает середину — края можно срезать маской Android.
+ * Иконка приложения: знак продукта (как BrandMark) белым на кобальте. Знак
+ * занимает середину — края срезает маска Android и круг аватара в Telegram.
  */
 export function appIcon(size: number): ImageResponse {
-  const mark = size * 0.46;
-  const svg = encodeURIComponent(
-    "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'>" +
-      "<circle cx='11' cy='11' r='7' stroke='white' stroke-width='4'/>" +
-      "<path d='M11 18h9' stroke='white' stroke-width='4'/></svg>",
-  );
+  const mark = size * 0.68;
+  const svg = encodeURIComponent(brandMarkSvg("white"));
   return new ImageResponse(
     (
       <div
@@ -20,7 +18,7 @@ export function appIcon(size: number): ImageResponse {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#0064e0",
+          background: BRAND_COLOR,
         }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element -- картинка внутри генератора PNG, а не страница */}

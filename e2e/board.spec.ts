@@ -137,5 +137,7 @@ test.describe("приглашение и установка", () => {
     expect((await manifest.json()).name).toBe("QairuCowork");
     const icon = await request.get("/icon-192.png");
     expect(icon.headers()["content-type"]).toContain("image/png");
+    const botAvatar = await request.get("/bot-avatar.png");
+    expect(botAvatar.headers()["content-type"]).toContain("image/png");
   });
 });

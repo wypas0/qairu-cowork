@@ -1,3 +1,5 @@
+import { brandMarkInner } from "@/lib/brand";
+
 /* Иконки интерфейса — контурные, 24×24, в currentColor.
    Эмодзи в разметке нет: они разного размера и стиля в каждой системе,
    не наследуют цвет и не читаются скринридером. Размер по умолчанию —
@@ -32,21 +34,18 @@ function Icon({
   );
 }
 
-/** Знак продукта: кольцо с плоской ножкой от нижней точки — как у QAIRU Hub. */
+/** Знак продукта: Q университета со стрелками часов. Рисунок — в lib/brand. */
 export function BrandMark({ size = 20, className }: IconProps) {
   return (
     <svg
       width={size}
       height={size}
       viewBox="0 0 24 24"
-      fill="none"
       aria-hidden="true"
       focusable="false"
       className={className ? `icon ${className}` : "icon"}
-    >
-      <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="4" />
-      <path d="M11 18h9" stroke="currentColor" strokeWidth="4" strokeLinecap="butt" />
-    </svg>
+      dangerouslySetInnerHTML={{ __html: brandMarkInner("currentColor") }}
+    />
   );
 }
 

@@ -8,6 +8,7 @@ import { SiteFooter } from "@/components/SiteFooter";
 import { TelegramAuth } from "@/components/TelegramAuth";
 import { TelegramChrome } from "@/components/TelegramChrome";
 import { normalizeLang } from "@/i18n";
+import { BRAND_COLOR, brandMarkSvg } from "@/lib/brand";
 import { THEME_COOKIE, normalizeTheme } from "@/lib/theme";
 import "./globals.css";
 
@@ -19,9 +20,8 @@ const inter = Inter({
   variable: "--font-inter",
 });
 
-/* Знак продукта — то же кольцо с ножкой, что и в шапке (BrandMark). */
-const FAVICON =
-  "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'><circle cx='11' cy='11' r='7' stroke='%230064e0' stroke-width='4'/><path d='M11 18h9' stroke='%230064e0' stroke-width='4'/></svg>";
+/* Знак продукта — тот же, что в шапке (BrandMark), кобальтом. */
+const FAVICON = `data:image/svg+xml,${encodeURIComponent(brandMarkSvg(BRAND_COLOR))}`;
 
 export const metadata: Metadata = {
   title: "QairuCowork",
