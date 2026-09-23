@@ -136,6 +136,7 @@ export const EN: Dict = {
   w_open: "Open",
   w_join_title: "Join “{title}”",
   w_join_lead: "Sign in with Telegram — your name comes from there, and the bot will send you reminders and meeting invitations.",
+  w_join_preview: "Mark your classes and see when the whole group is free. Set up a meeting in one tap.",
   w_join_confirm_lead: "You're signed in as {name}. Joining this group? Confirm with the button — this way another site can't add you here without asking.",
   w_join_btn: "Join",
   w_already_in: "Already in ({count})",

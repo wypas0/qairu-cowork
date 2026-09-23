@@ -139,6 +139,13 @@ test.describe("приглашение и установка", () => {
     expect(icon.headers()["content-type"]).toContain("image/png");
     const botAvatar = await request.get("/bot-avatar.png");
     expect(botAvatar.headers()["content-type"]).toContain("image/png");
+
+    // Превью ссылки-приглашения в мессенджере: робот приходит без входа.
+    const invite = await (await request.get(`${group()}/join`)).text();
+    expect(invite).toContain('property="og:title" content="Присоединиться к группе «ИС-21»"');
+    expect(invite).toContain('property="og:image"');
+    const preview = await request.get("/opengraph-image");
+    expect(preview.headers()["content-type"]).toContain("image/png");
   });
 });
 

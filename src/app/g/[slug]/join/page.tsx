@@ -15,8 +15,33 @@ import { joinGroup } from "../actions";
 
 export const dynamic = "force-dynamic";
 
-/** Приглашение — не для поисковиков: название группы незачем находить в выдаче. */
-export const metadata: Metadata = { robots: { index: false, follow: false } };
+/**
+ * Превью ссылки-приглашения в чате: «Присоединиться к группе «ИС-21»» на языке
+ * группы. Робот мессенджера приходит без входа и попадает именно сюда —
+ * страница группы отправляет посторонних на приглашение. Поисковикам
+ * приглашение не нужно: название группы незачем находить в выдаче.
+ */
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const robots = { index: false, follow: false };
+  const chat = await repo.getChatBySlug((await params).slug);
+  if (!chat) return { robots };
+  const t = translator(chat.lang);
+  const title = t("w_join_title", { title: chat.title });
+  const description = t("w_join_preview");
+  return {
+    title,
+    description,
+    robots,
+    // Свой openGraph целиком заменяет корневой — картинку превью указываем заново.
+    openGraph: {
+      type: "website",
+      siteName: "QairuCowork",
+      title,
+      description,
+      images: [{ url: "/opengraph-image", width: 1200, height: 630 }],
+    },
+  };
+}
 
 export default async function JoinPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;

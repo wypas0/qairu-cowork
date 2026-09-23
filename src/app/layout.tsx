@@ -9,6 +9,7 @@ import { TelegramAuth } from "@/components/TelegramAuth";
 import { TelegramChrome } from "@/components/TelegramChrome";
 import { normalizeLang } from "@/i18n";
 import { BRAND_COLOR, brandMarkSvg } from "@/lib/brand";
+import { siteUrl } from "@/lib/config";
 import { THEME_COOKIE, normalizeTheme } from "@/lib/theme";
 import "./globals.css";
 
@@ -24,8 +25,19 @@ const inter = Inter({
 const FAVICON = `data:image/svg+xml,${encodeURIComponent(brandMarkSvg(BRAND_COLOR))}`;
 
 export const metadata: Metadata = {
+  // Полные адреса в превью ссылок (картинка, og:url) строятся от адреса сайта.
+  metadataBase: new URL(siteUrl() || "http://localhost:3000"),
   title: "QairuCowork",
   description: "Находит общие свободные окна у студентов из одной группы.",
+  // Превью ссылки в Telegram, WhatsApp, VK. Картинку рисует opengraph-image.tsx.
+  openGraph: {
+    type: "website",
+    siteName: "QairuCowork",
+    title: "QairuCowork",
+    description: "Общие свободные окна учебной группы и встречи в один клик.",
+    locale: "ru_RU",
+  },
+  twitter: { card: "summary_large_image" },
   icons: { icon: FAVICON, apple: "/icon-192.png" },
   // Установка на iPhone: «На экран Домой» открывает сайт отдельным окном.
   appleWebApp: { capable: true, title: "QairuCowork", statusBarStyle: "default" },
