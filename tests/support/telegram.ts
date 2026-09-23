@@ -25,6 +25,8 @@ export type TelegramStub = {
   blockedIds: number[];
   /** Ошибка, которой ответит getChatAdministrators; null — ответить списком. */
   adminsError: { code: number; description: string } | "network" | null;
+  /** getMe скажет, что у бота включено главное мини-приложение. */
+  hasMainWebApp: boolean;
   nextMessageId: number;
 };
 
@@ -44,6 +46,7 @@ export function installTelegramStub(): TelegramStub {
     adminIds: [],
     blockedIds: [],
     adminsError: null,
+    hasMainWebApp: false,
     nextMessageId: 1000,
   };
 
@@ -85,7 +88,13 @@ export function installTelegramStub(): TelegramStub {
     const result = (() => {
       switch (method) {
         case "getMe":
-          return { id: BOT_ID, is_bot: true, username: BOT_USERNAME, first_name: "QairuCowork" };
+          return {
+            id: BOT_ID,
+            is_bot: true,
+            username: BOT_USERNAME,
+            first_name: "QairuCowork",
+            has_main_web_app: stub.hasMainWebApp,
+          };
         case "getChatMember":
           return { status: stub.memberStatus };
         case "getChatAdministrators":

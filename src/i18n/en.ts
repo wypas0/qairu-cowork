@@ -152,6 +152,8 @@ export const EN: Dict = {
   w_code_changed: "The code has been changed. Share the new code or link — the old ones no longer work.",
   w_code_hint: "Read it out — the code is entered on the site's home page.",
   w_invite: "Invite link",
+  w_invite_tg: "Link for Telegram",
+  w_invite_tg_hint: "For a Telegram chat: opens the group right in the app — no sign-in, no searching for the bot.",
   w_invite_hint: "Drop it in the group chat: anyone who opens it joins.",
   w_copy: "Copy",
   w_copied: "Copied",

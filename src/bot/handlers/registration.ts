@@ -18,15 +18,16 @@ import {
   type TgMessage,
 } from "../api";
 import { isChatAdmin, mentionList, resolveLang, syncUser } from "../context";
-import { groupPath, joinViaBotButton, sitePage, webAppButton } from "../site";
+import { groupPath, joinViaBotButton, openGroupButton, sitePage, webAppButton } from "../site";
 
 /**
- * Кнопки под сообщениями бота в группе. «Заполнить расписание» открывает личку
- * с ботом и сразу привязывает человека к чату, а оттуда — сайт как Mini App.
+ * Кнопки под сообщениями бота в группе. «Заполнить расписание» открывает
+ * группу сразу в мини-приложении, если оно у бота есть, а иначе — личку с
+ * ботом, которая привязывает человека к чату и уже оттуда открывает сайт.
  */
 async function setupKeyboard(chatId: number, lang: string): Promise<InlineKeyboardMarkup> {
   return keyboard([
-    [await joinViaBotButton(lang, chatId)],
+    [await openGroupButton(lang, chatId)],
     [{ text: t(lang, "btn_who_filled"), callback_data: "members:show" }],
   ]);
 }

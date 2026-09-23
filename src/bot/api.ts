@@ -30,6 +30,8 @@ export type TgUser = {
   last_name?: string;
   username?: string;
   language_code?: string;
+  /** Только в getMe: у бота есть главное мини-приложение (Bot API 8.0). */
+  has_main_web_app?: boolean;
 };
 
 export type TgChat = {

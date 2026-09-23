@@ -125,6 +125,25 @@ describe("подключение чата и регистрация", () => {
     expect(await repo.isMember(GROUP_ID, AMIR.id)).toBe(true);
   });
 
+  it("с главным мини-приложением кнопка группы открывает его сразу, одним касанием", async () => {
+    const { forgetBotInfo } = await import("@/bot/context");
+    const repo = await import("@/db/repo");
+    stub.hasMainWebApp = true;
+    await forgetBotInfo();
+    try {
+      stub.memberStatus = "creator";
+      await handleUpdate(text(GROUP_CHAT, AMIR, "/setup"));
+      const markup = stub.last("sendMessage")!.payload.reply_markup as {
+        inline_keyboard: { text: string; url?: string }[][];
+      };
+      const slug = (await repo.getChat(GROUP_ID))!.slug;
+      expect(markup.inline_keyboard[0][0].url).toBe(`https://t.me/${BOT_USERNAME}?startapp=${slug}`);
+    } finally {
+      stub.hasMainWebApp = false;
+      await forgetBotInfo();
+    }
+  });
+
   it("deep-link /start привязывает человека к чату и ведёт на первый шаг в группе", async () => {
     await handleUpdate(text(PRIVATE_ASEL, ASEL, `/start c${GROUP_ID}`));
     const call = stub.last("sendMessage")!;

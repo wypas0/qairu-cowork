@@ -133,18 +133,50 @@ export function parseCommand(text: string): { command: string; args: string[] } 
   return { command: match[1].toLowerCase(), args: rest ? rest.split(/\s+/) : [] };
 }
 
-let cachedUsername: string | null = null;
+/** Что сайту нужно знать о самом боте. */
+export type BotInfo = {
+  username: string;
+  /** Главное мини-приложение включено (BotFather → Bot Settings → Configure Mini App). */
+  hasMainWebApp: boolean;
+  at: number;
+};
+
+/** Сведения о боте уточняются у Telegram не чаще раза в столько. */
+const BOT_INFO_TTL_MS = 6 * 60 * 60 * 1000;
+let cachedInfo: BotInfo | null = null;
+
+function fresh(info: BotInfo | null | undefined): info is BotInfo {
+  return !!info?.username && typeof info.at === "number" && Date.now() - info.at < BOT_INFO_TTL_MS;
+}
+
+/**
+ * Имя бота и есть ли у него главное мини-приложение. Хранится в bot_state и
+ * раз в 6 часов уточняется через getMe: включили мини-приложение в BotFather —
+ * сайт это заметит сам (или сразу — после /api/telegram/setup).
+ */
+export async function botInfo(): Promise<BotInfo> {
+  if (fresh(cachedInfo)) return cachedInfo;
+  const stored = await repo.getBotState<Partial<BotInfo>>("bot:me");
+  if (fresh(stored as BotInfo)) return (cachedInfo = stored as BotInfo);
+  try {
+    const me = await getMe();
+    cachedInfo = { username: me.username ?? "", hasMainWebApp: me.has_main_web_app === true, at: Date.now() };
+    if (cachedInfo.username) await repo.setBotState("bot:me", cachedInfo);
+    return cachedInfo;
+  } catch (error) {
+    // Telegram недоступен — прежние сведения лучше, чем никаких.
+    if (stored?.username) return { username: stored.username, hasMainWebApp: stored.hasMainWebApp === true, at: 0 };
+    throw error;
+  }
+}
+
+/** Забыть сведения о боте — следующий вызов спросит Telegram заново. */
+export async function forgetBotInfo(): Promise<void> {
+  cachedInfo = null;
+  await repo.setBotState("bot:me", {});
+}
 
 /** Username бота — нужен для deep-link `t.me/<bot>?start=…`. */
 export async function botUsername(): Promise<string> {
-  if (cachedUsername) return cachedUsername;
-  const stored = await repo.getBotState<{ username: string }>("bot:me");
-  if (stored?.username) {
-    cachedUsername = stored.username;
-    return cachedUsername;
-  }
-  const me = await getMe();
-  cachedUsername = me.username ?? "";
-  if (cachedUsername) await repo.setBotState("bot:me", { username: cachedUsername });
-  return cachedUsername;
+  return (await botInfo()).username;
 }

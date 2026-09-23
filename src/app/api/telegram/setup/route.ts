@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 
 import { GROUP_COMMANDS, PRIVATE_COMMANDS } from "@/bot/router";
 import { setChatMenuButton, setMyCommands } from "@/bot/api";
+import { forgetBotInfo } from "@/bot/context";
 import { botToken, hasBot, webhookSecret } from "@/lib/config";
 import { baseUrl } from "@/lib/url";
 
@@ -26,6 +27,9 @@ export async function GET(request: NextRequest) {
   if (request.nextUrl.searchParams.get("secret") !== secret) {
     return Response.json({ ok: false, detail: "forbidden" }, { status: 401 });
   }
+
+  // Включили главное мини-приложение в BotFather — сайт узнает об этом сразу.
+  await forgetBotInfo();
 
   const base = request.nextUrl.searchParams.get("url")?.replace(/\/+$/, "") || (await baseUrl());
   const url = `${base}/api/telegram/webhook`;

@@ -45,7 +45,7 @@ const atDay = (offset, minutes) => {
 const chat = -(10 ** 15) - 111;
 const chat2 = -(10 ** 15) - 555;
 // Группы, где Амира нет: вступление по ссылке — прямой переход и переход с чужого сайта.
-const [chat3, chat4] = [-(10 ** 15) - 777, -(10 ** 15) - 888];
+const [chat3, chat4, chat5] = [-(10 ** 15) - 777, -(10 ** 15) - 888, -(10 ** 15) - 999];
 const [amir, asel, bolat, dana, erlan] = [1001, 1002, 1003, 1004, 1005];
 const token = crypto.randomBytes(32).toString("base64url");
 
@@ -53,7 +53,8 @@ await sql`insert into chats (chat_id, slug, origin, title, lang, tz, created_by)
           values (${chat}, 'smoke001', 'web', 'ИС-21', 'ru', ${TZ}, ${amir}),
                  (${chat2}, 'smoke002', 'web', 'Дипломники', 'ru', ${TZ}, ${asel}),
                  (${chat3}, 'smoke003', 'web', 'Кружок', 'ru', ${TZ}, ${asel}),
-                 (${chat4}, 'smoke004', 'web', 'Сборная', 'ru', ${TZ}, ${asel})`;
+                 (${chat4}, 'smoke004', 'web', 'Сборная', 'ru', ${TZ}, ${asel}),
+                 (${chat5}, 'smoke005', 'web', 'Хор', 'ru', ${TZ}, ${asel})`;
 await sql`insert into users (user_id, full_name, lang, is_web) values
           (${amir}, 'Амир', 'ru', false), (${asel}, 'Асель', 'ru', false), (${bolat}, 'Болат', 'ru', false),
           (${dana}, 'Дана', 'ru', false), (${erlan}, 'Ерлан', 'ru', false)`;
@@ -61,7 +62,7 @@ await sql`insert into memberships (chat_id, user_id, role) values
           (${chat}, ${amir}, 'admin'), (${chat}, ${asel}, 'member'), (${chat}, ${bolat}, 'member'),
           (${chat}, ${dana}, 'member'), (${chat}, ${erlan}, 'member'),
           (${chat2}, ${amir}, 'member'), (${chat2}, ${asel}, 'admin'),
-          (${chat3}, ${asel}, 'admin'), (${chat4}, ${asel}, 'admin')`;
+          (${chat3}, ${asel}, 'admin'), (${chat4}, ${asel}, 'admin'), (${chat5}, ${asel}, 'admin')`;
 await sql`insert into web_sessions (token_hash, user_id)
           values (${crypto.createHash("sha256").update(token).digest("hex")}, ${amir})`;
 

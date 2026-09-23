@@ -17,18 +17,24 @@ const DISMISSED_KEY = "qairu-home-screen-dismissed";
 export function OpenLastGroup({ slug }: { slug: string | null }) {
   const router = useRouter();
 
-  useEffect(() => {
-    if (!slug) return;
-    return whenReady(() => {
-      try {
-        if (sessionStorage.getItem(OPENED_KEY) === "1") return;
-        sessionStorage.setItem(OPENED_KEY, "1");
-      } catch {
-        // Без хранилища всё равно ведём — повтор в худшем случае лишь неудобен.
-      }
-      router.replace(`/g/${slug}`);
-    });
-  }, [slug, router]);
+  useEffect(
+    () =>
+      whenReady((app) => {
+        // Мини-апп открыли приглашением t.me/<бот>?startapp=<код> — ведём в эту
+        // группу (вступление само, см. join), а не в последнюю открытую.
+        const invited = app.initDataUnsafe?.start_param ?? "";
+        const target = /^[a-z0-9]{3,24}$/i.test(invited) ? `/g/${invited.toLowerCase()}/join` : slug ? `/g/${slug}` : null;
+        if (!target) return;
+        try {
+          if (sessionStorage.getItem(OPENED_KEY) === "1") return;
+          sessionStorage.setItem(OPENED_KEY, "1");
+        } catch {
+          // Без хранилища всё равно ведём — повтор в худшем случае лишь неудобен.
+        }
+        router.replace(target);
+      }),
+    [slug, router],
+  );
 
   return null;
 }

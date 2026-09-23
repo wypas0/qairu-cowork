@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
+import { miniAppInvite } from "@/bot/site";
 import { AppShell } from "@/components/AppShell";
 import { Board } from "@/components/board/Board";
 import { ConfirmSubmit } from "@/components/ConfirmSubmit";
@@ -32,6 +33,7 @@ import {
 import { feedPath } from "@/lib/calendarFeed";
 import { BEST_COOKIE } from "@/lib/cookies";
 import { formatCode } from "@/lib/invite";
+import { hasBot } from "@/lib/config";
 import { baseUrl } from "@/lib/url";
 import {
   changeCodeAction,
@@ -90,6 +92,8 @@ export default async function GroupPage({
   const bestHidden = (await cookies()).get(BEST_COOKIE)?.value === "hidden";
   const base = await baseUrl();
   const inviteUrl = `${base}/g/${slug}`;
+  // Ссылка для чата в Telegram открывает группу сразу в мини-приложении — если оно у бота есть.
+  const telegramInvite = hasBot() ? await miniAppInvite(slug).catch(() => null) : null;
   // Личная лента встреч этой группы для подписки в календаре.
   const feedUrl = `${base}${feedPath(user.userId, slug)}`;
   const webcalUrl = feedUrl.replace(/^https?:/, "webcal:");
@@ -540,6 +544,17 @@ export default async function GroupPage({
                     <input type="text" readOnly value={inviteUrl} aria-label={t("w_invite")} />
                     <CopyButton value={inviteUrl} label={t("w_copy")} copiedLabel={t("w_copied")} />
                   </div>
+                  {telegramInvite && (
+                    <>
+                      <p className="small muted" style={{ marginTop: 10 }}>
+                        {t("w_invite_tg_hint")}
+                      </p>
+                      <div className="row">
+                        <input type="text" readOnly value={telegramInvite} aria-label={t("w_invite_tg")} />
+                        <CopyButton value={telegramInvite} label={t("w_copy")} copiedLabel={t("w_copied")} />
+                      </div>
+                    </>
+                  )}
 
                   {/* QR — для аудитории: вывел на экран, все отсканировали камерой. */}
                   <div className="invite-qr">

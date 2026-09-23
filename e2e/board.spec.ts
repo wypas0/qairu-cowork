@@ -168,3 +168,17 @@ test.describe("вступление по ссылке", () => {
     await expect(page).toHaveURL(/\/g\/smoke003(\/welcome|\/me)?(\?|$)/);
   });
 });
+
+test.describe("мини-апп", () => {
+  test("приглашение ?startapp=<код> открывает эту группу и вступает, а не последнюю", async ({ page }) => {
+    // Настоящий скрипт Telegram не нужен: подставляем мини-апп с кодом приглашения.
+    await page.route("https://telegram.org/**", (route) => route.abort());
+    await page.addInitScript(() => {
+      window.Telegram = {
+        WebApp: { initData: "query_id=e2e", initDataUnsafe: { start_param: "smoke005" }, ready() {}, expand() {} },
+      };
+    });
+    await page.goto("/");
+    await expect(page).toHaveURL(/\/g\/smoke005(\/welcome|\/me)?(\?|$)/);
+  });
+});
