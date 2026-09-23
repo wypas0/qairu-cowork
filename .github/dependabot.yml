@@ -1,0 +1,27 @@
+# Обновления зависимостей пулл-реквестами. Каждый проходит CI (типы, линтер,
+# тесты, сборка, сквозные тесты) — вливать только зелёные. Мелкие обновления
+# собраны в один PR в неделю, чтобы не заваливать уведомлениями; мажорные
+# приходят отдельно — их, как переход на Next 16, стоит читать внимательно.
+# Preview-сборки таких PR на Vercel вебхук бота не трогают: его регистрирует
+# только продакшен-сборка (scripts/set-webhook.mjs).
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Asia/Almaty
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
