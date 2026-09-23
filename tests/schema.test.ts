@@ -1,3 +1,5 @@
+import crypto from "node:crypto";
+
 import { PGlite } from "@electric-sql/pglite";
 import { describe, expect, it } from "vitest";
 
@@ -84,6 +86,32 @@ describe("RLS", () => {
     expect(missingRls(expected, await rlsOf(client))).toEqual([
       { file: "0007_row_level_security.sql", table: "web_sessions" },
     ]);
+    await client.close();
+  });
+});
+
+describe("0008: токены сессий — только хешем", () => {
+  it("выданные раньше куки продолжают пускать: SQL хеширует так же, как код", async () => {
+    const client = new PGlite();
+    const files = await migrationFiles();
+    const exec = async (sql: string) => {
+      for (const statement of sql.split("--> statement-breakpoint")) {
+        if (statement.trim()) await client.exec(statement.trim());
+      }
+    };
+    for (const file of files.filter((item) => item.name < "0008")) await exec(file.sql);
+
+    const token = crypto.randomBytes(32).toString("base64url");
+    await client.exec(`
+      INSERT INTO users (user_id, full_name) VALUES (777, 'Старая кука');
+      INSERT INTO web_sessions (token, user_id) VALUES ('${token}', 777);
+      INSERT INTO web_sessions (token, user_id, last_seen_at) VALUES ('stale', 777, now() - interval '40 days');
+    `);
+    await exec(files.find((item) => item.name.startsWith("0008"))!.sql);
+
+    const rows = (await client.query<{ token_hash: string }>("select token_hash from web_sessions")).rows;
+    const { hashToken } = await import("@/db/repo");
+    expect(rows).toEqual([{ token_hash: hashToken(token) }]);
     await client.close();
   });
 });

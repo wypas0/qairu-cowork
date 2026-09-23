@@ -57,6 +57,13 @@
       "when": 1790161529747,
       "tag": "0007_row_level_security",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790162545278,
+      "tag": "0008_session_token_hash",
+      "breakpoints": true
     }
   ]
 }

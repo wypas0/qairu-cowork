@@ -20,7 +20,8 @@ await sql`insert into users (user_id, full_name, lang, is_web) values
           (${amir}, 'Амир', 'ru', true), (${asel}, 'Асель', 'ru', true), (${bolat}, 'Болат', 'ru', true)`;
 await sql`insert into memberships (chat_id, user_id, role) values
           (${chatId}, ${amir}, 'admin'), (${chatId}, ${asel}, 'member'), (${chatId}, ${bolat}, 'member')`;
-await sql`insert into web_sessions (token, user_id) values (${token}, ${amir})`;
+await sql`insert into web_sessions (token_hash, user_id)
+          values (${crypto.createHash("sha256").update(token).digest("hex")}, ${amir})`;
 
 // Амир занят по понедельникам, Асель свободна всю неделю.
 await sql`insert into busy_slots (user_id, weekday, start_min, end_min, label, kind, source)

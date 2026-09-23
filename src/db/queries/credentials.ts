@@ -2,9 +2,10 @@
 
 import "server-only";
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import { credentials, type User, users, webSessions } from "../schema";
 import { type Exec, ex } from "./base";
+import { hashToken } from "./web";
 
 // --------------------------------------------------------------------------
 // Вход по логину и паролю
@@ -70,7 +71,7 @@ export async function deleteOtherWebSessions(
 ): Promise<void> {
   await ex(exec)
     .delete(webSessions)
-    .where(and(eq(webSessions.userId, userId), sql`${webSessions.token} <> ${keepToken}`));
+    .where(and(eq(webSessions.userId, userId), ne(webSessions.tokenHash, hashToken(keepToken))));
 }
 
 /**

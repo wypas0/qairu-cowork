@@ -115,7 +115,7 @@ busy_slots(id PK, user_id, weekday 0..6 NULL, specific_date NULL,
            date_from NULL, date_to NULL, week_parity NULL,
            start_min, end_min, label, kind, source)             -- занятость
 schedule_state(user_id PK, filled, updated_at)
-web_sessions(token PK, user_id, created_at, last_seen_at)
+web_sessions(token_hash PK, user_id, created_at, last_seen_at)   -- только SHA-256 токена; 30 дней без заходов — не пускает
 meetings(id PK, chat_id, initiator_id, place, when_text, when_start,
          goal, chat_message_id, invitees, status, reminder_sent, created_at)
 meeting_responses(meeting_id, user_id, answer yes|no|change,
@@ -303,7 +303,8 @@ free_common ← [[day_start, day_end]]
 | Флуд-лимиты Telegram | один агрегированный ответ вместо N сообщений |
 | Смена username | упоминания через `tg://user?id=`, username обновляется при каждом апдейте |
 | Приватность расписания | privacy mode включён, расписание видно только в агрегированном виде; `/clear` удаляет всё |
-| Утечка персональной ссылки | токен из `?t=` немедленно перекладывается в `HttpOnly`-куку и редиректом убирается из адресной строки |
+| Утечка персональной ссылки | вход по `?t=` отключён (login CSRF), `t` только убирается из адреса редиректом |
+| Утечка таблицы сессий | в базе лежит только SHA-256 токена — по ней не войти; сессия без заходов 30 дней не пускает, cron её удаляет |
 | Подделка входа через Mini App | подпись `initData` проверяется HMAC-ом от секрета, выведенного из токена бота, сравнение — постоянного времени, плюс проверка свежести `auth_date` |
 | Подделка вызова вебхука | `X-Telegram-Bot-Api-Secret-Token`; секрет выводится из `BOT_TOKEN`, поэтому работает без отдельной настройки |
 | Telegram зациклит повторы апдейта | вебхук отвечает `200` всегда, даже когда обработка упала: на любой другой ответ Telegram повторяет апдейт с нарастающей задержкой |

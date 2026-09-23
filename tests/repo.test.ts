@@ -353,3 +353,67 @@ describe("вкладка «Встречи»", () => {
     expect(archived.map((meeting) => meeting.id)).not.toContain(stale.id);
   });
 });
+
+describe("сессии сайта", () => {
+  async function sessionRow(token: string) {
+    const r = await repo();
+    const { getDb } = await import("@/db/client");
+    const { webSessions } = await import("@/db/schema");
+    const { eq } = await import("drizzle-orm");
+    const [row] = await getDb().select().from(webSessions).where(eq(webSessions.tokenHash, r.hashToken(token)));
+    return row;
+  }
+
+  async function setLastSeen(token: string, lastSeenAt: Date) {
+    const r = await repo();
+    const { getDb } = await import("@/db/client");
+    const { webSessions } = await import("@/db/schema");
+    const { eq } = await import("drizzle-orm");
+    await getDb().update(webSessions).set({ lastSeenAt }).where(eq(webSessions.tokenHash, r.hashToken(token)));
+  }
+
+  it("в базе только хеш токена — сам хеш вместо токена не пускает", async () => {
+    const r = await repo();
+    const user = await r.createWebUser({ fullName: "Хеш" });
+    const token = await r.issueWebSession(user.userId);
+
+    const row = await sessionRow(token);
+    expect(row?.tokenHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(row?.tokenHash).not.toContain(token);
+    expect((await r.userByWebToken(token))?.userId).toBe(user.userId);
+    expect(await r.userByWebToken(row!.tokenHash)).toBeNull();
+
+    await r.deleteWebSession(token);
+    expect(await r.userByWebToken(token)).toBeNull();
+  });
+
+  it("30 дней без заходов — не пускает, а cron удаляет", async () => {
+    const r = await repo();
+    const user = await r.createWebUser({ fullName: "Давно не был" });
+    const token = await r.issueWebSession(user.userId);
+    const day = 86_400_000;
+
+    await setLastSeen(token, new Date(Date.now() - (r.SESSION_IDLE_DAYS - 1) * day));
+    expect((await r.userByWebToken(token))?.userId).toBe(user.userId);
+
+    await setLastSeen(token, new Date(Date.now() - (r.SESSION_IDLE_DAYS + 1) * day));
+    expect(await r.userByWebToken(token)).toBeNull();
+    expect(await r.deleteIdleWebSessions()).toBeGreaterThanOrEqual(1);
+    expect(await sessionRow(token)).toBeUndefined();
+  });
+
+  it("отметка захода обновляется не чаще раза в час", async () => {
+    const r = await repo();
+    const user = await r.createWebUser({ fullName: "Часто заходит" });
+    const token = await r.issueWebSession(user.userId);
+
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60_000);
+    await setLastSeen(token, tenMinutesAgo);
+    await r.userByWebToken(token);
+    expect((await sessionRow(token))?.lastSeenAt.getTime()).toBe(tenMinutesAgo.getTime());
+
+    await setLastSeen(token, new Date(Date.now() - 2 * 3_600_000));
+    await r.userByWebToken(token);
+    expect(Date.now() - (await sessionRow(token))!.lastSeenAt.getTime()).toBeLessThan(60_000);
+  });
+});

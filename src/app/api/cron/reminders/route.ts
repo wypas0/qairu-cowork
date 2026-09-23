@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 
 import { sendDueReminders } from "@/bot/handlers/meeting";
+import * as repo from "@/db/repo";
 import { syncStaleCalendars } from "@/lib/calendarSync";
 import { cronSecret, hasBot } from "@/lib/config";
 
@@ -28,11 +29,13 @@ export async function GET(request: Request) {
 
   // Календари — до напоминаний и с запасом по времени: функция живёт 60 секунд.
   const calendars = await syncStaleCalendars(5, 30_000);
+  // Сессии, которые уже не пускают (30 дней без заходов), в базе не нужны.
+  const sessions = await repo.deleteIdleWebSessions();
 
-  if (!hasBot()) return Response.json({ ok: true, sent: 0, calendars, detail: "BOT_TOKEN не задан" });
+  if (!hasBot()) return Response.json({ ok: true, sent: 0, calendars, sessions, detail: "BOT_TOKEN не задан" });
 
   const sent = await sendDueReminders();
-  return Response.json({ ok: true, sent, calendars });
+  return Response.json({ ok: true, sent, calendars, sessions });
 }
 
 /** Сравнение без утечки по времени ответа: сравниваются хеши одинаковой длины. */

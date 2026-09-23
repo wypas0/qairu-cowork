@@ -197,11 +197,17 @@ export const notices = pgTable(
   (table) => [index("ix_notices_user_chat").on(table.userId, table.chatId)],
 ).enableRLS();
 
-/** Персональная ссылка/кука сайта. Выдаётся и после входа по паролю. */
+/**
+ * Сессия сайта (кука `qairu_token`). Выдаётся и после входа по паролю.
+ *
+ * Хранится только SHA-256 токена: утёкшая таблица — бэкап, лог, чужой доступ
+ * к базе — не даёт войти в чужой аккаунт. Сессия без заходов дольше
+ * SESSION_IDLE_DAYS (db/queries/web.ts) больше не пускает.
+ */
 export const webSessions = pgTable(
   "web_sessions",
   {
-    token: varchar("token", { length: 64 }).primaryKey(),
+    tokenHash: varchar("token_hash", { length: 64 }).primaryKey(),
     userId: bigint("user_id", { mode: "number" })
       .notNull()
       .references(() => users.userId, { onDelete: "cascade" }),

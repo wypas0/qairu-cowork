@@ -62,7 +62,8 @@ await sql`insert into memberships (chat_id, user_id, role) values
           (${chat}, ${dana}, 'member'), (${chat}, ${erlan}, 'member'),
           (${chat2}, ${amir}, 'member'), (${chat2}, ${asel}, 'admin'),
           (${chat3}, ${asel}, 'admin'), (${chat4}, ${asel}, 'admin')`;
-await sql`insert into web_sessions (token, user_id) values (${token}, ${amir})`;
+await sql`insert into web_sessions (token_hash, user_id)
+          values (${crypto.createHash("sha256").update(token).digest("hex")}, ${amir})`;
 
 const weekly = (user, days, start, end, kind = "class") =>
   days.map((day) => ({ user_id: user, weekday: day, start_min: start, end_min: end, kind, source: "web", label: "" }));

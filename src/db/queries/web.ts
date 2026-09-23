@@ -4,10 +4,9 @@ import "server-only";
 
 import crypto from "node:crypto";
 import { CODE_ALPHABET } from "@/lib/invite";
-import { eq } from "drizzle-orm";
+import { and, eq, gt, lt } from "drizzle-orm";
 import { type Chat, chats, type User, users, webSessions } from "../schema";
 import { type Exec, ex } from "./base";
-import { getUser } from "./groups";
 
 // --------------------------------------------------------------------------
 // Веб-версия: слаги групп, синтетические пользователи, сессии-ссылки
@@ -38,6 +37,24 @@ export function newWebId(): number {
 
 export function newToken(): string {
   return crypto.randomBytes(32).toString("base64url");
+}
+
+/** Сессия без заходов дольше стольких дней больше не пускает. */
+export const SESSION_IDLE_DAYS = 30;
+const DAY_MS = 24 * 60 * 60 * 1000;
+/** Отметку «был на сайте» обновляем не чаще раза в час, а не при каждой странице. */
+const SEEN_EVERY_MS = 60 * 60 * 1000;
+
+/**
+ * В базе лежит только SHA-256 токена. Токен — 32 случайных байта, поэтому
+ * соль и медленный хеш не нужны: перебором его не подобрать.
+ */
+export function hashToken(token: string): string {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+function idleSince(): Date {
+  return new Date(Date.now() - SESSION_IDLE_DAYS * DAY_MS);
 }
 
 /**
@@ -116,29 +133,45 @@ export async function createWebUser(
   return row;
 }
 
+/** Новая сессия. Сам токен уходит только в куку, в базе — его хеш. */
 export async function issueWebSession(userId: number, exec?: Exec): Promise<string> {
   const token = newToken();
-  await ex(exec).insert(webSessions).values({ token, userId });
+  await ex(exec).insert(webSessions).values({ tokenHash: hashToken(token), userId });
   return token;
 }
 
 export async function deleteWebSession(token: string, exec?: Exec): Promise<void> {
   if (!token) return;
-  await ex(exec).delete(webSessions).where(eq(webSessions.token, token));
+  await ex(exec).delete(webSessions).where(eq(webSessions.tokenHash, hashToken(token)));
 }
 
+/**
+ * Человек по токену из куки — одним запросом вместе с сессией. Сессия, где
+ * не было заходов дольше SESSION_IDLE_DAYS, не пускает; отметка захода
+ * обновляется не чаще раза в час.
+ */
 export async function userByWebToken(token: string, exec?: Exec): Promise<User | null> {
   if (!token) return null;
   const db = ex(exec);
-  const [session] = await db
-    .select()
+  const tokenHash = hashToken(token);
+  const [row] = await db
+    .select({ user: users, lastSeenAt: webSessions.lastSeenAt })
     .from(webSessions)
-    .where(eq(webSessions.token, token))
+    .innerJoin(users, eq(users.userId, webSessions.userId))
+    .where(and(eq(webSessions.tokenHash, tokenHash), gt(webSessions.lastSeenAt, idleSince())))
     .limit(1);
-  if (!session) return null;
-  await db
-    .update(webSessions)
-    .set({ lastSeenAt: new Date() })
-    .where(eq(webSessions.token, token));
-  return getUser(session.userId, db);
+  if (!row) return null;
+  if (Date.now() - row.lastSeenAt.getTime() > SEEN_EVERY_MS) {
+    await db.update(webSessions).set({ lastSeenAt: new Date() }).where(eq(webSessions.tokenHash, tokenHash));
+  }
+  return row.user;
+}
+
+/** Удалить сессии, которые уже не пускают. Вызывает cron; возвращает, сколько удалено. */
+export async function deleteIdleWebSessions(exec?: Exec): Promise<number> {
+  const deleted = await ex(exec)
+    .delete(webSessions)
+    .where(lt(webSessions.lastSeenAt, idleSince()))
+    .returning({ tokenHash: webSessions.tokenHash });
+  return deleted.length;
 }
