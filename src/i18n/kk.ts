@@ -132,6 +132,8 @@ export const KK: Dict = {
   w_home_screen: "QairuCowork-ты басты экранға қос — топ бір түртумен ашылады.",
   w_home_screen_add: "Қосу",
   w_home_screen_later: "Кейін",
+  w_write_access: "Ботқа саған жазуға рұқсат бер — кездесу алдында еске салады, шақырулар жібереді.",
+  w_write_access_allow: "Рұқсат беру",
   w_my_groups: "Менің топтарым",
   w_open: "Ашу",
   w_join_title: "«{title}» тобына қосылу",

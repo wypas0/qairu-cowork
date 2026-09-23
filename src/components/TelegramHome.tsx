@@ -7,6 +7,7 @@ import { haptic, whenReady } from "@/lib/telegram";
 
 const OPENED_KEY = "qairu-opened-last-group";
 const DISMISSED_KEY = "qairu-home-screen-dismissed";
+const WRITE_DISMISSED_KEY = "qairu-write-access-dismissed";
 
 /**
  * Мини-апп открывается кнопкой бота на главной странице сайта. Если человек
@@ -90,6 +91,73 @@ export function HomeScreenPrompt({ labels }: { labels: { text: string; add: stri
           {labels.add}
         </button>
         <button type="button" className="btn btn-sm btn-quiet" onClick={dismiss}>
+          {labels.later}
+        </button>
+      </span>
+    </div>
+  );
+}
+
+/**
+ * Предложение разрешить боту писать в личку. Telegram не даёт ботам писать
+ * первыми: кто пришёл в мини-апп по ссылке и ни разу не нажимал Start у бота,
+ * не получит ни напоминания о встрече, ни приглашения — только уведомление на
+ * сайте. Показываем, только если Telegram говорит, что разрешения нет, и
+ * человек не отказался раньше.
+ */
+export function WriteAccessPrompt({ labels }: { labels: { text: string; allow: string; later: string } }) {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(
+    () =>
+      whenReady((app) => {
+        if (!app.requestWriteAccess || app.initDataUnsafe?.user?.allows_write_to_pm) return;
+        try {
+          if (localStorage.getItem(WRITE_DISMISSED_KEY) === "1") return;
+        } catch {
+          // Без хранилища просто спросим.
+        }
+        setVisible(true);
+      }),
+    [],
+  );
+
+  if (!visible) return null;
+
+  function remember() {
+    try {
+      localStorage.setItem(WRITE_DISMISSED_KEY, "1");
+    } catch {
+      // Не запомнили — спросим в следующий раз, это не страшно.
+    }
+  }
+
+  function allow() {
+    whenReady((app) =>
+      app.requestWriteAccess?.((allowed) => {
+        setVisible(false);
+        // Отказ в окне Telegram — тоже ответ: больше не спрашиваем.
+        if (allowed) haptic("ok");
+        else remember();
+      }),
+    );
+  }
+
+  return (
+    <div className="notice notice-row home-screen" role="status">
+      <span>{labels.text}</span>
+      <span className="notice-actions">
+        <button type="button" className="btn btn-sm" onClick={allow}>
+          {labels.allow}
+        </button>
+        <button
+          type="button"
+          className="btn btn-sm btn-quiet"
+          onClick={() => {
+            setVisible(false);
+            remember();
+          }}
+        >
           {labels.later}
         </button>
       </span>

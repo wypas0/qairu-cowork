@@ -132,6 +132,8 @@ export const EN: Dict = {
   w_home_screen: "Add QairuCowork to your home screen — open your group in one tap.",
   w_home_screen_add: "Add",
   w_home_screen_later: "Not now",
+  w_write_access: "Let the bot message you — it will remind you before meetings and send invitations.",
+  w_write_access_allow: "Allow",
   w_my_groups: "My groups",
   w_open: "Open",
   w_join_title: "Join “{title}”",

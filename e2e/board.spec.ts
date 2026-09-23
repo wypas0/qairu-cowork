@@ -182,3 +182,27 @@ test.describe("мини-апп", () => {
     await expect(page).toHaveURL(/\/g\/smoke005(\/welcome|\/me)?(\?|$)/);
   });
 });
+
+test.describe("мини-апп: разрешение писать", () => {
+  test("без разрешения — предложение; после «Разрешить» оно исчезает", async ({ page }) => {
+    await page.route("https://telegram.org/**", (route) => route.abort());
+    await page.addInitScript(() => {
+      window.Telegram = {
+        WebApp: {
+          initData: "query_id=e2e",
+          initDataUnsafe: { user: { allows_write_to_pm: false } },
+          ready() {},
+          expand() {},
+          requestWriteAccess(callback) {
+            callback?.(true);
+          },
+        },
+      };
+    });
+    await page.goto(group());
+    const prompt = page.getByText("Разреши боту писать тебе");
+    await expect(prompt).toBeVisible();
+    await page.getByRole("button", { name: "Разрешить" }).click();
+    await expect(prompt).toBeHidden();
+  });
+});

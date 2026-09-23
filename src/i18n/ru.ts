@@ -131,6 +131,8 @@ export const RU = {
   w_home_screen: "Добавь QairuCowork на главный экран — группа будет открываться в одно касание.",
   w_home_screen_add: "Добавить",
   w_home_screen_later: "Не сейчас",
+  w_write_access: "Разреши боту писать тебе — он пришлёт напоминание перед встречей и приглашения.",
+  w_write_access_allow: "Разрешить",
   w_my_groups: "Мои группы",
   w_open: "Открыть",
   w_join_title: "Присоединиться к группе «{title}»",

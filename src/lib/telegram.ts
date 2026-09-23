@@ -34,7 +34,7 @@ type NativeButton = {
 
 export type TelegramWebApp = {
   initData?: string;
-  initDataUnsafe?: { start_param?: string };
+  initDataUnsafe?: { start_param?: string; user?: { allows_write_to_pm?: boolean } };
   version?: string;
   colorScheme?: ColorScheme;
   safeAreaInset?: Inset;
@@ -50,6 +50,8 @@ export type TelegramWebApp = {
   disableVerticalSwipes?(): void;
   enableVerticalSwipes?(): void;
   showConfirm?(message: string, callback: (ok: boolean) => void): void;
+  /** Bot API 6.9: попросить разрешения боту писать человеку в личку. */
+  requestWriteAccess?(callback?: (allowed: boolean) => void): void;
   /** Bot API 8.0: ярлык мини-аппа на главном экране телефона. */
   addToHomeScreen?(): void;
   checkHomeScreenStatus?(callback: (status: "unsupported" | "unknown" | "added" | "missed") => void): void;

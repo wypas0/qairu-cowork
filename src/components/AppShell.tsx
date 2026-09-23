@@ -8,7 +8,7 @@ import { type GroupNextMeeting, ProfilePanel, type ProfileGroup } from "./Profil
 import { profilePanelProps } from "./profilePanelProps";
 import { SidebarToggle } from "./SidebarToggle";
 import { SiteFooter } from "./SiteFooter";
-import { HomeScreenPrompt } from "./TelegramHome";
+import { HomeScreenPrompt, WriteAccessPrompt } from "./TelegramHome";
 import { Topbar } from "./Topbar";
 
 /** Какой раздел группы открыт — подсвечивается и в сайдбаре, и в нижней панели. */
@@ -122,6 +122,9 @@ export async function AppShell({
         <div className="wrap home-screen-wrap">
           <HomeScreenPrompt
             labels={{ text: t("w_home_screen"), add: t("w_home_screen_add"), later: t("w_home_screen_later") }}
+          />
+          <WriteAccessPrompt
+            labels={{ text: t("w_write_access"), allow: t("w_write_access_allow"), later: t("w_home_screen_later") }}
           />
         </div>
         {children}
