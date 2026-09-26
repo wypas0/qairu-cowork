@@ -176,6 +176,88 @@ describe("расписание и сетка", () => {
   });
 });
 
+describe("редактор сохраняет то, чего сетка не показывает", () => {
+  // Пары 08:00–08:50, 09:00–09:50, 10:00–10:50, 11:10–12:00 … до 22:00.
+  const slot = (
+    weekday: number,
+    start: number,
+    end: number,
+    extra: { label?: string; parity?: number | null; kind?: string } = {},
+  ) => ({ weekday, start, end, label: extra.label ?? "", parity: extra.parity ?? null, kind: extra.kind ?? "class" });
+
+  it("мазок в другом дне не трогает подписи, чётность, вид и точное время", async () => {
+    const { grid } = await mods();
+    const periods = grid.gridPeriods(8 * 60, 22 * 60, 30);
+    const base = [
+      slot(0, 540, 630, { label: "Матан", parity: 0 }), // Пн 9:00–10:30, по числителю
+      slot(0, 540, 630, { label: "Физика", parity: 1 }), // то же время, по знаменателю
+      slot(1, 18 * 60, 21 * 60, { label: "Кафе", kind: "work" }),
+      slot(2, 7 * 60, 7 * 60 + 45, { label: "Бассейн", kind: "sport" }), // до начала дня группы — в сетке не видно
+      slot(3, 600, 650, { kind: "soft" }),
+    ];
+    const cells = new Set(grid.editorCells(periods, base));
+    cells.add(grid.editorKey(4, 13 * 60 + 10)); // Пт, 6-я пара
+
+    const saved = grid.editorSlots(periods, base, cells);
+    expect(saved).toEqual(expect.arrayContaining(base));
+    expect(saved).toContainEqual(slot(4, 13 * 60 + 10, 14 * 60));
+    expect(saved).toHaveLength(base.length + 1);
+  });
+
+  it("убранная клетка режет только свою пару, остаток — с той же подписью в тех же границах", async () => {
+    const { grid } = await mods();
+    const periods = grid.gridPeriods(8 * 60, 22 * 60, 30);
+    const base = [slot(0, 540, 630, { label: "Матан", parity: 0 })];
+    const cells = new Set(grid.editorCells(periods, base));
+    expect([...cells].sort()).toEqual(["0:540", "0:600"]);
+    cells.delete("0:600");
+
+    expect(grid.editorSlots(periods, base, cells)).toEqual([slot(0, 540, 590, { label: "Матан", parity: 0 })]);
+  });
+
+  it("«занят» поверх «неудобно» заменяет его в этой клетке, остальное неудобное остаётся", async () => {
+    const { grid } = await mods();
+    const periods = grid.gridPeriods(8 * 60, 22 * 60, 30);
+    const base = [slot(3, 480, 650, { kind: "soft" })]; // Чт 8:00–10:50, три клетки
+    const cells = new Set(grid.editorCells(periods, base));
+    cells.delete("~3:540");
+    cells.add("3:540");
+
+    expect(grid.editorSlots(periods, base, cells)).toEqual([
+      slot(3, 480, 530, { kind: "soft" }),
+      slot(3, 600, 650, { kind: "soft" }),
+      slot(3, 540, 590),
+    ]);
+  });
+
+  it("через API и базу: после автосохранения у пары остаются подпись и чётность", async () => {
+    const { repo, grid } = await mods();
+    const { user } = await makeGroup("Редактор", "Амир");
+    const periods = grid.gridPeriods(8 * 60, 22 * 60, 30);
+    await repo.replaceWeeklySlots(
+      user.userId,
+      [0, 1, 2, 3, 4, 5, 6],
+      [slot(0, 540, 630, { label: "Матан", parity: 0 })],
+      "wizard",
+    );
+
+    const stored = (await repo.getSlots(user.userId)).map((row) =>
+      slot(row.weekday!, row.startMin, row.endMin, { label: row.label, parity: row.weekParity, kind: row.kind }),
+    );
+    const cells = new Set(grid.editorCells(periods, stored));
+    cells.add(grid.editorKey(2, 8 * 60));
+    // Тот же путь, что у POST /api/g/{slug}/schedule.
+    const cleaned = grid.cleanIncomingSlots(JSON.parse(JSON.stringify(grid.editorSlots(periods, stored, cells))));
+    await repo.replaceWeeklySlots(user.userId, [0, 1, 2, 3, 4, 5, 6], cleaned, "web", undefined, { withSoft: true });
+
+    const after = await repo.getSlots(user.userId);
+    expect(after.map((row) => [row.weekday, row.startMin, row.endMin, row.label, row.weekParity, row.kind])).toEqual([
+      [0, 540, 630, "Матан", 0, "class"],
+      [2, 480, 530, "", null, "class"],
+    ]);
+  });
+});
+
 describe("второй участник и кворум", () => {
   it("кворум ослабляет требования и называет, кого не хватает", async () => {
     const { repo } = await mods();

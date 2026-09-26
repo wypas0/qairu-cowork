@@ -72,6 +72,102 @@ export function periodOverlaps(period: { start: number; end: number }, start: nu
   return period.start < end && start < period.end;
 }
 
+/**
+ * Клетка редактора «Моё расписание»: «день:начало ряда». «Неудобно» лежит в
+ * том же множестве с префиксом «~» — клетка бывает либо занятой, либо неудобной.
+ */
+export const SOFT_PREFIX = "~";
+const SOFT_KIND = "soft";
+
+export function editorKey(weekday: number, start: number, soft = false): string {
+  return `${soft ? SOFT_PREFIX : ""}${weekday}:${start}`;
+}
+
+/** Клетки, которые интервал задевает в сетке редактора, по порядку рядов. */
+function slotRows(periods: Period[], slot: WeeklySlot): { period: Period; key: string }[] {
+  const soft = slot.kind === SOFT_KIND;
+  return periods
+    .filter((period) => periodOverlaps(period, slot.start, slot.end))
+    .map((period) => ({ period, key: editorKey(slot.weekday, period.start, soft) }));
+}
+
+/** Закрашенные клетки сетки по сохранённым интервалам — так редактор открывается. */
+export function editorCells(periods: Period[], slots: WeeklySlot[]): string[] {
+  return [...new Set(slots.flatMap((slot) => slotRows(periods, slot).map((row) => row.key)))];
+}
+
+/**
+ * Собрать сетку редактора обратно в интервалы, не теряя того, чего сетка не
+ * показывает. Сетка знает только «клетка закрашена», а у интервала есть ещё
+ * подпись («Матан»), чётность недели, вид (пары, работа, спорт) и точное время
+ * внутри пары. Поэтому:
+ *   - интервал, ни одной клетки которого не трогали, сохраняется как был —
+ *     в том числе тот, что лежит вне часов группы и в сетке не виден;
+ *   - у тронутого остаются его ещё закрашенные клетки — в его же границах,
+ *     с его подписью, чётностью и видом;
+ *   - новые клетки, подряд идущие в дне, — один интервал вместе с перерывами.
+ * `base` — интервалы, по которым была раскрашена сетка до правок.
+ */
+export function editorSlots(periods: Period[], base: WeeklySlot[], cells: ReadonlySet<string>): WeeklySlot[] {
+  const before = new Set(editorCells(periods, base));
+  const changed = (key: string) => before.has(key) !== cells.has(key);
+  const covered = new Set<string>();
+  const result: WeeklySlot[] = [];
+
+  for (const slot of base) {
+    const rows = slotRows(periods, slot);
+    if (!rows.some((row) => changed(row.key))) {
+      result.push({ ...slot });
+      for (const row of rows) covered.add(row.key);
+      continue;
+    }
+    let run: Period[] = [];
+    const flush = () => {
+      if (run.length > 0) {
+        result.push({
+          ...slot,
+          start: Math.max(slot.start, run[0].start),
+          end: Math.min(slot.end, run[run.length - 1].end),
+        });
+      }
+      run = [];
+    };
+    for (const row of rows) {
+      if (cells.has(row.key)) {
+        run.push(row.period);
+        covered.add(row.key);
+      } else {
+        flush();
+      }
+    }
+    flush();
+  }
+
+  for (const soft of [false, true]) {
+    for (let weekday = 0; weekday < 7; weekday += 1) {
+      let runStart: number | null = null;
+      let previousEnd = 0;
+      const flush = () => {
+        if (runStart !== null) {
+          result.push({ weekday, start: runStart, end: previousEnd, label: "", parity: null, kind: soft ? SOFT_KIND : "class" });
+        }
+        runStart = null;
+      };
+      for (const period of periods) {
+        const key = editorKey(weekday, period.start, soft);
+        if (cells.has(key) && !covered.has(key)) {
+          if (runStart === null) runStart = period.start;
+          previousEnd = period.end;
+        } else {
+          flush();
+        }
+      }
+      flush();
+    }
+  }
+  return result;
+}
+
 type IncomingSlot = {
   weekday?: unknown;
   start?: unknown;

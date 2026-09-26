@@ -7,7 +7,7 @@ import { FlashToast } from "@/components/FlashToast";
 import { ScrollToAnchor } from "@/components/ScrollToAnchor";
 import { ScheduleEditor } from "@/components/ScheduleEditor";
 import { TelegramBackButton } from "@/components/TelegramButtons";
-import { gridPeriods, periodOverlaps } from "@/core/grid";
+import { type WeeklySlot, gridPeriods } from "@/core/grid";
 import { fmtMinutes } from "@/core/intervals";
 import { addDays, chatTz, compareDates, formatDM, formatDMY, todayIn, utcToZonedWall } from "@/core/timeutils";
 import * as repo from "@/db/repo";
@@ -77,17 +77,18 @@ export default async function MySchedulePage({
   const periods = gridPeriods(chat.dayStartMin, chat.dayEndMin, SLOT_STEP);
   const today = todayIn(chatTz(chat));
 
-  const initialBusy: string[] = [];
-  for (const slot of slots) {
-    if (slot.weekday === null || slot.specificDate !== null || slot.dateFrom !== null) continue;
-    // «Неудобно» редактор хранит рядом с занятостью, с префиксом «~».
-    const prefix = slot.kind === repo.SOFT_KIND ? "~" : "";
-    for (const period of periods) {
-      if (periodOverlaps(period, slot.startMin, slot.endMin)) {
-        initialBusy.push(`${prefix}${slot.weekday}:${period.start}`);
-      }
-    }
-  }
+  // Недельная занятость целиком — с подписями, чётностью и видом: редактор
+  // сохраняет их у тех пар, клеток которых человек не трогал.
+  const weekly: WeeklySlot[] = slots
+    .filter((slot) => slot.weekday !== null && slot.specificDate === null && slot.dateFrom === null)
+    .map((slot) => ({
+      weekday: slot.weekday!,
+      start: slot.startMin,
+      end: slot.endMin,
+      label: slot.label,
+      parity: slot.weekParity,
+      kind: slot.kind,
+    }));
 
   const errorKey = typeof query.err === "string" ? DATED_ERRORS[query.err] : undefined;
   const added = query.added === "1";
@@ -118,7 +119,7 @@ export default async function MySchedulePage({
           slug={slug}
           backHref={`/g/${slug}`}
           periods={periods}
-          initialBusy={initialBusy}
+          initialSlots={weekly}
           weekdayNames={WEEKDAY_NAMES[isLang(lang) ? lang : "ru"]}
           weekdayShort={WEEKDAY_SHORT[isLang(lang) ? lang : "ru"]}
           photoEnabled={hasVision()}

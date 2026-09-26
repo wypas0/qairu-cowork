@@ -4,8 +4,8 @@ import { fmtMinutes } from "@/core/intervals";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import type { Period } from "@/core/grid";
-import { periodOverlaps } from "@/core/grid";
+import type { Period, WeeklySlot } from "@/core/grid";
+import { SOFT_PREFIX, editorCells, editorSlots, periodOverlaps } from "@/core/grid";
 import { haptic, whenReady } from "@/lib/telegram";
 import { IconCamera, IconCheck, IconChevronRight, IconGrid, IconText } from "./icons";
 import { BreakRow, PeriodTime } from "./PeriodRow";
@@ -79,7 +79,7 @@ export type EditorLabels = {
  * префиксом: отмена, шаблоны и автосохранение работают с обоими сразу.
  * Клетка бывает либо занятой, либо неудобной, но не обеими.
  */
-const SOFT = "~";
+const SOFT = SOFT_PREFIX;
 type Brush = "busy" | "soft";
 
 /** Ключ клетки в множестве для этой кисти. */
@@ -161,6 +161,8 @@ type ParsedSlot = {
   start: number;
   end: number;
   label: string;
+  parity?: number | null;
+  kind?: string;
   text: string;
 };
 
@@ -177,7 +179,7 @@ function cellKey(weekday: number, start: number): string {
 export function ScheduleEditor({
   slug,
   periods,
-  initialBusy,
+  initialSlots,
   backHref,
   weekdayNames,
   weekdayShort,
@@ -187,7 +189,8 @@ export function ScheduleEditor({
   slug: string;
   /** Ряды сетки — пары. Занятость хранится по началу пары. */
   periods: Period[];
-  initialBusy: string[];
+  /** Сохранённая недельная занятость, включая «неудобно». */
+  initialSlots: WeeklySlot[];
   /** Куда ведёт главная кнопка Telegram, когда всё сохранено. */
   backHref: string;
   weekdayNames: string[];
@@ -196,7 +199,11 @@ export function ScheduleEditor({
   labels: EditorLabels;
 }) {
   const router = useRouter();
+  const [initialBusy] = useState(() => editorCells(periods, initialSlots));
   const [busy, setBusy] = useState<Set<string>>(() => new Set(initialBusy));
+  // Интервалы, по которым раскрашена сетка: из них при сохранении берутся
+  // подписи, чётность, вид и точное время тех клеток, которых не трогали.
+  const base = useRef<WeeklySlot[]>(initialSlots);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [failedSave, setFailedSave] = useState(false);
@@ -204,7 +211,7 @@ export function ScheduleEditor({
   // сетки новичка звучит как «всё готово», хотя он ещё ничего не сделал.
   const [savedOnce, setSavedOnce] = useState(initialBusy.length > 0);
   // Шаги для отмены: один шаг — один мазок или одно целое действие.
-  const [history, setHistory] = useState<Set<string>[]>([]);
+  const [history, setHistory] = useState<{ cells: Set<string>; base: WeeklySlot[] }[]>([]);
   const [importText, setImportText] = useState("");
   const [importing, setImporting] = useState(false);
   const [preview, setPreview] = useState<{ slots: ParsedSlot[]; errors: string[] } | null>(null);
@@ -212,7 +219,7 @@ export function ScheduleEditor({
   // «Сохранить», автосохранение молчит. Снимок — чтобы «Отменить импорт»
   // вернул сетку ровно к тому, что было до него.
   const [reviewing, setReviewing] = useState(false);
-  const beforeImport = useRef<{ busy: Set<string>; dirty: boolean } | null>(null);
+  const beforeImport = useRef<{ busy: Set<string>; dirty: boolean; base: WeeklySlot[] } | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [photoWorking, setPhotoWorking] = useState(false);
   const photoRef = useRef<HTMLInputElement>(null);
@@ -248,13 +255,15 @@ export function ScheduleEditor({
 
   /** Запомнить состояние перед изменением. Глубина ограничена — это отмена, а не журнал. */
   const pushHistory = useCallback(() => {
-    setHistory((previous) => [...previous.slice(-19), new Set(busyRef.current)]);
+    setHistory((previous) => [...previous.slice(-19), { cells: new Set(busyRef.current), base: base.current }]);
   }, []);
 
   const undo = useCallback(() => {
     setHistory((previous) => {
       if (previous.length === 0) return previous;
-      setBusy(previous[previous.length - 1]);
+      const step = previous[previous.length - 1];
+      base.current = step.base;
+      setBusy(step.cells);
       setDirty(true);
       haptic("press");
       return previous.slice(0, -1);
@@ -447,41 +456,20 @@ export function ScheduleEditor({
     apply(keys, false, "soft");
   }
 
-  /**
-   * Собрать клетки обратно в интервалы: подряд занятые пары — одна занятость
-   * вместе с перерывами. «Неудобно» собирается так же, отдельным видом.
-   */
-  function collect(): { weekday: number; start: number; end: number; kind: string }[] {
-    const slots: { weekday: number; start: number; end: number; kind: string }[] = [];
-    for (const [kind, name] of [["busy", "class"], ["soft", "soft"]] as const) {
-      for (let weekday = 0; weekday < 7; weekday += 1) {
-        let runStart: number | null = null;
-        let previousEnd = 0;
-        for (const period of periods) {
-          if (busy.has(own(cellKey(weekday, period.start), kind))) {
-            if (runStart === null) runStart = period.start;
-            previousEnd = period.end;
-          } else if (runStart !== null) {
-            slots.push({ weekday, start: runStart, end: previousEnd, kind: name });
-            runStart = null;
-          }
-        }
-        if (runStart !== null) slots.push({ weekday, start: runStart, end: previousEnd, kind: name });
-      }
-    }
-    return slots;
-  }
-
   const save = useCallback(async () => {
     setSaving(true);
+    // Клетки — в интервалы; нетронутые пары уходят как были, с подписями и чётностью.
+    const slots = editorSlots(periods, base.current, busy);
     try {
       const response = await fetch(`/api/g/${slug}/schedule`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
-        body: JSON.stringify({ slots: collect() }),
+        body: JSON.stringify({ slots }),
       });
       if (!response.ok) throw new Error(String(response.status));
+      // Сохранённое — новая основа: следующие правки сравниваются уже с ним.
+      base.current = slots;
       setDirty(false);
       setFailedSave(false);
       setSavedOnce(true);
@@ -495,9 +483,6 @@ export function ScheduleEditor({
     } finally {
       setSaving(false);
     }
-    // collect() читает busy и periods — они в списке, сама функция пересоздаётся
-    // на каждом рендере, и с ней сохранение запускалось бы после каждого кадра.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busy, periods, router, slug, labels.saveError]);
 
   // Сетку не сохраняют кнопкой: ждём паузы в рисовании и сохраняем сами.
@@ -556,8 +541,21 @@ export function ScheduleEditor({
       }
     }
     // Повторный импорт поверх непроверенного сравниваем с исходной сеткой, а не с черновиком.
-    if (!reviewing) beforeImport.current = { busy: new Set(busy), dirty };
+    if (!reviewing) beforeImport.current = { busy: new Set(busy), dirty, base: base.current };
     pushHistory();
+    // Распознанные пары становятся основой сетки вместе с подписями и
+    // чётностью: сохранение возьмёт их отсюда, а не из клеток.
+    base.current = [
+      ...base.current.filter((slot) => slot.kind === "soft"),
+      ...slots.map((slot) => ({
+        weekday: slot.weekday,
+        start: slot.start,
+        end: slot.end,
+        label: slot.label ?? "",
+        parity: slot.parity ?? null,
+        kind: slot.kind ?? "class",
+      })),
+    ];
     setBusy(next);
     setDirty(true);
     setReviewing(true);
@@ -575,6 +573,7 @@ export function ScheduleEditor({
   function cancelImport() {
     const snapshot = beforeImport.current;
     if (snapshot) {
+      base.current = snapshot.base;
       setBusy(snapshot.busy);
       setDirty(snapshot.dirty);
     }
