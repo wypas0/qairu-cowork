@@ -18,11 +18,12 @@ input[type="password"],
 select,
 textarea {
   width: 100%;
-  min-height: 44px;
+  min-height: 48px;
   padding: 11px 14px;
-  background: var(--surface);
+  background: var(--field);
   color: var(--text);
-  border: 1px solid var(--border);
+  /* Обводка поля — не ниже 3:1 к фону: у qairuhub 30%, этого мало. */
+  border: 1px solid var(--field-line);
   border-radius: var(--r-input);
   font: inherit;
   transition: border-color 150ms var(--ease);
@@ -50,7 +51,16 @@ textarea {
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  border-color: var(--accent);
+  border-color: var(--field-line-focus);
+}
+::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+/* Раскрытый список select рисует браузер — цвета темы задаём явно. */
+select option {
+  background: var(--popover);
+  color: var(--text);
 }
 input:disabled {
   opacity: 0.5;
@@ -81,49 +91,52 @@ input:disabled {
   width: 18px;
   height: 18px;
   min-height: 0;
-  accent-color: var(--accent);
+  accent-color: var(--ink);
 }
 input[type="range"] {
   accent-color: var(--accent);
   min-height: 0;
 }
 
-/* --- кнопки: только пилюли, вес 600 --- */
+/* --- кнопки: радиус 8, обводка; пилюли — только у выбора (дни, ответы) --- */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  height: 40px;
+  height: 44px;
   padding: 0 18px;
-  border-radius: var(--r-full);
-  border: 1px solid var(--border);
-  background: var(--surface);
+  border-radius: var(--r-md);
+  border: 1px solid var(--btn-line);
+  background: transparent;
   color: var(--text);
   font: inherit;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
   text-decoration: none;
   white-space: nowrap;
-  transition: background-color 150ms var(--ease), border-color 150ms var(--ease),
-    color 150ms var(--ease), transform 150ms var(--ease);
+  transition: background-color 400ms var(--ease), border-color 400ms var(--ease),
+    color 400ms var(--ease), transform 150ms var(--ease);
 }
 .btn:hover {
   background: var(--hover);
-  border-color: var(--hairline);
+  border-color: var(--ink);
 }
 .btn:active {
   transform: scale(0.97);
   transition-duration: 75ms;
 }
+/* Главное действие — белое (ink в светлой теме); при наведении заливка
+   уходит и остаётся обводка — как у qairuhub. */
 .btn-primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-text);
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--ink-text);
 }
 .btn-primary:hover {
-  background: var(--accent-deep);
-  border-color: var(--accent-deep);
+  background: transparent;
+  border-color: var(--ink);
+  color: var(--text);
 }
 .btn-quiet {
   background: transparent;
@@ -141,19 +154,31 @@ input[type="range"] {
   border-color: color-mix(in srgb, var(--danger) 40%, transparent);
 }
 .btn-sm {
-  height: 32px;
+  height: 36px;
   padding: 0 14px;
   font-size: 13px;
   line-height: 18px;
 }
 .btn-lg {
-  height: 44px;
+  height: 48px;
   padding: 0 22px;
+}
+/* На тач-экранах цель нажатия не меньше 44px. */
+@media (pointer: coarse) {
+  .btn-sm {
+    min-height: 44px;
+  }
 }
 .btn[disabled] {
   opacity: 0.5;
+  filter: grayscale(1);
   cursor: default;
 }
 .btn[disabled]:active {
   transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn {
+    transition: none;
+  }
 }

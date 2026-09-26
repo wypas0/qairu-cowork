@@ -671,7 +671,8 @@ export default async function GroupPage({
                         ))}
                       </select>
                     </div>
-                    <button className="btn" type="submit">
+                    {/* Главное действие вкладки — ink, как «Сохранить» в аккаунте. */}
+                    <button className="btn btn-primary" type="submit">
                       {t("w_save_settings")}
                     </button>
                   </form>

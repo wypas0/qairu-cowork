@@ -5,8 +5,10 @@
 // Поднимает PGlite в памяти, накатывает миграции, заводит группу «ИС-21»
 // (пять человек, разные расписания и отметки «неудобно», встреча через
 // 100 минут, прошедшая встреча с итогами) и вторую группу «Дипломники»,
-// пишет {slug, token, url} в e2e/.state.json и запускает `next start` на
-// собранном проекте (`npx next build` — заранее). Ctrl+C гасит всё.
+// пишет {slug, token, tokenEmpty, url} в e2e/.state.json и запускает
+// `next start` на собранном проекте (`npx next build` — заранее). token —
+// вход Амиром, tokenEmpty — Болатом, у которого ещё нет расписания.
+// Ctrl+C гасит всё.
 
 import { spawn } from "node:child_process";
 import crypto from "node:crypto";
@@ -48,6 +50,8 @@ const chat2 = -(10 ** 15) - 555;
 const [chat3, chat4, chat5] = [-(10 ** 15) - 777, -(10 ** 15) - 888, -(10 ** 15) - 999];
 const [amir, asel, bolat, dana, erlan] = [1001, 1002, 1003, 1004, 1005];
 const token = crypto.randomBytes(32).toString("base64url");
+// Болат ещё не заполнил расписание: вход им — пустой редактор.
+const tokenEmpty = crypto.randomBytes(32).toString("base64url");
 
 await sql`insert into chats (chat_id, slug, origin, title, lang, tz, created_by)
           values (${chat}, 'smoke001', 'web', 'ИС-21', 'ru', ${TZ}, ${amir}),
@@ -64,7 +68,8 @@ await sql`insert into memberships (chat_id, user_id, role) values
           (${chat2}, ${amir}, 'member'), (${chat2}, ${asel}, 'admin'),
           (${chat3}, ${asel}, 'admin'), (${chat4}, ${asel}, 'admin'), (${chat5}, ${asel}, 'admin')`;
 await sql`insert into web_sessions (token_hash, user_id)
-          values (${crypto.createHash("sha256").update(token).digest("hex")}, ${amir})`;
+          values (${crypto.createHash("sha256").update(token).digest("hex")}, ${amir}),
+                 (${crypto.createHash("sha256").update(tokenEmpty).digest("hex")}, ${bolat})`;
 
 const weekly = (user, days, start, end, kind = "class") =>
   days.map((day) => ({ user_id: user, weekday: day, start_min: start, end_min: end, kind, source: "web", label: "" }));
@@ -101,7 +106,7 @@ await sql`insert into meetings (chat_id, initiator_id, place, when_text, when_st
 await sql.end();
 
 const url = `http://localhost:${SITE_PORT}`;
-const state = { slug: "smoke001", token, url, weekday };
+const state = { slug: "smoke001", token, tokenEmpty, url, weekday };
 await mkdir(new URL("../../e2e/", import.meta.url), { recursive: true });
 await writeFile(new URL("../../e2e/.state.json", import.meta.url), JSON.stringify(state));
 console.log(`[e2e] база на ${DB_PORT}, сайт на ${url}, вход: кука qairu_token=${token}`);
@@ -110,7 +115,7 @@ console.log(`[e2e] база на ${DB_PORT}, сайт на ${url}, вход: к�
 const next = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start", "-p", String(SITE_PORT)], {
   stdio: "inherit",
   // PGlite принимает одно соединение — пул сайта под это.
-  env: { ...process.env, DATABASE_URL, DATABASE_POOL_MAX: "1", NEXT_PUBLIC_SITE_URL: url, BOT_TOKEN: "" },
+  env: { ...process.env, DATABASE_URL, DATABASE_POOL_MAX: "1", NEXT_PUBLIC_SITE_URL: url, BOT_TOKEN: "", DESIGN_SPECIMEN: "1" },
 });
 const stop = async () => {
   next.kill();

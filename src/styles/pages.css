@@ -20,27 +20,64 @@
   padding-right: 12px;
 }
 
-/* --- главная --- */
+/* --- главная: витрина «ночное небо» ---
+   Витрина всегда тёмная, в обеих темах: внутри — токены тёмной темы.
+   Космос, звёзды и горизонт планеты — одной картинкой (public/hero-sky.jpg,
+   11 КБ, рисует scripts/dev/hero-sky.mjs из цветов qairuhub), а не слоями
+   CSS-градиентов: их растеризация на телефоне стоила ~100–150 мс первой
+   отрисовки (Lighthouse 90 против 96–97). */
 .hero {
-  padding: 8px 0 4px;
+  position: relative;
+  isolation: isolate;
+  margin: 8px 0 32px;
+  padding: 40px 24px;
+  border-radius: var(--r-3xl);
+  background: #05051d url("/hero-sky.jpg") center bottom / cover no-repeat;
+  color: #ffffff;
+  overflow: hidden;
+  --text: #ffffff;
+  --muted: rgba(255, 255, 255, 0.78);
+  --card: rgba(255, 255, 255, 0.08);
+  --card-line: rgba(255, 255, 255, 0.18);
+  --surface: rgba(255, 255, 255, 0.08);
+  --border: rgba(255, 255, 255, 0.18);
+  --text-glow: 0 2px 24px rgba(6, 18, 58, 0.45), 0 0 2px rgba(6, 18, 58, 0.25);
 }
 .hero h1 {
   max-width: 18ch;
+  color: #ffffff;
 }
 .hero p.lead {
   max-width: 62ch;
   margin-top: 12px;
 }
-/* «Как это работает»: список строк в одной рамке. Нумерованных плиток
-   и иконок в кружках в системе нет. */
+.hero .demo {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* Манифест сжатым капсом между витриной и шагами. */
+.manifest {
+  margin: 8px 0 32px;
+  font-size: clamp(44px, 9.5vw, 128px);
+  text-align: center;
+  color: var(--text);
+  text-shadow: var(--text-glow);
+}
+.manifest span {
+  display: block;
+}
+
 /* --- главная вошедшего: его группы первым блоком --- */
 .group-list {
   list-style: none;
   margin: 0 0 20px;
   padding: 0;
-  border: 1px solid var(--border);
+  border: 1px solid var(--card-line);
   border-radius: var(--r-xl);
-  background: var(--surface);
+  background: var(--card);
   overflow: hidden;
 }
 .group-list li + li {
@@ -121,23 +158,33 @@ table.week.demo-week td.timecol.period {
     grid-template-columns: 1.1fr 1fr;
     gap: 40px;
     align-items: center;
+    padding: 64px 56px 72px;
   }
 }
 
+/* «Как это работает» — три шага по порядку, стеклянные карточки с номером. */
 .steps {
+  display: grid;
+  gap: 12px;
   list-style: none;
   margin: 28px 0 20px;
   padding: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--r-xl);
-  background: var(--surface);
 }
 .step {
-  padding: 20px;
-  border-bottom: 1px solid var(--border);
+  padding: 24px;
+  border: 1px solid var(--card-line);
+  border-radius: var(--r-xl);
+  background: var(--card);
+  transition: background-color 600ms var(--ease);
 }
-.step:last-child {
-  border-bottom: 0;
+.step:hover {
+  background: var(--card-hover);
+}
+.step-n {
+  display: block;
+  margin-bottom: 12px;
+  font-size: 44px;
+  color: var(--muted);
 }
 .step h3 {
   margin: 0 0 4px;
@@ -150,15 +197,12 @@ table.week.demo-week td.timecol.period {
 }
 @media (min-width: 760px) {
   .steps {
-    display: grid;
     grid-template-columns: repeat(3, 1fr);
   }
+}
+@media (prefers-reduced-motion: reduce) {
   .step {
-    border-bottom: 0;
-    border-right: 1px solid var(--border);
-  }
-  .step:last-child {
-    border-right: 0;
+    transition: none;
   }
 }
 

@@ -1,19 +1,22 @@
 /* Типографика: роли из дизайн-кода. */
 
 /* --- типографика: роли из дизайн-кода --- */
+/* Крупные заголовки — вес 500 и свечение поверх неба (в светлой теме его нет). */
 .type-display {
   font-size: 40px;
   line-height: 44px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  text-shadow: var(--text-glow);
 }
 .type-title-1,
 h1 {
   font-size: 32px;
   line-height: 36px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-weight: 500;
+  letter-spacing: -0.025em;
   margin: 0 0 8px;
+  text-shadow: var(--text-glow);
 }
 .type-title-2 {
   font-size: 28px;
@@ -29,10 +32,10 @@ h1 {
 }
 .type-headline,
 h2 {
-  font-size: 17px;
-  line-height: 22px;
-  font-weight: 600;
-  letter-spacing: -0.005em;
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
   margin: 0 0 12px;
 }
 h3 {
@@ -45,7 +48,7 @@ h3 {
 .lead {
   font-size: 17px;
   line-height: 26px;
-  font-weight: 400;
+  font-weight: 500;
   letter-spacing: -0.005em;
   color: var(--muted);
 }
@@ -80,6 +83,35 @@ p {
 .muted {
   color: var(--muted);
 }
+/* Акцентное слово рукописным шрифтом — одно на заголовок, как у qairuhub.
+   Сам Caveat включает класс deco-fonts после load (DecoFonts.tsx), и он не
+   стоит на пути первой отрисовки. До того — «Caveat Fallback»: его next/font
+   подгоняет под метрики Caveat, поэтому подмена почти не сдвигает строку
+   (CLS 0,021 → 0,004 против системного рукописного). */
+.script-word {
+  font-family: "Caveat Fallback", cursive;
+  font-style: normal;
+  font-weight: 600;
+  font-size: 1.18em;
+  line-height: 0.9;
+  letter-spacing: -0.01em;
+  margin-right: 0.04em;
+}
+/* Сжатый капс (Oswald 600 — кириллическая пара Anton) — только крупно. */
+.display-caps {
+  font-family: "Oswald Fallback", Impact, sans-serif;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: -0.005em;
+  line-height: 0.92;
+}
+html.deco-fonts .script-word {
+  font-family: var(--font-script), cursive;
+}
+html.deco-fonts .display-caps {
+  font-family: var(--font-display), Impact, sans-serif;
+}
+
 /* Цифры в колонках не должны прыгать по ширине. Моноширинного шрифта
    в интерфейсе нет — есть табличные цифры Inter. */
 .mono,

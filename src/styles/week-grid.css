@@ -14,7 +14,7 @@ table.week {
 table.week th {
   font-size: 13px;
   line-height: 18px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text);
   padding: 4px 2px 8px;
   text-align: center;
@@ -248,9 +248,11 @@ table.week tr.break-row td {
   }
   table.week thead th {
     position: sticky;
-    top: calc(65px + var(--safe-top));
+    /* Под шапкой сайта: 12 + 44 (кнопка профиля) + 12 + 1 (линия). */
+    top: calc(69px + var(--safe-top));
     z-index: 2;
-    background: var(--surface);
+    /* Цвет стекла карточки, а не чёрный блок поверх неё. */
+    background: var(--sticky);
   }
   /* «21.09» в колонке шириной ~40px слипалось с соседней датой. */
   table.week thead th .small {
@@ -263,6 +265,60 @@ table.week tr.break-row td {
 table.week.editor td.cell {
   background: var(--slot-free);
   box-shadow: inset 0 0 0 1px var(--slot-free-border);
+}
+/* Тач-экран шире телефона (планшет): клетка недели не ниже 44px. */
+@media (pointer: coarse) {
+  table.week.editor td.cell {
+    height: 44px;
+  }
+}
+
+/* --- дневной вид редактора: телефон ---
+   Семь колонок на 375px дают клетку ~39×21px — меньше даже 24px
+   (WCAG 2.5.8). На телефоне — выбор дня и один столбец на всю ширину. */
+.editor-day {
+  display: none;
+}
+@media (max-width: 560px) {
+  .gridwrap > table.week.editor:not(.day) {
+    display: none;
+  }
+  .editor-day {
+    display: grid;
+    gap: 12px;
+  }
+}
+.editor-days {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.editor-days::-webkit-scrollbar {
+  display: none;
+}
+.editor-days .daychip {
+  flex: 1 0 auto;
+  justify-content: center;
+  padding: 0 10px;
+}
+table.week.editor.day {
+  min-width: 0;
+}
+table.week.editor.day td.cell {
+  height: 48px;
+  padding: 0 14px;
+  text-align: left;
+}
+.cell-state {
+  font-size: 13px;
+  font-weight: 500;
+}
+table.week.editor td.cell.busy .cell-state {
+  color: var(--slot-busy-text);
+}
+.editor-day > .btn {
+  justify-self: start;
 }
 table.week.editor td.cell.busy {
   background: var(--slot-busy) !important;
@@ -285,30 +341,34 @@ table.week.editor td.cell.soft {
   gap: 4px;
   margin: 4px 0 12px;
   padding: 3px;
-  border: 1px solid var(--border);
-  border-radius: var(--r-full);
-  background: var(--surface-2);
+  border: 1px solid var(--card-line);
+  border-radius: var(--r-lg);
+  background: var(--seg-fill);
 }
 .brush-option {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  height: 34px;
+  height: 40px;
   padding: 0 14px;
   border: 0;
-  border-radius: var(--r-full);
+  border-radius: var(--r-md);
   background: transparent;
   color: var(--muted);
   font: inherit;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
   transition: background-color 150ms var(--ease), color 150ms var(--ease);
 }
 .brush-option.active {
-  background: var(--surface);
-  color: var(--text);
-  box-shadow: inset 0 0 0 1px var(--border);
+  background: var(--ink);
+  color: var(--ink-text);
+}
+@media (pointer: coarse) {
+  .brush-option {
+    height: 44px;
+  }
 }
 .brush-option i {
   width: 14px;
@@ -350,10 +410,10 @@ table.week td.cell.mine::before {
   );
 }
 
-/* --- назначенные встречи на тепловой карте --- */
+/* --- назначенные встречи на тепловой карте: розовые, красный — за ошибками --- */
 table.week td.cell.meeting,
 .legend i.swatch-meeting {
-  background: var(--danger);
+  background: var(--meeting);
 }
 table.week td.cell.meeting {
   overflow: hidden;
@@ -370,7 +430,7 @@ table.week td.cell.meeting {
   font-size: 11px;
   line-height: 1.2;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--meeting-text);
   text-align: left;
   word-break: break-word;
   pointer-events: none;
@@ -469,7 +529,7 @@ table.week td.cell.meeting {
 .cell-popover-meeting {
   margin: 0 0 4px;
   font-weight: 600;
-  color: var(--danger);
+  color: var(--meeting);
 }
 
 /* --- подсказка «кто свободен» при наведении на клетку --- */
@@ -479,7 +539,7 @@ table.week td.cell.meeting {
   transform: translate(-50%, calc(-100% - 8px));
   max-width: min(300px, calc(100vw - 32px));
   padding: 10px 12px;
-  border-radius: var(--r-lg);
+  border-radius: var(--r-xl);
   background: var(--ink);
   color: var(--ink-text);
   box-shadow: var(--shadow-float);

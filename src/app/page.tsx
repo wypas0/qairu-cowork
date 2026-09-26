@@ -23,6 +23,19 @@ const TIMEZONES = [
   ["UTC", "UTC"],
 ];
 
+/** Заголовок с одним акцентным словом рукописным шрифтом. */
+function withAccent(title: string, accent: string) {
+  const at = accent ? title.indexOf(accent) : -1;
+  if (at < 0) return title;
+  return (
+    <>
+      {title.slice(0, at)}
+      <i className="script-word">{accent}</i>
+      {title.slice(at + accent.length)}
+    </>
+  );
+}
+
 export default async function LandingPage({
   searchParams,
 }: {
@@ -56,19 +69,34 @@ export default async function LandingPage({
           </header>
         ) : (
           <>
+          {/* Небо витрины — самый крупный элемент первого экрана (LCP). Фоновую
+              картинку браузер находит только после разбора CSS; ссылка в разметке
+              отдаёт её сразу и с высоким приоритетом. */}
+          <link rel="preload" as="image" href="/hero-sky.jpg" fetchPriority="high" />
           <section className="hero">
             <div className="hero-text">
-              <h1 className="type-display">{t("w_hero_title")}</h1>
+              <h1 className="type-display">{withAccent(t("w_hero_title"), t("w_hero_accent"))}</h1>
               <p className="lead">{t("w_hero_lead")}</p>
             </div>
             {/* Сразу показываем сам продукт, а не рассказ о нём. */}
             <ProductDemo lang={lang} />
           </section>
 
-          {/* Как это работает — строки с волосяными линиями, без нумерованных плиток. */}
+          <p className="manifest display-caps" aria-hidden="true">
+            {t("w_manifest")
+              .split("|")
+              .map((line) => (
+                <span key={line}>{line}</span>
+              ))}
+          </p>
+
+          {/* Как это работает — три шага с крупным номером. */}
           <ol className="steps">
             {([1, 2, 3] as const).map((n) => (
               <li className="step" key={n}>
+                <span className="step-n display-caps" aria-hidden="true">
+                  0{n}
+                </span>
                 <h3>{t(`w_step${n}_t`)}</h3>
                 <p className="small muted">{t(`w_step${n}_d`)}</p>
               </li>

@@ -48,15 +48,23 @@ export function TelegramMainButton({
       whenReady((app) => {
         const button = app.MainButton;
         if (!button) return;
-        button.setParams({
-          text,
-          color: themeColor("--accent") ?? undefined,
-          text_color: "#ffffff",
-          is_active: !disabled,
-          is_visible: true,
-        });
+        const paint = () =>
+          button.setParams({
+            text,
+            // Главное действие — как кнопка сайта: белая в тёмной теме, ink в
+            // светлой. Раньше — синий с белым: в тёмной теме 4,27:1, ниже AA.
+            color: themeColor("--ink") ?? undefined,
+            text_color: themeColor("--ink-text") ?? "#ffffff",
+            is_active: !disabled,
+            is_visible: true,
+          });
+        paint();
         if (progress) button.showProgress(true);
         else button.hideProgress();
+        // Тему меняют в панели профиля или в самом Telegram — цвет догоняет.
+        const watchTheme = new MutationObserver(paint);
+        watchTheme.observe(document.documentElement, { attributeFilter: ["data-theme"] });
+        return () => watchTheme.disconnect();
       }),
     [text, disabled, progress],
   );

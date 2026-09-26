@@ -110,6 +110,8 @@ export const EN: Dict = {
   w_hero_title: "When is everyone free?",
   w_hero_lead:
     "Everyone marks their classes once. The site then shows when the whole group is free — and when almost all of it is.",
+  w_hero_accent: "free",
+  w_manifest: "One week|Whole group|One window",
   w_step1_t: "Create a group",
   w_step1_d: "Sign in with Telegram and get an invite link — share it with your groupmates.",
   w_step2_t: "Everyone marks classes",
@@ -314,6 +316,9 @@ export const EN: Dict = {
   w_me_lead:
     "Mark when you're busy: classes, work, training. The free time is worked out for you.",
   w_paint_hint: "Tap a cell to mark it busy or free. Hold and drag to paint several in a row. Tap a weekday to fill or clear the whole day.",
+  w_day_pick: "Day of the week",
+  w_day_all_busy: "Mark the whole day busy",
+  w_day_all_free: "Free the whole day",
   w_save: "Save",
   w_saved: "Saved",
   w_not_filled_yet: "Not filled in yet",

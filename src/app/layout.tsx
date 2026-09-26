@@ -1,8 +1,9 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Caveat, Inter, Oswald } from "next/font/google";
 import { cookies, headers } from "next/headers";
 import { Suspense } from "react";
 
+import { DecoFonts } from "@/components/DecoFonts";
 import { NavProgress } from "@/components/NavProgress";
 import { SiteFooter } from "@/components/SiteFooter";
 import { TelegramAuth } from "@/components/TelegramAuth";
@@ -19,6 +20,26 @@ const inter = Inter({
   subsets: ["latin", "cyrillic"],
   display: "swap",
   variable: "--font-inter",
+});
+
+/* Шрифты витрины: сжатый капс (Oswald 600 — кириллическая пара Anton у
+   qairuhub) и Caveat для одного акцентного слова. Объявлены здесь, а не на
+   странице: так их @font-face едут в общем CSS, без второго блокирующего
+   файла. Без предзагрузки, а применяются после load (DecoFonts): файлы
+   качаются только там, где шрифт виден, и не мешают первой отрисовке. */
+const display = Oswald({
+  weight: "600",
+  subsets: ["latin", "cyrillic"],
+  display: "swap",
+  preload: false,
+  variable: "--font-display",
+});
+const script = Caveat({
+  weight: "600",
+  subsets: ["latin", "cyrillic"],
+  display: "swap",
+  preload: false,
+  variable: "--font-script",
 });
 
 /* Знак продукта — тот же, что в шапке (BrandMark), кобальтом. */
@@ -49,8 +70,8 @@ export const viewport: Viewport = {
   viewportFit: "cover",
   colorScheme: "light dark",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f4f6fa" },
-    { media: "(prefers-color-scheme: dark)", color: "#070e1c" },
+    { media: "(prefers-color-scheme: light)", color: "#f5f5f5" },
+    { media: "(prefers-color-scheme: dark)", color: "#03040c" },
   ],
 };
 
@@ -67,12 +88,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html
       lang={lang}
       data-theme={theme === "system" ? undefined : theme}
-      className={inter.variable}
+      className={`${inter.variable} ${display.variable} ${script.variable}`}
       suppressHydrationWarning
     >
       <body>
         <TelegramAuth />
         <TelegramChrome />
+        <DecoFonts />
         {/* useSearchParams требует своей границы — она охватывает только полоску, не страницу. */}
         <Suspense fallback={null}>
           <NavProgress />

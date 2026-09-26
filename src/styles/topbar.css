@@ -7,7 +7,10 @@
   gap: 10px;
   padding: calc(12px + var(--safe-top)) max(20px, var(--safe-right)) 12px max(20px, var(--safe-left));
   border-bottom: 1px solid var(--border);
-  background: var(--surface);
+  /* Полупрозрачная над небом, как шапка qairuhub. */
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   position: sticky;
   top: 0;
   z-index: 20;
@@ -49,12 +52,12 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   flex: none;
   border-radius: var(--r-full);
-  border: 1px solid var(--border);
-  background: var(--surface);
+  border: 1px solid var(--btn-line);
+  background: transparent;
   color: var(--text);
   cursor: pointer;
   transition: background-color 150ms var(--ease), border-color 150ms var(--ease), transform 150ms var(--ease);

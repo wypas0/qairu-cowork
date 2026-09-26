@@ -38,7 +38,7 @@
   background: var(--ink);
   color: var(--ink-text);
   padding: 12px 18px;
-  border-radius: var(--r-full);
+  border-radius: var(--r-md);
   font-size: 14px;
   line-height: 20px;
   font-weight: 500;

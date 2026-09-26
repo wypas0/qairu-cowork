@@ -85,6 +85,10 @@
   flex-wrap: wrap;
   margin-top: 12px;
 }
+/* Ответы — пилюли выбора рядом с кнопками действий: та же высота. */
+.votes .daychip {
+  height: 44px;
+}
 
 .notice {
   display: flex;
@@ -314,11 +318,17 @@
   color: var(--success);
 }
 
-/* --- разделы страницы группы --- */
+/* --- разделы страницы группы: сегментированная панель qairuhub --- */
 .tabs {
   display: flex;
-  gap: 8px;
+  width: fit-content;
+  max-width: 100%;
+  gap: 2px;
+  padding: 3px;
   margin-bottom: 20px;
+  border: 1px solid var(--card-line);
+  border-radius: var(--r-lg);
+  background: var(--seg-fill);
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -326,22 +336,25 @@
   display: none;
 }
 .tab {
-  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
   padding: 0 16px;
   flex: none;
-  border: 1px solid var(--border);
-  border-radius: var(--r-full);
-  background: var(--surface);
-  color: var(--text);
+  border: 0;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--muted);
   font: inherit;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
-  transition: background-color 150ms var(--ease), border-color 150ms var(--ease),
-    color 150ms var(--ease), transform 150ms var(--ease);
+  transition: background-color 150ms var(--ease), color 150ms var(--ease), transform 150ms var(--ease);
 }
 .tab:hover {
   background: var(--hover);
+  color: var(--text);
 }
 .tab:active {
   transform: scale(0.97);
@@ -349,27 +362,32 @@
 }
 .tab.active {
   background: var(--ink);
-  border-color: var(--ink);
   color: var(--ink-text);
-}
-.tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
 }
 .tab .count-badge {
   margin-left: 0;
 }
-/* На телефоне четыре вкладки должны помещаться целиком: «Настройки»
-   обрезались справа, и не было видно, что вкладки можно листать. */
+/* На телефоне четыре вкладки помещаются целиком, делят ширину поровну. */
 @media (max-width: 560px) {
   .tabs {
-    gap: 6px;
+    width: 100%;
   }
   .tab {
-    height: 34px;
-    padding: 0 11px;
+    flex: 1 1 0;
+    min-width: 0;
+    justify-content: center;
+    padding: 0 6px;
     font-size: 13px;
+  }
+}
+@media (pointer: coarse) {
+  .tab {
+    height: 44px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tab {
+    transition: none;
   }
 }
 
