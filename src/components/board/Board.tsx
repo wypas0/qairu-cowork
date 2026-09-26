@@ -54,7 +54,7 @@ export function Board({
   const [hover, setHover] = useState<Hover | null>(null);
   // Кого подсветить на карте: наведение на имя в «Кто должен прийти».
   const [spot, setSpot] = useState<number | null>(null);
-  const now = useWallNow(payload.tz);
+  const now = useWallNow(payload.tz, payload.now);
   const requestId = useRef(0);
   // Для каких выбора, длительности и недели посчитаны данные на экране.
   // Сравнивать нужно с ними, а не с начальными значениями: иначе

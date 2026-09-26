@@ -87,6 +87,15 @@ describe("расписание и сетка", () => {
     expect(cleaned[0]).toMatchObject({ weekday: 0, start: 540, end: 630, parity: null });
   });
 
+  it("доска приходит с часами группы: первый кадр отсекает прошедшее так же, как браузер", async () => {
+    const { payload } = await board((await makeGroup("Часы", "Амир")).chat.slug!);
+    const { utcToZonedWall } = await import("@/core/timeutils");
+    const wall = utcToZonedWall(new Date(), "Asia/Almaty");
+    expect(payload.now.day).toBe(wall.day);
+    expect(Math.abs(payload.now.min - wall.minutes)).toBeLessThanOrEqual(1);
+    expect(payload.now.day).toBe(payload.today);
+  });
+
   it("пока человек не сохранил расписание, он не «свободен всегда» — он неизвестен", async () => {
     const { chat, payload } = await board((await makeGroup("Свежая", "Амир")).chat.slug!);
     expect(chat.slug).toBeTruthy();

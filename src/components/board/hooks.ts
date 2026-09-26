@@ -5,12 +5,13 @@ import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { type WallNow, wallNow } from "./time";
 
 /**
- * «Сейчас» в поясе группы, раз в минуту заново. На сервере не считается:
- * разметка сервера и браузера должна совпасть, поэтому до гидратации — null,
- * и отметки «сегодня» и «прошло» появляются сразу после загрузки.
+ * «Сейчас» в поясе группы, раз в минуту заново. Первое значение — `initial`
+ * от сервера (часы на момент расчёта страницы): разметка сервера и браузера
+ * совпадает, и прошедшее отсекается уже в первом кадре, а не после загрузки
+ * со сдвигом всего, что ниже.
  */
-export function useWallNow(tz: string): WallNow | null {
-  const [now, setNow] = useState<WallNow | null>(null);
+export function useWallNow(tz: string, initial: WallNow | null = null): WallNow | null {
+  const [now, setNow] = useState<WallNow | null>(initial);
   useEffect(() => {
     const tick = () => setNow(wallNow(tz));
     tick();

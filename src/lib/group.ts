@@ -326,6 +326,13 @@ export type BoardPayload = {
   /** Сегодня и пояс группы — чтобы отметить на карте текущий день и прошедшее время. */
   today: string;
   tz: string;
+  /**
+   * Стенные часы группы в момент расчёта. С ними первый рендер — на сервере и
+   * в браузере — одинаково отсекает прошедшее: раньше часы появлялись только
+   * после загрузки, прошедшее окно исчезало из «Лучшего времени», и всё ниже
+   * прыгало вверх (CLS 0,026).
+   */
+  now: { day: string; min: number };
   /** Ряды тепловой карты: номер пары и перерыв перед ней. */
   periods: Period[];
   /** Назначенные встречи — их клетки на карте красные. */
@@ -395,6 +402,7 @@ export function toBoardPayload(state: GroupState, lang: string, viewerId?: numbe
     best: bestSlots(state, lang),
     today: state.today,
     tz: state.tz,
+    now: (({ day, minutes }) => ({ day, min: minutes }))(utcToZonedWall(new Date(), state.tz)),
     periods: state.periods,
     meetings: state.weekMeetings,
     days: state.grid.map((day) => ({
