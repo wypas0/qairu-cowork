@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 
 import { fmtMinutes } from "@/core/intervals";
 import type { BoardPayload } from "@/lib/group";
+import { moveFocusByArrow } from "../gridKeys";
 import { IconChevronLeft, IconChevronRight, IconMeeting } from "../icons";
 import { BreakRow, PeriodTime } from "../PeriodRow";
 import type { CellDetail, Hover } from "./CellDetails";
@@ -242,6 +243,7 @@ export function HeatMap({
                         onOpen(detail);
                       }}
                       onKeyDown={(event) => {
+                        if (moveFocusByArrow(event)) return;
                         if (event.key !== " " && event.key !== "Enter") return;
                         event.preventDefault();
                         onOpen(detail);

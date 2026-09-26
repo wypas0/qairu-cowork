@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import type { Period, WeeklySlot } from "@/core/grid";
 import { SOFT_PREFIX, editorCells, editorSlots, periodOverlaps } from "@/core/grid";
 import { haptic, whenReady } from "@/lib/telegram";
+import { moveFocusByArrow } from "./gridKeys";
 import { IconCamera, IconCheck, IconChevronRight, IconGrid, IconText } from "./icons";
 import { BreakRow, PeriodTime } from "./PeriodRow";
 import { TelegramMainButton } from "./TelegramButtons";
@@ -72,6 +73,10 @@ export type EditorLabels = {
   photoFormatOne: string; // «{n}»
   photoEmpty: string;
   photoEmptyOne: string; // «{n}»
+  /** Дневной вид на телефоне: подпись к выбору дня и кнопка на весь день. */
+  dayPick: string;
+  dayAllBusy: string;
+  dayAllFree: string;
 };
 
 /**
@@ -85,6 +90,16 @@ type Brush = "busy" | "soft";
 /** Ключ клетки в множестве для этой кисти. */
 function own(key: string, kind: Brush): string {
   return kind === "soft" ? SOFT + key : key;
+}
+
+/**
+ * Ключ клетки под элементом. Клетки дневного вида (телефон) несут его в
+ * data-day-key, а не в data-key: в разметке лежат оба вида сразу, и один
+ * data-key на две клетки путал бы и поиск клетки, и тесты.
+ */
+function keyOf(target: EventTarget | null): string | null {
+  const cell = target instanceof Element ? target.closest<HTMLElement>("td.cell") : null;
+  return cell?.dataset.key ?? cell?.dataset.dayKey ?? null;
 }
 
 /** Сколько держать палец на клетке, чтобы начать мазок, и сколько ему можно сместиться. */
@@ -184,6 +199,7 @@ export function ScheduleEditor({
   weekdayNames,
   weekdayShort,
   photoEnabled,
+  todayWeekday,
   labels,
 }: {
   slug: string;
@@ -196,6 +212,8 @@ export function ScheduleEditor({
   weekdayNames: string[];
   weekdayShort: string[];
   photoEnabled: boolean;
+  /** Сегодня по часовому поясу группы, 0 = пн: с него открывается дневной вид. */
+  todayWeekday: number;
   labels: EditorLabels;
 }) {
   const router = useRouter();
@@ -235,6 +253,8 @@ export function ScheduleEditor({
   const paintTo = useRef(true);
   // Чем красим: «занят» (пары, работа) или «неудобно» (могу, но не хочу).
   const [brush, setBrush] = useState<Brush>("busy");
+  // День дневного вида на телефоне.
+  const [day, setDay] = useState(todayWeekday);
   const brushRef = useRef<Brush>("busy");
   useEffect(() => {
     brushRef.current = brush;
@@ -375,14 +395,13 @@ export function ScheduleEditor({
   }, [apply, cancelHold, pushHistory]);
 
   function onPointerDown(event: React.PointerEvent<HTMLDivElement>) {
-    const cell = (event.target as HTMLElement).closest<HTMLElement>("td.cell");
-    if (!cell?.dataset.key) return;
+    const key = keyOf(event.target);
+    if (!key) return;
 
     if (event.pointerType !== "mouse") {
       // Пальцем сначала листают страницу, и только потом красят. Поэтому здесь
       // не запрещаем прокрутку: мазок начинается после удержания на месте,
       // а короткое касание переключает одну клетку.
-      const key = cell.dataset.key;
       pending.current = { key, x: event.clientX, y: event.clientY, pointerId: event.pointerId };
       holdTimer.current = setTimeout(() => {
         const held = pending.current;
@@ -394,7 +413,7 @@ export function ScheduleEditor({
     }
 
     event.preventDefault();
-    startPainting(cell.dataset.key, event.pointerId);
+    startPainting(key, event.pointerId);
   }
 
   function onPointerMove(event: React.PointerEvent<HTMLDivElement>) {
@@ -409,23 +428,24 @@ export function ScheduleEditor({
     if (!painting.current) return;
     // При захвате указателя события идут только на контейнер, поэтому
     // клетку под пальцем ищем по координатам — так работает и протяжка мышью.
-    const node = document.elementFromPoint(event.clientX, event.clientY);
-    const cell = node instanceof Element ? node.closest<HTMLElement>("td.cell") : null;
-    if (!cell?.dataset.key) return;
-    if (cell.dataset.key !== lastPainted.current) {
-      lastPainted.current = cell.dataset.key;
+    const key = keyOf(document.elementFromPoint(event.clientX, event.clientY));
+    if (!key) return;
+    if (key !== lastPainted.current) {
+      lastPainted.current = key;
       haptic("select");
     }
-    apply([cell.dataset.key], paintTo.current, brushRef.current);
+    apply([key], paintTo.current, brushRef.current);
   }
 
   function onKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    // Стрелки ходят по клеткам, пробел и Enter переключают клетку.
+    if (moveFocusByArrow(event)) return;
     if (event.key !== " " && event.key !== "Enter") return;
-    const cell = (event.target as HTMLElement).closest<HTMLElement>("td.cell");
-    if (!cell?.dataset.key) return;
+    const key = keyOf(event.target);
+    if (!key) return;
     event.preventDefault();
     pushHistory();
-    apply([cell.dataset.key], !busy.has(own(cell.dataset.key, brush)), brush);
+    apply([key], !busy.has(own(key, brush)), brush);
   }
 
   function toggleDay(weekday: number) {
@@ -843,6 +863,60 @@ export function ScheduleEditor({
               ])}
             </tbody>
           </table>
+
+          {/* Телефон: один день крупными клетками. Семь колонок на 375px дают
+              клетку ~39px — меньше цели нажатия в 44px. */}
+          <div className="editor-day">
+            <div className="editor-days" role="tablist" aria-label={labels.dayPick}>
+              {weekdayShort.map((short, weekday) => {
+                const taken = periods.filter((period) => busy.has(cellKey(weekday, period.start))).length;
+                return (
+                  <button
+                    key={short}
+                    type="button"
+                    role="tab"
+                    aria-selected={weekday === day}
+                    aria-label={weekdayNames[weekday]}
+                    className={`daychip${weekday === day ? " active" : ""}`}
+                    onClick={() => setDay(weekday)}
+                  >
+                    <span>{short}</span>
+                    {taken > 0 && <span className="count">{taken}</span>}
+                  </button>
+                );
+              })}
+            </div>
+            <table className="week editor periods day">
+              <tbody>
+                {periods.map((period) => {
+                  const key = cellKey(day, period.start);
+                  const isBusy = busy.has(key);
+                  const isSoft = busy.has(own(key, "soft"));
+                  return [
+                    <BreakRow key={`break-${period.start}`} period={period} columns={1} template={labels.breakRow} />,
+                    <tr key={period.start}>
+                      <PeriodTime period={period} />
+                      <td
+                        className={`cell${isBusy ? " busy" : ""}${isSoft ? " soft" : ""}`}
+                        tabIndex={0}
+                        role="button"
+                        aria-pressed={isBusy}
+                        aria-label={`${weekdayNames[day]} ${fmtMinutes(period.start)}–${fmtMinutes(period.end)}`}
+                        data-day-key={key}
+                      >
+                        {(isBusy || isSoft) && (
+                          <span className="cell-state">{isBusy ? labels.legendBusy : labels.legendSoft}</span>
+                        )}
+                      </td>
+                    </tr>,
+                  ];
+                })}
+              </tbody>
+            </table>
+            <button type="button" className="btn btn-sm" onClick={() => toggleDay(day)}>
+              {periods.every((period) => busy.has(cellKey(day, period.start))) ? labels.dayAllFree : labels.dayAllBusy}
+            </button>
+          </div>
         </div>
 
         <div className="legend">

@@ -21,9 +21,13 @@ test.describe("доска группы", () => {
   test("протяжка мышью по дню ставит время в форму встречи", async ({ page }) => {
     await page.goto(group());
     // Следующая неделя целиком в будущем — день для протяжки есть всегда.
+    // Ждём сам ответ с данными новой недели: aria-busy="false" верно и до
+    // того, как запрос ушёл (он уходит после паузы), — тест протягивал по
+    // старой сетке, и она перерисовывалась прямо под мышью.
+    const loaded = page.waitForResponse((response) => /\/api\/g\/[^/]+\/state\?.*week=1/.test(response.url()));
     await page.getByRole("button", { name: "Следующая неделя" }).click();
     await expect(page.getByRole("button", { name: "Эта неделя" })).toBeVisible();
-    // Ждём, пока подъедут данные новой недели.
+    await loaded;
     await expect(page.locator(".heatmap")).toHaveAttribute("aria-busy", "false");
 
     const rows = page.locator("table.week.periods tbody tr:not(.break-row)");
@@ -204,5 +208,172 @@ test.describe("мини-апп: разрешение писать", () => {
     await expect(prompt).toBeVisible();
     await page.getByRole("button", { name: "Разрешить" }).click();
     await expect(prompt).toBeHidden();
+  });
+});
+
+test.describe("редактор на телефоне", () => {
+  test.use({ viewport: { width: 375, height: 812 }, hasTouch: true, isMobile: true });
+
+  test("один день крупными клетками: выбор дня, отметка сохраняется", async ({ page }) => {
+    await page.goto(`${group()}/me`);
+    // Неделя в семь колонок на 375px не показывается — вместо неё дневной вид.
+    await expect(page.locator(".gridwrap > table.week.editor:not(.day)")).toBeHidden();
+    await expect(page.locator(".editor-day")).toBeVisible();
+
+    await page.getByRole("tab", { name: "Четверг" }).click();
+    const cell = page.locator('td.cell[data-day-key="3:540"]');
+    // Цель нажатия — не меньше 44px с обеих сторон.
+    const box = (await cell.boundingBox())!;
+    expect(box.width).toBeGreaterThanOrEqual(44);
+    expect(box.height).toBeGreaterThanOrEqual(44);
+
+    await cell.tap();
+    await expect(cell).toHaveClass(/busy/);
+    await expect(cell).toContainText("занят");
+    await expect(page.locator(".savestate")).toContainText("Сохранено");
+    // Счётчик занятых пар у дня.
+    await expect(page.getByRole("tab", { name: "Четверг" })).toContainText("1");
+
+    await page.reload();
+    await page.getByRole("tab", { name: "Четверг" }).click();
+    await expect(page.locator('td.cell[data-day-key="3:540"]')).toHaveClass(/busy/);
+    // Вернуть как было.
+    await page.locator('td.cell[data-day-key="3:540"]').tap();
+    await expect(page.locator('td.cell[data-day-key="3:540"]')).not.toHaveClass(/busy/);
+    await expect(page.locator(".savestate")).toContainText("Сохранено");
+  });
+});
+
+test.describe("клавиатура", () => {
+  test("стрелки ходят по клеткам карты группы", async ({ page }) => {
+    await page.goto(group());
+    const cells = page.locator(".heatmap table.week.periods td.cell");
+    await cells.nth(0).focus();
+    await page.keyboard.press("ArrowRight");
+    await expect(cells.nth(1)).toBeFocused();
+    await page.keyboard.press("ArrowDown");
+    // В ряду семь дней: вниз — та же колонка следующего ряда.
+    await expect(cells.nth(8)).toBeFocused();
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("ArrowLeft");
+    // На краю фокус стоит на месте.
+    await expect(cells.nth(7)).toBeFocused();
+  });
+
+  test("стрелки ходят по клеткам редактора и перешагивают перерыв", async ({ page }) => {
+    await page.goto(`${group()}/me`);
+    const at = (key: string) => page.locator(`td.cell[data-key="${key}"]`);
+    await at("0:480").focus();
+    await page.keyboard.press("ArrowDown");
+    await expect(at("0:540")).toBeFocused();
+    await page.keyboard.press("ArrowRight");
+    await expect(at("1:540")).toBeFocused();
+    await page.keyboard.press("ArrowDown");
+    // После 3-й пары перерыв 20 минут — отдельной строкой, стрелка её пропускает.
+    await page.keyboard.press("ArrowDown");
+    await expect(at("1:670")).toBeFocused();
+    // Стрелки ничего не красят.
+    await expect(page.locator("td.cell.busy[data-key^='1:']")).toHaveCount(0);
+  });
+});
+
+test.describe("состояния", () => {
+  test("пока окна пересчитываются, карточка показывает загрузку", async ({ page }) => {
+    await page.goto(group());
+    await page.route("**/api/g/*/state**", async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await route.continue();
+    });
+    await page.locator(".windows-card select").selectOption({ index: 2 });
+    const card = page.locator(".windows-card");
+    await expect(card).toHaveAttribute("aria-busy", "true");
+    // Бегущая полоса — псевдоэлемент поверх карточки.
+    const bar = await card.evaluate((element) => getComputedStyle(element, "::before").content);
+    expect(bar).not.toBe("none");
+    await expect(card).toHaveAttribute("aria-busy", "false");
+  });
+
+  test("мини-апп: «Готово» — цветом главной кнопки сайта, контраст AA", async ({ page }) => {
+    await page.route("https://telegram.org/**", (route) => route.abort());
+    await page.addInitScript(() => {
+      const params: Record<string, unknown>[] = [];
+      (window as unknown as { __mainParams: typeof params }).__mainParams = params;
+      const button = {
+        setParams(next: Record<string, unknown>) {
+          params.push(next);
+          return button;
+        },
+        setText() {
+          return button;
+        },
+        show() {
+          return button;
+        },
+        hide() {
+          return button;
+        },
+        onClick() {
+          return button;
+        },
+        offClick() {
+          return button;
+        },
+        showProgress() {
+          return button;
+        },
+        hideProgress() {
+          return button;
+        },
+      };
+      window.Telegram = {
+        WebApp: {
+          initData: "query_id=e2e",
+          initDataUnsafe: { user: { allows_write_to_pm: true } },
+          colorScheme: "dark",
+          ready() {},
+          expand() {},
+          MainButton: button,
+        } as never,
+      };
+    });
+    await page.goto(`${group()}/me`);
+    await expect
+      .poll(() => page.evaluate(() => (window as unknown as { __mainParams: { color?: string }[] }).__mainParams.at(-1)?.color))
+      .toBe("#ffffff");
+    const last = await page.evaluate(
+      () => (window as unknown as { __mainParams: { text_color?: string }[] }).__mainParams.at(-1)?.text_color,
+    );
+    expect(last).toBe("#1b1b1b");
+  });
+});
+
+test.describe("без скачков", () => {
+  test("доска группы грузится без сдвигов макета", async ({ page }) => {
+    await page.addInitScript(() => {
+      (window as unknown as { __cls: number }).__cls = 0;
+      new PerformanceObserver((list) => {
+        for (const entry of list.getEntries() as (PerformanceEntry & { value: number; hadRecentInput: boolean })[]) {
+          if (!entry.hadRecentInput) (window as unknown as { __cls: number }).__cls += entry.value;
+        }
+      }).observe({ type: "layout-shift", buffered: true });
+    });
+    await page.goto(group(), { waitUntil: "networkidle" });
+    await page.waitForTimeout(800);
+    // Раньше прошедшее сегодня окно исчезало из «Лучшего времени» после
+    // загрузки, и всё ниже прыгало вверх: 0,026 вечером.
+    expect(await page.evaluate(() => (window as unknown as { __cls: number }).__cls)).toBeLessThan(0.005);
+  });
+});
+
+test.describe("витрина лендинга", () => {
+  test("шрифты витрины включаются после загрузки, небо грузится заранее", async ({ page }) => {
+    // Витрину видит только гость.
+    await page.context().clearCookies();
+    await page.goto("/");
+    await expect(page.locator("html")).toHaveClass(/deco-fonts/);
+    const family = await page.locator(".hero .script-word").evaluate((element) => getComputedStyle(element).fontFamily);
+    expect(family).toMatch(/Caveat/);
+    await expect(page.locator('head link[rel="preload"][href="/hero-sky.jpg"]')).toHaveCount(1);
+    await expect(page.locator(".manifest")).toBeVisible();
   });
 });

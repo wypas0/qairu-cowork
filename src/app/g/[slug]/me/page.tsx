@@ -9,7 +9,7 @@ import { ScheduleEditor } from "@/components/ScheduleEditor";
 import { TelegramBackButton } from "@/components/TelegramButtons";
 import { type WeeklySlot, gridPeriods } from "@/core/grid";
 import { fmtMinutes } from "@/core/intervals";
-import { addDays, chatTz, compareDates, formatDM, formatDMY, todayIn, utcToZonedWall } from "@/core/timeutils";
+import { addDays, chatTz, compareDates, formatDM, formatDMY, todayIn, utcToZonedWall, weekdayOf } from "@/core/timeutils";
 import * as repo from "@/db/repo";
 import { WEEKDAY_NAMES, WEEKDAY_SHORT, isLang, translator } from "@/i18n";
 import { pageUser } from "@/lib/gate";
@@ -123,6 +123,7 @@ export default async function MySchedulePage({
           weekdayNames={WEEKDAY_NAMES[isLang(lang) ? lang : "ru"]}
           weekdayShort={WEEKDAY_SHORT[isLang(lang) ? lang : "ru"]}
           photoEnabled={hasVision()}
+          todayWeekday={weekdayOf(today)}
           labels={{
             paintHint: t("w_paint_hint"),
             saved: t("w_saved"),
@@ -182,6 +183,9 @@ export default async function MySchedulePage({
             photoFormatOne: t("w_photo_format_one", { n: "{n}" }),
             photoEmpty: t("w_photo_empty"),
             photoEmptyOne: t("w_photo_empty_one", { n: "{n}" }),
+            dayPick: t("w_day_pick"),
+            dayAllBusy: t("w_day_all_busy"),
+            dayAllFree: t("w_day_all_free"),
           }}
         />
 
