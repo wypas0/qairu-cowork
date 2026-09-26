@@ -15,3 +15,17 @@ describe("знак продукта", () => {
     expect(svg).toContain(brandMarkInner("currentColor"));
   });
 });
+
+describe("цвета темы для Telegram", () => {
+  it("короткая запись и rgb() доходят до шапки мини-аппа как #rrggbb", async () => {
+    const { hexColor } = await import("@/lib/telegram");
+    // Сборка сжимает #ffffff до #fff — светлая тема раньше не красила шапку.
+    expect(hexColor("#fff")).toBe("#ffffff");
+    expect(hexColor(" #F4F6FA ")).toBe("#f4f6fa");
+    expect(hexColor("rgb(3, 4, 12)")).toBe("#03040c");
+    expect(hexColor("rgb(3 4 12 / 1)")).toBe("#03040c");
+    // Полупрозрачный цвет Telegram не примет — лучше не красить вовсе.
+    expect(hexColor("rgba(255, 255, 255, 0.08)")).toBeNull();
+    expect(hexColor("var(--x)")).toBeNull();
+  });
+});

@@ -122,9 +122,24 @@ export function haptic(kind: "select" | "press" | "ok" | "error" = "select"): vo
   }
 }
 
+/**
+ * Цвет из CSS в виде #rrggbb — единственном, который принимает Telegram.
+ * Сборка сжимает #ffffff до #fff, поэтому короткая запись обязана проходить:
+ * иначе светлая тема не красила шапку мини-аппа. Полупрозрачный — null.
+ */
+export function hexColor(value: string): string | null {
+  const text = value.trim().toLowerCase();
+  const short = text.match(/^#([0-9a-f])([0-9a-f])([0-9a-f])$/);
+  if (short) return `#${short[1]}${short[1]}${short[2]}${short[2]}${short[3]}${short[3]}`;
+  if (/^#[0-9a-f]{6}$/.test(text)) return text;
+  const rgb = text.match(/^rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)(?:\s*[,/]\s*([\d.]+%?))?\s*\)$/);
+  if (!rgb) return null;
+  if (rgb[4] !== undefined && parseFloat(rgb[4]) < (rgb[4].endsWith("%") ? 100 : 1)) return null;
+  return `#${[rgb[1], rgb[2], rgb[3]].map((part) => Math.min(255, Number(part)).toString(16).padStart(2, "0")).join("")}`;
+}
+
 /** Значение CSS-токена темы (например, `--surface`) как #rrggbb. */
 export function themeColor(token: string): string | null {
   if (typeof window === "undefined") return null;
-  const value = getComputedStyle(document.documentElement).getPropertyValue(token).trim();
-  return /^#[0-9a-f]{6}$/i.test(value) ? value : null;
+  return hexColor(getComputedStyle(document.documentElement).getPropertyValue(token));
 }
