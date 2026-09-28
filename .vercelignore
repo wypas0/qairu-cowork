@@ -1,5 +1,6 @@
-# Тесты и локальные скрипты в сборку Vercel не нужны.
+# Тесты, локальные скрипты и картинки для README в сборку Vercel не нужны.
 tests/
 scripts/dev/
 e2e/
+docs/
 playwright.config.ts
