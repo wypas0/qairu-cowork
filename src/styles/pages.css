@@ -70,57 +70,6 @@
   display: block;
 }
 
-/* --- главная вошедшего: его группы первым блоком --- */
-.group-list {
-  list-style: none;
-  margin: 0 0 20px;
-  padding: 0;
-  border: 1px solid var(--card-line);
-  border-radius: var(--r-xl);
-  background: var(--card);
-  overflow: hidden;
-}
-.group-list li + li {
-  border-top: 1px solid var(--border);
-}
-.group-row {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 16px 20px;
-  color: var(--text);
-  text-decoration: none;
-  transition: background-color 150ms var(--ease);
-}
-.group-row:hover {
-  background: color-mix(in srgb, var(--hover) 60%, transparent);
-}
-.group-row:active {
-  background: var(--hover);
-  transition-duration: 0ms;
-}
-.group-mark {
-  width: 36px;
-  height: 36px;
-  flex: none;
-  display: grid;
-  place-items: center;
-  border-radius: var(--r-full);
-  background: var(--accent);
-  color: var(--accent-text);
-  font-weight: 600;
-}
-.group-name {
-  flex: 1;
-  min-width: 0;
-  font-size: 17px;
-  line-height: 22px;
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 /* --- окно продукта на лендинге --- */
 .demo {
   border: 1px solid var(--border);
@@ -148,6 +97,15 @@ table.week.demo-week td.cell {
 table.week.demo-week td.timecol.period {
   width: 52px;
   min-width: 52px;
+}
+/* Липкая строка дней на телефоне (week-grid.css) — для длинной карты. Демо
+   короткое и стоит на тёмной витрине: светлый фон прилипания прятал белые
+   названия дней. */
+@media (max-width: 560px) {
+  table.week.demo-week thead th {
+    position: static;
+    background: transparent;
+  }
 }
 .hero-text {
   min-width: 0;

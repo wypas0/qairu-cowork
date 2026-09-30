@@ -128,8 +128,6 @@ export const EN: Dict = {
   w_lang: "Language",
   w_nav_group: "Group schedule",
   w_nav_me: "My schedule",
-  w_home_start: "Join a group or create your own",
-  w_home_start_lead: "Someone will read you the group code or send a link. No group yet? Create one and invite the rest.",
   w_pending_label: "{n} waiting for you",
   w_home_screen: "Add QairuCowork to your home screen — open your group in one tap.",
   w_home_screen_add: "Add",

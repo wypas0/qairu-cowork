@@ -396,7 +396,7 @@ test.describe("без скачков", () => {
 
 test.describe("витрина лендинга", () => {
   test("шрифты витрины включаются после загрузки, небо грузится заранее", async ({ page }) => {
-    // Витрину видит только гость.
+    // Гость: витрина и формы «по коду» и «создать» под ней.
     await page.context().clearCookies();
     await page.goto("/");
     await expect(page.locator("html")).toHaveClass(/deco-fonts/);
@@ -404,5 +404,38 @@ test.describe("витрина лендинга", () => {
     expect(family).toMatch(/Caveat/);
     await expect(page.locator('head link[rel="preload"][href="/hero-sky.jpg"]')).toHaveCount(1);
     await expect(page.locator(".manifest")).toBeVisible();
+  });
+
+  test("вошедший видит витрину, группы — в сайдбаре, который раскрывается с полосы", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator(".hero")).toBeVisible();
+    const shell = page.locator(".landing-shell");
+    await expect(shell).toHaveClass(/sidebar-closed/);
+
+    // Нажатие по знаку группы в полосе сначала раскрывает сайдбар, а не уводит в группу.
+    await page.locator("#sidebar .sidebar-group").first().click();
+    await expect(shell).toHaveClass(/landing-open/);
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.locator("#sidebar")).toContainText("ИС-21");
+    await expect(page.locator("#join-code")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(shell).toHaveClass(/sidebar-closed/);
+
+    // «Создать группу» — окно поверх страницы; ссылка /#create открывает его отовсюду.
+    await page.goto("/#create");
+    await expect(page.locator(".create-dialog")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".create-dialog")).toBeHidden();
+  });
+
+  test("на телефоне сайдбар групп открывает кнопка «Мои группы» в шапке", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/");
+    await expect(page.locator("#sidebar")).toBeHidden();
+    await page.getByRole("button", { name: /Мои группы/ }).click();
+    await expect(page.locator("#sidebar")).toBeVisible();
+    await expect(page.locator("#sidebar")).toContainText("ИС-21");
+    await page.locator(".landing-scrim").click({ position: { x: 370, y: 400 } });
+    await expect(page.locator("#sidebar")).toBeHidden();
   });
 });

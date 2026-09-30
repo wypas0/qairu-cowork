@@ -372,3 +372,122 @@
     flex-direction: column;
   }
 }
+
+/* --- лендинг вошедшего: сайдбар групп выезжает поверх витрины ---
+   На компьютере сайдбар свёрнут в полосу со знаками групп (те же правила
+   .sidebar-closed, что на страницах группы) и раскрывается нажатием по ней;
+   на телефоне полосы нет — сайдбар выезжает по кнопке «Мои группы» в шапке.
+   Открытый сайдбар — шторка слева поверх страницы на любой ширине. */
+.landing-close {
+  display: none;
+}
+.landing-open .landing-close {
+  display: inline-grid;
+}
+.landing-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  background: rgba(10, 22, 40, 0.4); /* тот же фон, что под панелью профиля */
+}
+.landing-open > .sidebar {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: min(300px, 86vw);
+  height: auto;
+  padding: calc(20px + var(--safe-top)) 12px calc(20px + var(--safe-bottom)) max(12px, var(--safe-left));
+  background: var(--popover);
+  border-right: 1px solid var(--card-line);
+  border-radius: 0 var(--r-3xl) var(--r-3xl) 0;
+  box-shadow: var(--shadow-float);
+  overflow-y: auto;
+  animation: landing-slide 200ms var(--ease);
+}
+@keyframes landing-slide {
+  from {
+    transform: translateX(-24px);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing-open > .sidebar {
+    animation: none;
+  }
+}
+.sidebar-empty {
+  margin: 4px 8px;
+}
+.sidebar-join {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 0 8px;
+}
+.sidebar-join .eyebrow {
+  margin: 0;
+}
+.sidebar-join-row {
+  display: flex;
+  gap: 6px;
+}
+.sidebar-join-row input {
+  flex: 1;
+  min-width: 0;
+}
+.sidebar-join-error {
+  margin: 0;
+  color: var(--danger);
+}
+.landing-groups-btn {
+  gap: 6px;
+}
+.landing-groups-btn .count-badge {
+  margin-left: 0;
+}
+@media (min-width: 1024px) {
+  .landing-shell {
+    grid-template-columns: 68px minmax(0, 1fr);
+  }
+  .landing-shell > .shell-main {
+    grid-column: 2;
+  }
+  .landing-shell.sidebar-closed .sidebar {
+    cursor: pointer;
+  }
+  .landing-shell.sidebar-closed .sidebar-join,
+  .landing-shell.sidebar-closed .sidebar-empty {
+    display: none;
+  }
+}
+
+/* --- «Создать группу» — окно поверх страницы --- */
+.create-dialog {
+  /* Сброс стилей обнуляет margin у <dialog> — без auto окно липнет к углу. */
+  margin: auto;
+  width: min(460px, calc(100vw - 32px));
+  padding: 20px 24px 24px;
+  border: 1px solid var(--card-line);
+  border-radius: var(--r-3xl);
+  background: var(--popover);
+  color: var(--text);
+  box-shadow: var(--shadow-float);
+}
+.create-dialog::backdrop {
+  background: rgba(10, 22, 40, 0.4);
+}
+.create-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.create-head h2 {
+  margin: 0;
+}
