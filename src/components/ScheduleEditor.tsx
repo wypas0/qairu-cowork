@@ -8,7 +8,7 @@ import type { Period, WeeklySlot } from "@/core/grid";
 import { SOFT_PREFIX, editorCells, editorSlots, periodOverlaps } from "@/core/grid";
 import { haptic, whenReady } from "@/lib/telegram";
 import { moveFocusByArrow } from "./gridKeys";
-import { IconCamera, IconCheck, IconChevronRight, IconGrid, IconText } from "./icons";
+import { IconCamera, IconCheck, IconChevronRight, IconGrid } from "./icons";
 import { BreakRow, PeriodTime } from "./PeriodRow";
 import { TelegramMainButton } from "./TelegramButtons";
 import { toast } from "./toast";
@@ -32,21 +32,13 @@ export type EditorLabels = {
   chooseLead: string;
   choosePhoto: string;
   choosePhotoHint: string;
-  chooseText: string;
-  chooseTextHint: string;
   chooseManual: string;
   chooseManualHint: string;
-  importTitle: string;
-  importTitleFirst: string;
-  importHint: string;
-  importBtn: string;
   importParsed: string;
   importReview: string; // «Распознали пар: {n}…»
   importSave: string;
   importCancel: string;
   importPending: string;
-  importFailed: string;
-  importPlaceholder: string;
   legendFree: string;
   legendBusy: string;
   /** «Неудобно» в легенде и на кисти. */
@@ -230,10 +222,8 @@ export function ScheduleEditor({
   const [savedOnce, setSavedOnce] = useState(initialBusy.length > 0);
   // Шаги для отмены: один шаг — один мазок или одно целое действие.
   const [history, setHistory] = useState<{ cells: Set<string>; base: WeeklySlot[] }[]>([]);
-  const [importText, setImportText] = useState("");
-  const [importing, setImporting] = useState(false);
-  const [preview, setPreview] = useState<{ slots: ParsedSlot[]; errors: string[] } | null>(null);
-  // Распознанное с фото или из текста ждёт проверки: пока человек не нажал
+  const [preview, setPreview] = useState<{ slots: ParsedSlot[] } | null>(null);
+  // Распознанное с фото ждёт проверки: пока человек не нажал
   // «Сохранить», автосохранение молчит. Снимок — чтобы «Отменить импорт»
   // вернул сетку ровно к тому, что было до него.
   const [reviewing, setReviewing] = useState(false);
@@ -243,12 +233,11 @@ export function ScheduleEditor({
   const photoRef = useRef<HTMLInputElement>(null);
 
   // Первый раз расписание заполняют не сразу сеткой: сперва человек выбирает
-  // способ, и редактор открывается тем путём, который он выбрал.
+  // способ — с фото или вручную. Без распознавания выбирать не из чего.
   const startedEmpty = useRef(initialBusy.length === 0);
-  const [mode, setMode] = useState<"choose" | "photo" | "text" | "manual">(() =>
-    initialBusy.length === 0 ? "choose" : "manual",
+  const [mode, setMode] = useState<"choose" | "photo" | "manual">(() =>
+    initialBusy.length === 0 && photoEnabled ? "choose" : "manual",
   );
-  const textRef = useRef<HTMLTextAreaElement>(null);
   const painting = useRef(false);
   const paintTo = useRef(true);
   // Чем красим: «занят» (пары, работа) или «неудобно» (могу, но не хочу).
@@ -526,12 +515,9 @@ export function ScheduleEditor({
     return () => window.removeEventListener("keydown", onKey);
   }, [undo]);
 
-  // Выбрали «текстом» — сразу ставим курсор в поле; «вручную» — показываем сетку.
+  // Выбрали «вручную» — показываем сетку.
   useEffect(() => {
-    if (mode === "text") {
-      textRef.current?.scrollIntoView({ block: "center" });
-      textRef.current?.focus();
-    } else if (mode === "manual" && startedEmpty.current) {
+    if (mode === "manual" && startedEmpty.current) {
       rootRef.current?.scrollIntoView({ block: "start" });
     }
   }, [mode]);
@@ -549,7 +535,7 @@ export function ScheduleEditor({
    * и только потом жмёт «Сохранить». Клетка занята, если пара задевает её хотя
    * бы частично.
    */
-  function applyParsed(slots: ParsedSlot[], errors: string[]) {
+  function applyParsed(slots: ParsedSlot[]) {
     // Отметки «неудобно» распознавание не приносит — их оставляем как были.
     const next = new Set<string>([...busy].filter((key) => key.startsWith(SOFT)));
     for (const slot of slots) {
@@ -579,7 +565,7 @@ export function ScheduleEditor({
     setBusy(next);
     setDirty(true);
     setReviewing(true);
-    setPreview({ slots, errors });
+    setPreview({ slots });
     rootRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
   }
 
@@ -650,7 +636,7 @@ export function ScheduleEditor({
         setFailed(messages[data.error ?? ""] ?? labels.photoFailed);
         return;
       }
-      applyParsed(data.slots, []);
+      applyParsed(data.slots);
     } catch (error) {
       if (error instanceof FileTooLarge) {
         setFailed(
@@ -664,36 +650,6 @@ export function ScheduleEditor({
     } finally {
       setPhotoWorking(false);
       if (photoRef.current) photoRef.current.value = "";
-    }
-  }
-
-  async function runImport() {
-    if (!importText.trim()) return;
-    setImporting(true);
-    setFailed(null);
-    try {
-      const response = await fetch(`/api/g/${slug}/import`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({ text: importText }),
-      });
-      if (!response.ok) throw new Error(String(response.status));
-      const data = (await response.json()) as {
-        ok: boolean;
-        slots: ParsedSlot[];
-        errors: string[];
-      };
-      if (!data.ok) {
-        setPreview(null);
-        setFailed(labels.importFailed);
-        return;
-      }
-      applyParsed(data.slots, data.errors);
-    } catch {
-      toast(labels.saveError);
-    } finally {
-      setImporting(false);
     }
   }
 
@@ -723,12 +679,9 @@ export function ScheduleEditor({
   // Первый экран: три понятных пути вместо трёх равноправных карточек сразу.
   if (mode === "choose") {
     const options = [
-      photoEnabled
-        ? { key: "photo" as const, Icon: IconCamera, title: labels.choosePhoto, hint: labels.choosePhotoHint }
-        : null,
-      { key: "text" as const, Icon: IconText, title: labels.chooseText, hint: labels.chooseTextHint },
+      { key: "photo" as const, Icon: IconCamera, title: labels.choosePhoto, hint: labels.choosePhotoHint },
       { key: "manual" as const, Icon: IconGrid, title: labels.chooseManual, hint: labels.chooseManualHint },
-    ].filter((option) => option !== null);
+    ];
 
     return (
       <section className="card">
@@ -758,7 +711,8 @@ export function ScheduleEditor({
   }
 
   return (
-    <div className={`grid-2${mode === "photo" || mode === "text" ? " import-first" : ""}`}>
+    // Без распознавания правой колонки нет — сетка на всю ширину.
+    <div className={photoEnabled ? `grid-2${mode === "photo" ? " import-first" : ""}` : undefined}>
       {fileInput}
       <section className="card">
         <p className="small muted">{labels.paintHint}</p>
@@ -978,46 +932,23 @@ export function ScheduleEditor({
         </div>
       </section>
 
-      <div>
-        {photoEnabled && (
-          <section className="card">
-            <h2>{labels.photoTitle}</h2>
-            <p className="small muted">{labels.photoHint}</p>
-            <button
-              className="btn btn-primary"
-              type="button"
-              disabled={photoWorking || importing}
-              onClick={() => photoRef.current?.click()}
-            >
-              {photoWorking ? labels.photoWorking : labels.photoBtn}
-            </button>
-            {photoWorking && (
-              <p className="small muted waiting" role="status" aria-live="polite">
-                <span className="spinner" aria-hidden="true" /> {labels.photoWorking}
-              </p>
-            )}
-          </section>
-        )}
-
+      {photoEnabled && (
         <section className="card">
-          {/* «Или…» уместно, только когда над этим блоком есть загрузка файла. */}
-          <h2>{photoEnabled ? labels.importTitle : labels.importTitleFirst}</h2>
-          <p className="small muted">{labels.importHint}</p>
-          <textarea
-            ref={textRef}
-            value={importText}
-            onChange={(event) => setImportText(event.target.value)}
-            placeholder={labels.importPlaceholder}
-          />
+          <h2>{labels.photoTitle}</h2>
+          <p className="small muted">{labels.photoHint}</p>
           <button
-            className="btn"
+            className="btn btn-primary"
             type="button"
-            style={{ marginTop: 8 }}
-            disabled={importing || photoWorking}
-            onClick={runImport}
+            disabled={photoWorking}
+            onClick={() => photoRef.current?.click()}
           >
-            {labels.importBtn}
+            {photoWorking ? labels.photoWorking : labels.photoBtn}
           </button>
+          {photoWorking && (
+            <p className="small muted waiting" role="status" aria-live="polite">
+              <span className="spinner" aria-hidden="true" /> {labels.photoWorking}
+            </p>
+          )}
 
           <div style={{ marginTop: 10 }}>
             {failed && (
@@ -1039,14 +970,11 @@ export function ScheduleEditor({
                     </span>
                   ))}
                 </p>
-                {preview.errors.length > 0 && (
-                  <p className="small muted">⚠️ {preview.errors.join(" · ")}</p>
-                )}
               </>
             )}
           </div>
         </section>
-      </div>
+      )}
     </div>
   );
 }

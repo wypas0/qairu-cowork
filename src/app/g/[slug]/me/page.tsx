@@ -25,13 +25,6 @@ import {
 
 export const dynamic = "force-dynamic";
 
-const IMPORT_PLACEHOLDER = [
-  "Пн 9:00-10:30 Матан, 13:00-14:30 История",
-  "Вт 8:00–9:30",
-  "Ср нет пар",
-  "Сб 18:00-22:00 работа",
-].join("\n");
-
 /** Итог действий с календарём: ключ строки и тон тоста. */
 const CALENDAR_RESULTS: Record<string, { key: string; tone: "ok" | "error" }> = {
   ok: { key: "w_cal_sub_ok", tone: "ok" },
@@ -143,21 +136,13 @@ export default async function MySchedulePage({
             chooseLead: t("w_choose_lead"),
             choosePhoto: t("w_choose_photo"),
             choosePhotoHint: t("w_choose_photo_hint"),
-            chooseText: t("w_choose_text"),
-            chooseTextHint: t("w_choose_text_hint"),
             chooseManual: t("w_choose_manual"),
             chooseManualHint: t("w_choose_manual_hint"),
-            importTitle: t("w_import_title"),
-            importTitleFirst: t("w_import_title_first"),
-            importHint: t("w_import_hint"),
-            importBtn: t("w_import_btn"),
             importParsed: t("w_import_parsed", { n: "{n}" }),
             importReview: t("w_import_review", { n: "{n}" }),
             importSave: t("w_import_save"),
             importCancel: t("w_import_cancel"),
             importPending: t("w_import_pending"),
-            importFailed: t("w_import_failed"),
-            importPlaceholder: IMPORT_PLACEHOLDER,
             legendFree: t("w_legend_free"),
             legendBusy: t("w_legend_busy"),
             legendSoft: t("w_legend_soft_mine"),

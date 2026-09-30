@@ -214,15 +214,6 @@ export function IconCamera(props: IconProps) {
   );
 }
 
-/** Расписание текстом. */
-export function IconText(props: IconProps) {
-  return (
-    <Icon {...props}>
-      <path d="M4 6h16M4 12h16M4 18h10" />
-    </Icon>
-  );
-}
-
 /** Левая панель — свернуть и развернуть. */
 export function IconSidebar(props: IconProps) {
   return (

@@ -64,15 +64,6 @@ describe("создание группы", () => {
 });
 
 describe("расписание и сетка", () => {
-  it("парсер импорта тот же, что и в боте", async () => {
-    const { parseAny, parseResultOk } = await import("@/core/parser");
-    const parsed = parseAny("Пн 9:00-10:30 Матан\nСб 18:00-22:00 работа");
-    expect(parseResultOk(parsed)).toBe(true);
-    expect(new Set(parsed.slots.map((slot) => slot.kind))).toEqual(new Set(["class", "work"]));
-    expect(parsed.slots[0].startMin).toBe(540);
-    expect(parsed.slots[0].endMin).toBe(630);
-  });
-
   it("битые строки отбрасываются, а не роняют сохранение", async () => {
     const { grid } = await mods();
     const cleaned = grid.cleanIncomingSlots([
