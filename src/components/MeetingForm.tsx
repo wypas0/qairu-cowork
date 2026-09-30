@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { PICK_EVENT, type PickDetail } from "./pick";
+import { PICK_EVENT, type PickDetail, repick } from "./pick";
 import { IconPlus } from "./icons";
 
 export type MeetingFormLabels = {
@@ -29,7 +29,8 @@ export type MeetingFormLabels = {
  *
  * Выбранное время уходит на сервер в машинном виде («2026-09-16T15:00|30»),
  * а человек видит его словами. Раньше машинная строка показывалась прямо
- * в поле; если начать печатать своё, выбор сбрасывается и уходит текст.
+ * в поле. Поправил в выбранном только часы — точное время пересчитывается
+ * (`repick`); начал писать своё — выбор сбрасывается и уходит текст.
  */
 export function MeetingForm({
   action,
@@ -40,6 +41,8 @@ export function MeetingForm({
 }) {
   const [open, setOpen] = useState(false);
   const [picked, setPicked] = useState<PickDetail | null>(null);
+  // Выбор с карты как пришёл: от него пересчитываются правки часов в поле.
+  const [anchor, setAnchor] = useState<PickDetail | null>(null);
   const [typed, setTyped] = useState("");
   const [repeat, setRepeat] = useState(false);
   // «Повторить встречу» приносит цель и место; счётчик пересоздаёт поля с ними.
@@ -51,6 +54,7 @@ export function MeetingForm({
     function onPick(event: Event) {
       const { detail } = event as CustomEvent<PickDetail>;
       setPicked(detail);
+      setAnchor(detail);
       setTyped("");
       setOpen(true);
       if (detail.goal !== undefined || detail.place !== undefined) {
@@ -115,8 +119,9 @@ export function MeetingForm({
           maxLength={200}
           value={picked ? picked.text : typed}
           onChange={(event) => {
-            setPicked(null);
-            setTyped(event.target.value);
+            const text = event.target.value;
+            setPicked(anchor ? repick(anchor, text) : null);
+            setTyped(text);
           }}
         />
         <p className="small muted" style={{ marginTop: 5 }}>
