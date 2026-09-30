@@ -166,20 +166,28 @@ describe("расписание и сетка", () => {
     expect(payload.periods[3]).toMatchObject({ n: 4, start: 670, end: 720, breakBefore: 20 });
   });
 
-  it("сетка по парам как на портале: 50 минут, после 3-й пары перерыв 20 минут", async () => {
+  it("сетка по парам как на портале: 50 минут, после 3-й, 6-й и 9-й пары перерыв 20 минут", async () => {
     const { grid } = await mods();
-    const periods = grid.lessonPeriods(8 * 60, 22 * 60);
+    const periods = grid.lessonPeriods(8 * 60, 23 * 60);
     const text = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
-    expect(periods.slice(0, 6).map((p) => `${p.n} ${text(p.start)}-${text(p.end)}`)).toEqual([
+    expect(periods.map((p) => `${p.n} ${text(p.start)}-${text(p.end)}`)).toEqual([
       "1 08:00-08:50",
       "2 09:00-09:50",
       "3 10:00-10:50",
       "4 11:10-12:00",
       "5 12:10-13:00",
       "6 13:10-14:00",
+      "7 14:20-15:10",
+      "8 15:20-16:10",
+      "9 16:20-17:10",
+      "10 17:30-18:20",
+      "11 18:30-19:20",
+      "12 19:30-20:20",
+      "13 20:30-21:20",
+      "14 21:30-22:20",
     ]);
-    expect(periods.map((p) => p.breakBefore).filter((m) => m >= grid.BREAK_ROW_MIN)).toEqual([20]);
-    expect(periods.every((p) => p.end <= 22 * 60)).toBe(true);
+    expect(periods.filter((p) => p.breakBefore >= grid.BREAK_ROW_MIN).map((p) => p.n)).toEqual([4, 7, 10]);
+    expect(grid.lessonPeriods(8 * 60, 22 * 60).every((p) => p.end <= 22 * 60)).toBe(true);
     // Часы группы короче одной пары — запасная сетка по 30 минут.
     expect(grid.gridPeriods(600, 640, 30).map((p) => [p.n, p.start, p.end])).toEqual([[0, 600, 630], [0, 630, 640]]);
   });

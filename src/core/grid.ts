@@ -32,11 +32,14 @@ export type Period = {
   breakBefore: number;
 };
 
-/** Пары как на портале университета: по 50 минут с 08:00, после 3-й перерыв 20 минут, иначе 10. */
+/**
+ * Пары как на портале университета: по 50 минут с 08:00, после 3-й, 6-й и 9-й пары
+ * перерыв 20 минут (10:50–11:10, 14:00–14:20, 17:10–17:30), иначе 10.
+ */
 export const LESSON_MIN = 50;
 export const FIRST_LESSON = 8 * 60;
 const SHORT_BREAK = 10;
-const LONG_BREAK_AFTER: Record<number, number> = { 3: 20 };
+const LONG_BREAK_AFTER: Record<number, number> = { 3: 20, 6: 20, 9: 20 };
 /** Перерыв от стольких минут выделяется отдельной строкой. */
 export const BREAK_ROW_MIN = 20;
 
