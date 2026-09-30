@@ -598,6 +598,7 @@ export const KK: Dict = {
 
   // --- сетка по парам ---
   w_break_row: "Үзіліс {m} мин",
+  w_break_short: "Үзіліс",
   w_legend_mine: "сен бос емессің",
   w_legend_meeting: "кездесу",
 

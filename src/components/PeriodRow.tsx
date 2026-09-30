@@ -19,6 +19,19 @@ export function PeriodTime({ period }: { period: Period }) {
   );
 }
 
+/**
+ * Подпись ряда-перерыва на карте группы: одно слово, чтобы ряд оставался
+ * узким; длительность и время — в подсказке.
+ */
+export function PauseTime({ period, label, template }: { period: Period; label: string; template: string }) {
+  const full = `${template.replace("{m}", String(period.end - period.start))} · ${fmtMinutes(period.start)}–${fmtMinutes(period.end)}`;
+  return (
+    <td className="timecol pause-label" title={full}>
+      {label}
+    </td>
+  );
+}
+
 /** Строка «Перерыв 20 мин» перед рядом, если перерыв перед ним длинный. */
 export function BreakRow({ period, columns, template }: { period: Period; columns: number; template: string }) {
   if (period.breakBefore < BREAK_ROW_MIN) return null;

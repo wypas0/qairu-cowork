@@ -198,6 +198,39 @@ table.week tr.break-row td {
   border-radius: var(--r-full);
   text-align: left;
 }
+/* Длинный перерыв на карте группы — тонкая сплошная полоса через всю неделю.
+   Встреча на нём выделяет в своём дне отдельную розовую клетку. */
+table.week.periods tr.pause-row td {
+  height: 14px;
+  padding: 0;
+}
+table.week.periods tr.pause-row td.cell {
+  border-radius: var(--r-sm);
+}
+table.week td.pause-strip {
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 14px;
+  padding: 0 10px;
+  border-radius: var(--r-full);
+  text-align: left;
+  cursor: pointer;
+}
+table.week.periods td.timecol.pause-label {
+  padding: 0 8px 0 2px;
+  text-align: left;
+  vertical-align: middle;
+  font-size: 10px;
+  line-height: 14px;
+  color: var(--muted);
+}
+table.week.periods tr.pause-row .cell-meeting {
+  -webkit-line-clamp: 1;
+  padding: 0 6px;
+  font-size: 10px;
+  line-height: 14px;
+}
 
 /* На телефоне неделя должна помещаться целиком: иначе сетку приходится
    таскать вбок пальцем, а палец здесь занят закрашиванием клеток. */

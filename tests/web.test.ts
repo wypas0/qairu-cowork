@@ -162,8 +162,29 @@ describe("расписание и сетка", () => {
     const starts = payload.days[0].cells.map((cell) => cell.start);
     expect(new Set(starts).size).toBe(starts.length);
     expect([...starts].sort((a, b) => a - b)).toEqual(starts);
-    expect(starts.slice(0, 4)).toEqual([480, 540, 600, 670]); // 08:00, 09:00, 10:00, 11:10
-    expect(payload.periods[3]).toMatchObject({ n: 4, start: 670, end: 720, breakBefore: 20 });
+    // 08:00, 09:00, 10:00, перерыв 10:50, 11:10
+    expect(starts.slice(0, 5)).toEqual([480, 540, 600, 650, 670]);
+    expect(payload.periods[3]).toMatchObject({ n: 0, start: 650, end: 670, pause: true });
+    expect(payload.periods[4]).toMatchObject({ n: 4, start: 670, end: 720, breakBefore: 0 });
+  });
+
+  it("длинные перерывы на карте — свои ряды: на них видно, кто свободен", async () => {
+    const { repo } = await mods();
+    const { chat, user } = await makeGroup("Перерывы", "Амир");
+    // Понедельник: пара до 14:00 и после 14:20, а сам перерыв свободен.
+    await repo.replaceWeeklySlots(user.userId, [0], [
+      { weekday: 0, start: 13 * 60 + 10, end: 14 * 60 },
+      { weekday: 0, start: 14 * 60 + 20, end: 15 * 60 + 10 },
+    ], "web");
+
+    const { payload } = await board(chat.slug!);
+    const pauses = payload.periods.filter((period) => period.pause).map((period) => [period.start, period.end]);
+    expect(pauses).toEqual([[650, 670], [840, 860], [1030, 1050]]);
+    const monday = payload.days[0]; // неделя карты начинается с понедельника
+    const at = (start: number) => monday.cells.find((cell) => cell.start === start)!;
+    expect(at(13 * 60 + 10).count).toBe(0);
+    expect(at(14 * 60)).toMatchObject({ end: 14 * 60 + 20, count: 1 });
+    expect(at(14 * 60 + 20).count).toBe(0);
   });
 
   it("сетка по парам как на портале: 50 минут, после 3-й, 6-й и 9-й пары перерыв 20 минут", async () => {
@@ -188,6 +209,15 @@ describe("расписание и сетка", () => {
     ]);
     expect(periods.filter((p) => p.breakBefore >= grid.BREAK_ROW_MIN).map((p) => p.n)).toEqual([4, 7, 10]);
     expect(grid.lessonPeriods(8 * 60, 22 * 60).every((p) => p.end <= 22 * 60)).toBe(true);
+    // На карте группы длинные перерывы — ряды между парами, а у пары после них перерыва уже нет.
+    const rows = grid.withBreakRows(periods);
+    expect(rows.filter((p) => p.pause).map((p) => `${text(p.start)}-${text(p.end)}`)).toEqual([
+      "10:50-11:10",
+      "14:00-14:20",
+      "17:10-17:30",
+    ]);
+    expect(rows.every((p, i) => i === 0 || p.start === rows[i - 1].end || p.start - rows[i - 1].end === 10)).toBe(true);
+    expect(rows.filter((p) => p.breakBefore >= grid.BREAK_ROW_MIN)).toEqual([]);
     // Часы группы короче одной пары — запасная сетка по 30 минут.
     expect(grid.gridPeriods(600, 640, 30).map((p) => [p.n, p.start, p.end])).toEqual([[0, 600, 630], [0, 630, 640]]);
   });

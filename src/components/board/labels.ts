@@ -28,6 +28,7 @@ export type BoardLabels = {
   /** Подсказка карты на телефоне: там один день и нет наведения. */
   heatHintMobile: string;
   breakRow: string; // «Перерыв {m} мин»
+  breakShort: string; // «Перерыв» — подпись узкого ряда на карте
   legendNone: string;
   legendAll: string;
   legendMeeting: string;

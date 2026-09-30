@@ -598,6 +598,7 @@ export const EN: Dict = {
 
   // --- сетка по парам ---
   w_break_row: "Break {m} min",
+  w_break_short: "Break",
   w_legend_mine: "you are busy",
   w_legend_meeting: "meeting",
 

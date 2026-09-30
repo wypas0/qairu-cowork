@@ -598,6 +598,7 @@ export const RU = {
 
   // --- сетка по парам ---
   w_break_row: "Перерыв {m} мин",
+  w_break_short: "Перерыв",
   w_legend_mine: "ты занят",
   w_legend_meeting: "встреча",
 

@@ -30,6 +30,8 @@ export type Period = {
   end: number;
   /** Перерыв перед этим рядом, минуты: показываем его отдельной строкой, если он длинный. */
   breakBefore: number;
+  /** Ряд — сам длинный перерыв (только на карте группы, см. `withBreakRows`). */
+  pause?: boolean;
 };
 
 /**
@@ -68,6 +70,20 @@ export function gridPeriods(dayStart: number, dayEnd: number, step: number): Per
     end: Math.min(start + step, dayEnd),
     breakBefore: 0,
   }));
+}
+
+/**
+ * Ряды карты группы: длинные перерывы — тоже ряды со своими клетками. На них
+ * можно назначить встречу, и встреча, которая через перерыв проходит, красит
+ * его, а не рвётся посередине. В своём расписании перерывы остаются подписью:
+ * пар там нет, красить нечего.
+ */
+export function withBreakRows(periods: readonly Period[]): Period[] {
+  return periods.flatMap((period, index) => {
+    if (index === 0 || period.breakBefore < BREAK_ROW_MIN) return [period];
+    const pause: Period = { n: 0, start: periods[index - 1].end, end: period.start, breakBefore: 0, pause: true };
+    return [pause, { ...period, breakBefore: 0 }];
+  });
 }
 
 /** Ряд задевает интервал хотя бы частично. */

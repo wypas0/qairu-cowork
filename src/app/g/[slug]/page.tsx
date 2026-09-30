@@ -295,6 +295,7 @@ export default async function GroupPage({
                     heatHint: t("w_heat_hint"),
                     heatHintMobile: t("w_heat_hint_mobile"),
                     breakRow: t("w_break_row", { m: "{m}" }),
+                    breakShort: t("w_break_short"),
                     legendNone: t("w_legend_none"),
                     legendAll: t("w_legend_all"),
                     legendMeeting: t("w_legend_meeting"),

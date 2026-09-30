@@ -17,7 +17,7 @@ import {
   parityFromSemesterStart,
   slotsOfLength,
 } from "@/core/availability";
-import { type Period, gridPeriods } from "@/core/grid";
+import { type Period, gridPeriods, withBreakRows } from "@/core/grid";
 import type { IcsInput } from "@/core/calendar";
 import { occurrencesBetween, weeklyRule } from "@/core/recurrence";
 import { fmtInterval } from "@/core/intervals";
@@ -221,7 +221,7 @@ export async function loadGroupState(
   // Для текущей недели варианты считаем от сегодня (прошедшие дни не нужны),
   // для будущей — с её понедельника.
   const slotsStart = week === 0 ? today : weekStart;
-  const periods = gridPeriods(chat.dayStartMin, chat.dayEndMin, SLOT_STEP);
+  const periods = withBreakRows(gridPeriods(chat.dayStartMin, chat.dayEndMin, SLOT_STEP));
   const oneOff = oneOffRows.map((meeting) => meetingSpan(meeting, tz));
   // Повторяющаяся встреча занимает свои клетки в каждой неделе серии.
   const repeated = seriesRows.flatMap((meeting) =>

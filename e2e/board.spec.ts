@@ -44,6 +44,35 @@ test.describe("доска группы", () => {
     await expect(page.locator(".cell-popover")).toHaveCount(0);
   });
 
+  test("перерыв — сплошная полоса; нажатие в столбце дня назначает встречу на перерыв", async ({ page }) => {
+    await page.goto(group());
+    const loaded = page.waitForResponse((response) => /\/api\/g\/[^/]+\/state\?.*week=1/.test(response.url()));
+    await page.getByRole("button", { name: "Следующая неделя" }).click();
+    await loaded;
+    await expect(page.locator(".heatmap")).toHaveAttribute("aria-busy", "false");
+
+    // Встреч на перерыве нет — ряд одной ячейкой через всю неделю.
+    const strip = page.locator("table.week.periods tr.pause-row").first().locator("td");
+    await expect(strip).toHaveCount(1);
+    await expect(strip).toHaveText("Перерыв 20 мин");
+
+    const thursday = (await page.locator("table.week.periods thead th").nth(4).boundingBox())!;
+    const box = (await strip.boundingBox())!;
+    await page.mouse.click(thursday.x + thursday.width / 2, box.y + box.height / 2);
+    const popover = page.locator(".cell-popover");
+    await expect(popover).toContainText("10:50–11:10");
+    await popover.getByRole("button", { name: "Назначить" }).click();
+    await expect(page.locator("#when-text")).toHaveValue(/четверг.*10:50–11:10/);
+
+    // Продлили встречу в поле, не трогая день, — точное время пересчиталось,
+    // встреча останется на карте, а не уйдёт простым текстом.
+    const when = page.locator("#when-text");
+    await when.fill((await when.inputValue()).replace("11:10", "13:00"));
+    await expect(page.locator('input[name="when"]')).toHaveValue(/T10:50\|130$/);
+    await when.fill("в четверг после пар");
+    await expect(page.locator('input[name="when"]')).toHaveValue("в четверг после пар");
+  });
+
   test("наведение на имя подсвечивает, когда человек свободен", async ({ page }) => {
     await page.goto(group());
     await page.locator(".who-list li", { hasText: "Ерлан" }).hover();

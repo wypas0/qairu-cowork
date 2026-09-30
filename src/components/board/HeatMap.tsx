@@ -1,12 +1,12 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { type MouseEvent, useRef, useState } from "react";
 
 import { fmtMinutes } from "@/core/intervals";
 import type { BoardPayload } from "@/lib/group";
 import { moveFocusByArrow } from "../gridKeys";
 import { IconChevronLeft, IconChevronRight, IconMeeting } from "../icons";
-import { BreakRow, PeriodTime } from "../PeriodRow";
+import { PauseTime, PeriodTime } from "../PeriodRow";
 import type { CellDetail, Hover } from "./CellDetails";
 import { useDragSelect } from "./hooks";
 import type { BoardLabels } from "./labels";
@@ -60,10 +60,11 @@ export function HeatMap({
 
   // Ряды по краям дня, где не свободен никто и нет встреч, прячем: ранним
   // утром и поздним вечером карта иначе состоит из одинаковых пустых клеток.
+  // Перерыв считается занятым только встречей: сам по себе он не повод показывать край дня.
   const rowUsed = (row: number) =>
     payload.days.some(
       (heatDay) =>
-        heatDay.cells[row].count > 0 ||
+        (heatDay.cells[row].count > 0 && !payload.periods[row].pause) ||
         meetingsAt(heatDay.date, heatDay.cells[row].start, heatDay.cells[row].end).length > 0,
     );
   const lastRow = payload.periods.length - 1;
@@ -100,6 +101,93 @@ export function HeatMap({
     const past = now !== null && (heatDay.date < now.day || (heatDay.date === now.day && cell.end <= now.min));
     const current = now !== null && heatDay.date === now.day && cell.start <= now.min && now.min < cell.end;
     return { cell, here, detail, past, current };
+  }
+
+  /**
+   * Нажатие на полосу перерыва: день узнаём по столбцу под курсором и
+   * открываем окно этого перерыва — с него встречу можно назначить.
+   */
+  function openPause(event: MouseEvent<HTMLTableCellElement>, row: number) {
+    const heads = [...(event.currentTarget.closest("table")?.tHead?.rows[0].cells ?? [])].slice(1);
+    const index = heads.findIndex((th) => {
+      const rect = th.getBoundingClientRect();
+      return event.clientX >= rect.left && event.clientX < rect.right;
+    });
+    const entry = payload.days[index];
+    if (entry) onOpen(describe(entry, row).detail);
+  }
+
+  /** Клетка карты: день × ряд. На перерыве — только там, где на него назначена встреча. */
+  function dayCell(entry: BoardPayload["days"][number], row: number) {
+    const { cell, here, detail, past, current } = describe(entry, row);
+    // Подпись — только в первой клетке встречи за день, дальше просто красные.
+    const titled = here.filter(
+      (meeting) =>
+        row === firstShown ||
+        !(meeting.start < entry.cells[row - 1].end && entry.cells[row - 1].start < meeting.end),
+    );
+    const drag = select.drag;
+    const inRange =
+      drag !== null &&
+      drag.date === entry.date &&
+      row >= Math.min(drag.from, drag.to) &&
+      row <= Math.max(drag.from, drag.to);
+    const classes = [
+      "cell",
+      here.length > 0 ? "meeting" : heatClass(cell.count, total),
+      cell.mine ? "mine" : "",
+      past ? "past" : "",
+      inRange ? "inrange" : "",
+      spot === null ? "" : cell.freeIds.includes(spot) ? "spot-on" : "spot-off",
+    ];
+    return (
+      <td
+        key={`${entry.date}-${cell.start}`}
+        className={classes.filter(Boolean).join(" ")}
+        onPointerDown={(event) => {
+          if (event.pointerType !== "mouse" || event.button !== 0) return;
+          select.start(entry.date, { row, start: cell.start, end: cell.end });
+        }}
+        onPointerEnter={(event) => {
+          // Подсказка — для мыши; на телефоне то же показывает окно по нажатию.
+          if (event.pointerType !== "mouse") return;
+          if (select.dragging()) {
+            onHover(null);
+            select.extend(entry.date, { row, start: cell.start, end: cell.end });
+            return;
+          }
+          const rect = event.currentTarget.getBoundingClientRect();
+          const below = rect.top < 140;
+          onHover({ detail, x: rect.left + rect.width / 2, y: below ? rect.bottom : rect.top, below });
+        }}
+        onPointerLeave={() => onHover(null)}
+        tabIndex={0}
+        role="button"
+        aria-label={cellLabel(detail, total, labels)}
+        onClick={() => {
+          if (select.shouldSkipClick()) return;
+          onHover(null);
+          onOpen(detail);
+        }}
+        onKeyDown={(event) => {
+          if (moveFocusByArrow(event)) return;
+          if (event.key !== " " && event.key !== "Enter") return;
+          event.preventDefault();
+          onOpen(detail);
+        }}
+      >
+        {titled.length > 0 && <span className="cell-meeting">{titled[0].title}</span>}
+        {cell.soft.length > 0 && here.length === 0 && <span className="soft-mark" aria-hidden="true" />}
+        {current && now && (
+          <span
+            className="now-line"
+            style={{ top: `${((now.min - cell.start) / (cell.end - cell.start)) * 100}%` }}
+            title={labels.nowLabel}
+            aria-hidden="true"
+          />
+        )}
+      </td>
+    );
   }
 
   // ---------- телефон: один день ----------
@@ -179,91 +267,47 @@ export function HeatMap({
             </tr>
           </thead>
           <tbody>
-            {shownRows.map(({ period, row }) => [
-              // Перерыв перед первым показанным рядом не нужен: над ним ничего нет.
-              row === firstShown ? null : (
-                <BreakRow
-                  key={`break-${period.start}`}
-                  period={period}
-                  columns={payload.days.length}
-                  template={labels.breakRow}
-                />
-              ),
-              <tr key={period.start}>
-                <PeriodTime period={period} />
-                {payload.days.map((entry) => {
-                  const { cell, here, detail, past, current } = describe(entry, row);
-                  // Подпись — только в первой клетке встречи за день, дальше просто красные.
-                  const titled = here.filter(
-                    (meeting) =>
-                      row === firstShown ||
-                      !(meeting.start < entry.cells[row - 1].end && entry.cells[row - 1].start < meeting.end),
-                  );
-                  const drag = select.drag;
-                  const inRange =
-                    drag !== null &&
-                    drag.date === entry.date &&
-                    row >= Math.min(drag.from, drag.to) &&
-                    row <= Math.max(drag.from, drag.to);
-                  const classes = [
-                    "cell",
-                    here.length > 0 ? "meeting" : heatClass(cell.count, total),
-                    cell.mine ? "mine" : "",
-                    past ? "past" : "",
-                    inRange ? "inrange" : "",
-                    spot === null ? "" : cell.freeIds.includes(spot) ? "spot-on" : "spot-off",
-                  ];
-                  return (
-                    <td
-                      key={`${entry.date}-${cell.start}`}
-                      className={classes.filter(Boolean).join(" ")}
-                      onPointerDown={(event) => {
-                        if (event.pointerType !== "mouse" || event.button !== 0) return;
-                        select.start(entry.date, { row, start: cell.start, end: cell.end });
-                      }}
-                      onPointerEnter={(event) => {
-                        // Подсказка — для мыши; на телефоне то же показывает окно по нажатию.
-                        if (event.pointerType !== "mouse") return;
-                        if (select.dragging()) {
-                          onHover(null);
-                          select.extend(entry.date, { row, start: cell.start, end: cell.end });
-                          return;
-                        }
-                        const rect = event.currentTarget.getBoundingClientRect();
-                        const below = rect.top < 140;
-                        onHover({ detail, x: rect.left + rect.width / 2, y: below ? rect.bottom : rect.top, below });
-                      }}
-                      onPointerLeave={() => onHover(null)}
-                      tabIndex={0}
-                      role="button"
-                      aria-label={cellLabel(detail, total, labels)}
-                      onClick={() => {
-                        if (select.shouldSkipClick()) return;
-                        onHover(null);
-                        onOpen(detail);
-                      }}
-                      onKeyDown={(event) => {
-                        if (moveFocusByArrow(event)) return;
-                        if (event.key !== " " && event.key !== "Enter") return;
-                        event.preventDefault();
-                        onOpen(detail);
-                      }}
-                    >
-                      {titled.length > 0 && <span className="cell-meeting">{titled[0].title}</span>}
-                      {cell.soft.length > 0 && here.length === 0 && <span className="soft-mark" aria-hidden="true" />}
-                      {current && now && (
-                        <span
-                          className="now-line"
-                          style={{ top: `${((now.min - cell.start) / (cell.end - cell.start)) * 100}%` }}
-                          title={labels.nowLabel}
-                          aria-hidden="true"
-                        />
-                      )}
+            {shownRows.map(({ period, row }) => {
+              if (!period.pause) {
+                return (
+                  <tr key={period.start}>
+                    <PeriodTime period={period} />
+                    {payload.days.map((entry) => dayCell(entry, row))}
+                  </tr>
+                );
+              }
+              // Перерыв — сплошная полоса через всю неделю. Встреча на нём
+              // выделяет в своём дне отдельную розовую клетку, соседние дни
+              // остаются полосой.
+              const booked = payload.days.map((entry) => meetingsAt(entry.date, period.start, period.end).length > 0);
+              const text = labels.breakRow.replace("{m}", String(period.end - period.start));
+              if (!booked.includes(true)) {
+                return (
+                  <tr key={period.start} className="pause-row">
+                    <td colSpan={payload.days.length + 1} className="pause-strip" onClick={(event) => openPause(event, row)}>
+                      {text}
                     </td>
-                  );
-                })}
-              </tr>,
-            ])}
+                  </tr>
+                );
+              }
+              return (
+                <tr key={period.start} className="pause-row">
+                  <PauseTime period={period} label={labels.breakShort} template={labels.breakRow} />
+                  {pauseRuns(booked).map((run) =>
+                    run.booked ? (
+                      dayCell(payload.days[run.from], row)
+                    ) : (
+                      <td
+                        key={`strip-${run.from}`}
+                        colSpan={run.span}
+                        className="pause-strip"
+                        onClick={(event) => openPause(event, row)}
+                      />
+                    ),
+                  )}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -305,6 +349,22 @@ export function HeatMap({
           >
             {shownRows.map(({ period, row }) => {
               const { cell, here, detail, past, current } = describe(heatDay, row);
+              // Перерыв без встречи — тонкая подпись между парами, как на широком экране.
+              if (period.pause && here.length === 0) {
+                return (
+                  <li key={period.start}>
+                    <button
+                      type="button"
+                      className="agenda-break"
+                      aria-label={cellLabel(detail, total, labels)}
+                      onClick={() => onOpen(detail)}
+                    >
+                      {labels.breakRow.replace("{m}", String(period.end - period.start))} · {fmtMinutes(period.start)}–
+                      {fmtMinutes(period.end)}
+                    </button>
+                  </li>
+                );
+              }
               const tone = here.length > 0 ? "meeting" : heatClass(cell.count, total);
               const who =
                 here.length > 0
@@ -316,17 +376,20 @@ export function HeatMap({
                 <li key={period.start}>
                   <button
                     type="button"
-                    className={`agenda-row${past ? " past" : ""}${current ? " current" : ""}`}
+                    className={`agenda-row${period.pause ? " pause" : ""}${past ? " past" : ""}${current ? " current" : ""}`}
                     aria-label={cellLabel(detail, total, labels)}
                     onClick={() => onOpen(detail)}
                   >
                     <span className="agenda-time">
                       {period.n > 0 && <b>{period.n}</b>}
+                      {period.pause && (
+                        <span className="agenda-pause">{labels.breakShort}</span>
+                      )}
                       {fmtMinutes(period.start)}–{fmtMinutes(period.end)}
                     </span>
                     {/* Цвет — только у счётчика: текст на шкале читался бы не на всех ступенях. */}
                     <span className={`agenda-count ${tone}${cell.mine ? " mine" : ""}`}>
-                      {here.length > 0 ? <IconMeeting size={18} /> : `${cell.count}/${total}`}
+                      {here.length > 0 ? <IconMeeting size={period.pause ? 16 : 18} /> : `${cell.count}/${total}`}
                     </span>
                     <span className="agenda-text">
                       <span className="agenda-who">{who}</span>
@@ -380,4 +443,18 @@ export function HeatMap({
 function cellLabel(detail: CellDetail, total: number, labels: BoardLabels): string {
   const meetings = detail.meetings.length > 0 ? ` · ${labels.legendMeeting}: ${detail.meetings.join(", ")}` : "";
   return `${detail.dayLabel} ${fmtMinutes(detail.start)}–${fmtMinutes(detail.end)}: ${detail.count}/${total}${meetings}`;
+}
+
+/**
+ * Дни ряда-перерыва, склеенные в куски: день со встречей — отдельно, подряд
+ * идущие дни без встреч — одной полосой.
+ */
+function pauseRuns(booked: boolean[]): { from: number; span: number; booked: boolean }[] {
+  const runs: { from: number; span: number; booked: boolean }[] = [];
+  booked.forEach((value, index) => {
+    const last = runs[runs.length - 1];
+    if (!value && last && !last.booked) last.span += 1;
+    else runs.push({ from: index, span: 1, booked: value });
+  });
+  return runs;
 }

@@ -21,7 +21,9 @@ export function moveFocusByArrow(event: KeyboardEvent<HTMLElement>): boolean {
   if (!cell || !body) return false;
   event.preventDefault();
 
+  // Ряд-перерыв на карте бывает с клеткой встречи, но столбцы в нём склеены — стрелки его пропускают.
   const rows = [...body.rows]
+    .filter((row) => !row.classList.contains("pause-row"))
     .map((row) => [...row.cells].filter((td) => td.classList.contains("cell")))
     .filter((cells) => cells.length > 0);
   const row = rows.findIndex((cells) => cells.includes(cell as HTMLTableCellElement));

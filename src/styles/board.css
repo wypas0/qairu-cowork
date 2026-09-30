@@ -332,6 +332,40 @@
   color: var(--text);
   font-size: 13px;
 }
+.agenda-pause {
+  font-size: 11px;
+  color: var(--muted);
+}
+.agenda-row.pause {
+  min-height: 32px;
+  padding-block: 2px;
+}
+.agenda-row.pause .agenda-count {
+  height: 20px;
+}
+/* Перерыв без встречи на телефоне — тонкая подпись между парами; нажатие
+   открывает перерыв, как клетку, — с него можно назначить встречу. */
+.agenda-break {
+  width: 100%;
+  border: 0;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  padding: 1px 10px;
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 14px;
+  font-variant-numeric: tabular-nums;
+  position: relative;
+}
+/* Полоса тонкая — зона нажатия захватывает и зазоры до соседних строк. */
+.agenda-break::after {
+  content: "";
+  position: absolute;
+  inset: -3px 0;
+}
 .agenda-count {
   position: relative;
   display: grid;
