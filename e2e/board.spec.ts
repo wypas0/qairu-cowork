@@ -83,13 +83,29 @@ test.describe("доска группы", () => {
 
   test("свёрнутая панель и закрытое «Лучшее время» запоминаются", async ({ page }) => {
     await page.goto(group());
+    const shell = page.locator(".shell");
     await page.getByRole("button", { name: "Свернуть панель" }).click();
-    await expect(page.locator(".shell")).toHaveClass(/sidebar-closed/);
+    await expect(shell).toHaveClass(/sidebar-closed/);
     await page.getByRole("button", { name: "Скрыть «Лучшее время»" }).click();
     await expect(page.locator(".best-collapsed")).toBeVisible();
 
+    // Мышь на свёрнутой полосе раскрывает панель поверх доски — доска не
+    // сдвигается; ушла с полосы — панель снова свёрнута.
+    await page.mouse.move(700, 400);
+    const boardX = (await page.locator(".shell-main").boundingBox())!.x;
+    await page.locator("#sidebar").hover();
+    await expect(shell).toHaveClass(/sidebar-peek/);
+    await expect(shell).not.toHaveClass(/sidebar-closed/);
+    await expect(page.locator("#sidebar .sidebar-title", { hasText: "Дипломники" })).toBeVisible();
+    expect((await page.locator(".shell-main").boundingBox())!.x).toBe(boardX);
+    await page.mouse.move(700, 400);
+    await expect(shell).toHaveClass(/sidebar-closed/);
+    await expect(shell).not.toHaveClass(/sidebar-peek/);
+
+    // Подсмотреть — не развернуть: после перезагрузки панель всё так же свёрнута.
     await page.reload();
-    await expect(page.locator(".shell")).toHaveClass(/sidebar-closed/);
+    await page.mouse.move(700, 400);
+    await expect(shell).toHaveClass(/sidebar-closed/);
     await expect(page.locator(".best-collapsed")).toBeVisible();
 
     // Вернуть как было — чтобы не влиять на другие тесты.

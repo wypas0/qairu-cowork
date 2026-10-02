@@ -371,6 +371,30 @@
   .sidebar-closed .sidebar-foot {
     flex-direction: column;
   }
+
+  /* Мышь на свёрнутой полосе: панель раскрыта поверх страницы, а место под
+     полосой остаётся прежним — доска не сдвигается (см. SidebarToggle). */
+  .shell.sidebar-peek {
+    grid-template-columns: 68px minmax(0, 1fr);
+  }
+  .sidebar-peek > .shell-main {
+    grid-column: 2;
+  }
+  .sidebar-peek > .sidebar {
+    position: fixed;
+    left: 0;
+    z-index: 60;
+    width: 256px;
+    background: var(--popover);
+    border-radius: 0 var(--r-3xl) var(--r-3xl) 0;
+    box-shadow: var(--shadow-float);
+    animation: landing-slide 200ms var(--ease);
+  }
+}
+@media (min-width: 1024px) and (prefers-reduced-motion: reduce) {
+  .sidebar-peek > .sidebar {
+    animation: none;
+  }
 }
 
 /* --- лендинг вошедшего: сайдбар групп выезжает поверх витрины ---
