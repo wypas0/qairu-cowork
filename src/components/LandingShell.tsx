@@ -14,9 +14,11 @@ export const GROUPS_EVENT = "qairu:groups";
  *
  * На компьютере сайдбар свёрнут в полосу со знаками групп, как свёрнутая
  * панель на страницах группы: сразу видно, что ты вошёл и где твои группы.
- * Нажатие на полосу раскрывает сайдбар поверх витрины. На телефоне полосы нет
- * (она отняла бы ширину у витрины) — сайдбар выезжает по кнопке «Мои группы»
- * в шапке. Закрывается крестиком, нажатием по фону и клавишей Esc.
+ * Мышь на полосе — сайдбар раскрывается поверх витрины, ушла с него —
+ * сворачивается. Без мыши (сенсорный экран) полосу раскрывает нажатие.
+ * На телефоне полосы нет (она отняла бы ширину у витрины) — сайдбар выезжает
+ * по кнопке «Мои группы» в шапке. Закрывается крестиком, нажатием по фону и
+ * клавишей Esc.
  */
 export function LandingShell({
   sidebar,
@@ -32,11 +34,27 @@ export function LandingShell({
   initialOpen: boolean;
   labels: { groups: string; open: string; close: string };
 }) {
-  const [open, setOpen] = useState(initialOpen);
+  // "hover" — раскрыт наведением мыши: без затемнения фона и без переноса фокуса,
+  // это просто подсмотреть. "pinned" — раскрыт нажатием, кнопкой или сразу.
+  const [open, setOpen] = useState<false | "hover" | "pinned">(initialOpen ? "pinned" : false);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  useEffect(() => () => clearTimeout(hoverTimer.current), []);
+
+  // Небольшая задержка: мышь, мимоходом задевшая край экрана, сайдбар не
+  // раскрывает, а короткий выход за его край не сворачивает.
+  function onHover(event: React.PointerEvent, inside: boolean) {
+    if (event.pointerType !== "mouse") return;
+    clearTimeout(hoverTimer.current);
+    hoverTimer.current = setTimeout(
+      () => setOpen((now) => (inside ? now || "hover" : false)),
+      inside ? 80 : 200,
+    );
+  }
 
   useEffect(() => {
-    const show = () => setOpen(true);
+    const show = () => setOpen("pinned");
     // «Создать группу» открывает окно поверх — сайдбар ему не нужен.
     const onHash = () => {
       if (window.location.hash === "#create") setOpen(false);
@@ -51,7 +69,7 @@ export function LandingShell({
 
   useEffect(() => {
     if (!open) return;
-    closeRef.current?.focus({ preventScroll: true });
+    if (open === "pinned") closeRef.current?.focus({ preventScroll: true });
     const onKey = (event: KeyboardEvent) => {
       // Esc над окном «Создать группу» закрывает только окно.
       if (event.key === "Escape" && !document.querySelector("dialog[open]")) setOpen(false);
@@ -66,13 +84,19 @@ export function LandingShell({
         className="sidebar"
         id="sidebar"
         aria-label={labels.groups}
-        // Свёрнутая полоса целиком — кнопка «развернуть»: знак группы сначала
-        // раскрывает сайдбар, а не уводит со страницы. Профиль внизу работает как есть.
+        // Панель профиля открывается внутри сайдбара, поэтому мышь над ней
+        // сайдбар не сворачивает.
+        onPointerEnter={(event) => onHover(event, true)}
+        onPointerLeave={(event) => onHover(event, false)}
+        // Свёрнутая полоса целиком — кнопка «развернуть» (для сенсорного экрана,
+        // мышь раскрывает её раньше): знак группы сначала раскрывает сайдбар,
+        // а не уводит со страницы. Профиль внизу работает как есть.
         onClickCapture={(event) => {
           if (open || (event.target as Element).closest(".sidebar-foot")) return;
           event.preventDefault();
           event.stopPropagation();
-          setOpen(true);
+          clearTimeout(hoverTimer.current);
+          setOpen("pinned");
         }}
         title={open ? undefined : labels.open}
       >
@@ -96,7 +120,7 @@ export function LandingShell({
         </div>
         {sidebar}
       </aside>
-      {open && <div className="landing-scrim" aria-hidden="true" onClick={() => setOpen(false)} />}
+      {open === "pinned" && <div className="landing-scrim" aria-hidden="true" onClick={() => setOpen(false)} />}
       <div className="shell-main">
         {topbar}
         {children}

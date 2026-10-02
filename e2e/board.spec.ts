@@ -412,12 +412,23 @@ test.describe("витрина лендинга", () => {
     const shell = page.locator(".landing-shell");
     await expect(shell).toHaveClass(/sidebar-closed/);
 
-    // Нажатие по знаку группы в полосе сначала раскрывает сайдбар, а не уводит в группу.
-    await page.locator("#sidebar .sidebar-group").first().click();
+    // Мышь на полосе — сайдбар раскрыт, без затемнения фона; ушла с него — свёрнут.
+    await page.locator("#sidebar").hover();
     await expect(shell).toHaveClass(/landing-open/);
-    await expect(page).toHaveURL(/\/$/);
     await expect(page.locator("#sidebar")).toContainText("ИС-21");
     await expect(page.locator("#join-code")).toBeVisible();
+    await expect(page.locator(".landing-scrim")).toHaveCount(0);
+    await page.locator("#join-code").hover();
+    await expect(shell).toHaveClass(/landing-open/);
+    await page.mouse.move(700, 400);
+    await expect(shell).toHaveClass(/sidebar-closed/);
+
+    // Без мыши (сенсорный экран) нажатие по знаку группы в полосе сначала
+    // раскрывает сайдбар, а не уводит в группу.
+    await page.locator("#sidebar .sidebar-group").first().dispatchEvent("click");
+    await expect(shell).toHaveClass(/landing-open/);
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.locator(".landing-scrim")).toHaveCount(1);
     await page.keyboard.press("Escape");
     await expect(shell).toHaveClass(/sidebar-closed/);
 
