@@ -410,6 +410,9 @@ test.describe("витрина лендинга", () => {
     await page.goto("/");
     await expect(page.locator(".hero")).toBeVisible();
     const shell = page.locator(".landing-shell");
+    // Курсор новой страницы стоит в (0, 0) — прямо на полосе, и Chrome может
+    // раскрыть по нему сайдбар сразу после загрузки. Уводим мышь на витрину.
+    await page.mouse.move(700, 400);
     await expect(shell).toHaveClass(/sidebar-closed/);
 
     // Мышь на полосе — сайдбар раскрыт, без затемнения фона; ушла с него — свёрнут.
