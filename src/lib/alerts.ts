@@ -63,3 +63,31 @@ export async function reportServerError(error: unknown, request: RequestInfo, co
     // Не дошло — останется запись в логах Vercel.
   }
 }
+
+/**
+ * Расширение кампуса не нашло расписание на странице — значит, кампус сменил
+ * формат и расширение у всех сломано. Поля уже проверены (`readExtensionReport`).
+ */
+export async function reportExtensionProblem(report: {
+  version: string;
+  locale: string;
+  html: number;
+  flight: number;
+  grid: boolean;
+  sections: number;
+}): Promise<boolean> {
+  const chatId = Number(alertChatId());
+  if (!chatId || !hasBot()) return false;
+  const text = [
+    "⚠️ <b>Расширение кампуса не нашло расписание</b>",
+    "Похоже, campus.qairu.edu.kz сменил формат страницы /schedule.",
+    `версия ${escapeHtml(report.version)} · язык ${escapeHtml(report.locale)}`,
+    `HTML ${report.html} · RSC ${report.flight} · ScheduleGrid: ${report.grid ? "есть" : "нет"} · "sections": ${report.sections}`,
+  ].join("\n");
+  try {
+    await sendMessage({ chat_id: chatId, text, parse_mode: "HTML", link_preview_options: { is_disabled: true } });
+    return true;
+  } catch {
+    return false;
+  }
+}

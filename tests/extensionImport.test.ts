@@ -5,7 +5,13 @@
 
 import { describe, expect, it } from "vitest";
 
-import { EXT_SOURCE, readExtensionMessage } from "@/core/extensionImport";
+import {
+  EXT_SOURCE,
+  LATEST_EXTENSION,
+  olderVersion,
+  readExtensionMessage,
+  readExtensionReport,
+} from "@/core/extensionImport";
 
 const message = (patch: Record<string, unknown> = {}) => ({
   source: EXT_SOURCE,
@@ -95,5 +101,34 @@ describe("readExtensionMessage", () => {
     const result = readExtensionMessage(message({ slots: many, meetings: 120 }));
     expect(result?.slots).toHaveLength(80);
     expect(result?.slots[0]?.label).toBe("A B C");
+  });
+});
+
+describe("readExtensionReport", () => {
+  const report = { kind: "not_found", version: "0.2.0", locale: "ru", html: 180_000, flight: 150_000, grid: false, sections: 1 };
+
+  it("принимает отчёт из чисел, флага и кодов", () => {
+    expect(readExtensionReport(report)).toEqual(report);
+  });
+
+  it("свободный текст и лишнее в сообщение бота не попадают", () => {
+    expect(readExtensionReport({ ...report, version: "<b>x</b>" })).toBeNull();
+    expect(readExtensionReport({ ...report, locale: "de" })).toBeNull();
+    expect(readExtensionReport({ ...report, kind: "hello" })).toBeNull();
+    expect(readExtensionReport({ ...report, html: -1 })).toBeNull();
+    expect(readExtensionReport({ ...report, sections: 1.5 })).toBeNull();
+    expect(readExtensionReport({ ...report, grid: "no" })).toBeNull();
+    expect(readExtensionReport({ ...report, extra: "<script>" })).toEqual(report);
+    expect(readExtensionReport(null)).toBeNull();
+  });
+});
+
+describe("olderVersion", () => {
+  it("сравнивает по числам, а не строкам", () => {
+    expect(olderVersion("0.1.0", "0.2.0")).toBe(true);
+    expect(olderVersion("0.9.0", "0.10.0")).toBe(true);
+    expect(olderVersion("0.2.0", "0.2.0")).toBe(false);
+    expect(olderVersion("1.0.0", "0.9.9")).toBe(false);
+    expect(olderVersion(LATEST_EXTENSION, LATEST_EXTENSION)).toBe(false);
   });
 });

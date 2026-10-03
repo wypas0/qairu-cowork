@@ -3,7 +3,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { COOKIE_MAX_AGE, RECENT_COOKIE, RECENT_LIMIT, parseRecent } from "@/lib/cookies";
 
 /** Вызовы, которые приходят не из браузера сайта: у них своя проверка подлинности. */
-const EXTERNAL_API = ["/api/telegram/", "/api/cron/", "/api/healthz"];
+// /api/ext/ — отчёты расширения кампуса: приходят с его адреса (chrome-extension://), без куки.
+const EXTERNAL_API = ["/api/telegram/", "/api/cron/", "/api/healthz", "/api/ext/"];
 
 /**
  * 1. Старая персональная ссылка из бота: `/g/<slug>?t=<token>`.

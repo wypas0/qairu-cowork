@@ -119,6 +119,29 @@
   gap: 8px;
   flex-wrap: wrap;
 }
+/* подсказка про расширение кампуса над «Моим расписанием» */
+.ext-hint {
+  margin-bottom: 16px;
+}
+/* страница /extension */
+.ext-page {
+  max-width: 560px;
+  margin: 32px auto;
+}
+.ext-page h2 {
+  margin-top: 24px;
+}
+.ext-page ol {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 20px;
+  padding-left: 22px;
+  list-style: decimal; /* сброс стилей Tailwind убирает номера */
+}
+.ext-page ol li::marker {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
 
 /* --- новая встреча: наверху раздела, свёрнутой кнопкой --- */
 .new-meeting {

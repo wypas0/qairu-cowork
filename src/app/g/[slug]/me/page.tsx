@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { ConfirmSubmit } from "@/components/ConfirmSubmit";
 import { DatedQuickForm } from "@/components/DatedQuickForm";
+import { ExtensionHint } from "@/components/ExtensionHint";
 import { FlashToast } from "@/components/FlashToast";
 import { ScrollToAnchor } from "@/components/ScrollToAnchor";
 import { ScheduleEditor } from "@/components/ScheduleEditor";
@@ -107,6 +108,16 @@ export default async function MySchedulePage({
             </p>
           </div>
         </header>
+
+        <ExtensionHint
+          lang={lang}
+          labels={{
+            install: t("w_ext_hint"),
+            update: t("w_ext_hint_update"),
+            how: t("w_ext_hint_how"),
+            later: t("w_ext_hint_later"),
+          }}
+        />
 
         <ScheduleEditor
           slug={slug}
