@@ -342,6 +342,8 @@ export const EN: Dict = {
   w_import_cancel: "Cancel import",
   w_import_pending: "Import not saved yet",
   w_import_parsed: "Recognised classes: {n}:",
+  w_campus_review: "Classes from Campus: {n}. Check the grid — untick what is wrong, paint what is missing — and save.",
+  w_campus_parsed: "Classes from Campus: {n}:",
   w_dated: "One-off busy times",
   w_dated_hint: "Exams and exam periods are added in the bot with /busy.",
   w_settings: "Group settings",

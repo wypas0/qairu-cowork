@@ -140,6 +140,8 @@ export default async function MySchedulePage({
             chooseManualHint: t("w_choose_manual_hint"),
             importParsed: t("w_import_parsed", { n: "{n}" }),
             importReview: t("w_import_review", { n: "{n}" }),
+            campusParsed: t("w_campus_parsed", { n: "{n}" }),
+            campusReview: t("w_campus_review", { n: "{n}" }),
             importSave: t("w_import_save"),
             importCancel: t("w_import_cancel"),
             importPending: t("w_import_pending"),

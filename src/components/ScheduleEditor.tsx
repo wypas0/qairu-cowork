@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 
 import type { Period, WeeklySlot } from "@/core/grid";
 import { SOFT_PREFIX, editorCells, editorSlots, periodOverlaps } from "@/core/grid";
+import { PAGE_SOURCE, readExtensionMessage } from "@/core/extensionImport";
 import { haptic, whenReady } from "@/lib/telegram";
 import { moveFocusByArrow } from "./gridKeys";
 import { IconCamera, IconCheck, IconChevronRight, IconGrid } from "./icons";
@@ -36,6 +37,9 @@ export type EditorLabels = {
   chooseManualHint: string;
   importParsed: string;
   importReview: string; // «Распознали пар: {n}…»
+  /** То же для пар, пришедших из расширения кампуса. */
+  campusParsed: string;
+  campusReview: string; // «Пары из кампуса: {n}…»
   importSave: string;
   importCancel: string;
   importPending: string;
@@ -163,6 +167,9 @@ async function prepareUpload(file: File, index: number): Promise<{ blob: Blob; n
   return { blob: file, name: file.name };
 }
 
+/** Откуда пришли пары на проверку: распознанный файл или расширение кампуса. */
+type ImportSource = "photo" | "campus";
+
 type ParsedSlot = {
   weekday: number;
   start: number;
@@ -222,7 +229,7 @@ export function ScheduleEditor({
   const [savedOnce, setSavedOnce] = useState(initialBusy.length > 0);
   // Шаги для отмены: один шаг — один мазок или одно целое действие.
   const [history, setHistory] = useState<{ cells: Set<string>; base: WeeklySlot[] }[]>([]);
-  const [preview, setPreview] = useState<{ slots: ParsedSlot[] } | null>(null);
+  const [preview, setPreview] = useState<{ slots: ParsedSlot[]; source: ImportSource; count: number } | null>(null);
   // Распознанное с фото ждёт проверки: пока человек не нажал
   // «Сохранить», автосохранение молчит. Снимок — чтобы «Отменить импорт»
   // вернул сетку ровно к тому, что было до него.
@@ -535,7 +542,7 @@ export function ScheduleEditor({
    * и только потом жмёт «Сохранить». Клетка занята, если пара задевает её хотя
    * бы частично.
    */
-  function applyParsed(slots: ParsedSlot[]) {
+  function applyParsed(slots: ParsedSlot[], source: ImportSource = "photo", count = slots.length) {
     // Отметки «неудобно» распознавание не приносит — их оставляем как были.
     const next = new Set<string>([...busy].filter((key) => key.startsWith(SOFT)));
     for (const slot of slots) {
@@ -565,7 +572,7 @@ export function ScheduleEditor({
     setBusy(next);
     setDirty(true);
     setReviewing(true);
-    setPreview({ slots });
+    setPreview({ slots, source, count });
     rootRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
   }
 
@@ -587,6 +594,29 @@ export function ScheduleEditor({
     setReviewing(false);
     setPreview(null);
   }
+
+  // Пары из расширения кампуса: оно ждёт «готов» и присылает их сообщением.
+  // Обработчик живёт всё время, а раскрашивает сетку текущим applyParsed.
+  const applyParsedRef = useRef(applyParsed);
+  useEffect(() => {
+    applyParsedRef.current = applyParsed;
+  });
+  useEffect(() => {
+    const handled = new Set<string>();
+    function onMessage(event: MessageEvent) {
+      if (event.source !== window || event.origin !== window.location.origin) return;
+      const incoming = readExtensionMessage(event.data);
+      if (!incoming || handled.has(incoming.id)) return;
+      handled.add(incoming.id);
+      window.postMessage({ source: PAGE_SOURCE, type: "campus-received", id: incoming.id }, window.location.origin);
+      setFailed(null);
+      setMode("manual");
+      applyParsedRef.current(incoming.slots, "campus", incoming.count);
+    }
+    window.addEventListener("message", onMessage);
+    window.postMessage({ source: PAGE_SOURCE, type: "campus-ready" }, window.location.origin);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
 
   async function runPhotoImport(files: File[]) {
     if (files.length === 0) return;
@@ -750,7 +780,12 @@ export function ScheduleEditor({
 
         {reviewing && preview && (
           <div className="notice review-bar" role="status">
-            <span>{labels.importReview.replace("{n}", String(preview.slots.length))}</span>
+            <span>
+              {(preview.source === "campus" ? labels.campusReview : labels.importReview).replace(
+                "{n}",
+                String(preview.count),
+              )}
+            </span>
             <span className="notice-actions">
               <button className="btn btn-sm btn-primary tg-hide" type="button" onClick={confirmImport}>
                 {labels.importSave}
@@ -959,7 +994,10 @@ export function ScheduleEditor({
             {preview && (
               <>
                 <p className="small">
-                  {labels.importParsed.replace("{n}", String(preview.slots.length))}
+                  {(preview.source === "campus" ? labels.campusParsed : labels.importParsed).replace(
+                    "{n}",
+                    String(preview.count),
+                  )}
                 </p>
                 <p className="small muted mono">
                   {preview.slots.slice(0, 40).map((slot, index) => (
