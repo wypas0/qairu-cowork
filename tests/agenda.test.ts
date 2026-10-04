@@ -51,3 +51,13 @@ describe("agendaRuns", () => {
     expect(seen).toEqual(items.map((_, index) => index));
   });
 });
+
+describe("initials", () => {
+  it("две буквы имени — двоих на одну букву не спутать", async () => {
+    const { initials } = await import("@/components/board/PickBar");
+    expect(initials("Амир")).toBe("Ам");
+    expect(initials("асель Нурланова")).toBe("Ас");
+    expect(initials("Я")).toBe("Я");
+    expect(initials("  ")).toBe("?");
+  });
+});

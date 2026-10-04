@@ -66,8 +66,12 @@
     overflow-y: auto;
     overflow-x: hidden;
   }
+  /* Страницы группы — во всю ширину: при увеличении 67–90% и на больших
+     мониторах по бокам больше нет пустых полос. Предел — только чтобы на
+     сверхшироких экранах строки не разбегались. */
   .shell .wrap,
   .shell .foot {
+    max-width: 1760px;
     padding-left: 32px;
     padding-right: max(32px, var(--safe-right));
   }
@@ -429,6 +433,65 @@
     box-shadow: var(--shadow-float);
     animation: landing-slide 200ms var(--ease);
   }
+}
+/* Увеличение 125% и больше (страница 1024–1179 px): панель сама становится
+   полосой — карте нужно место. Кнопка и наведение раскрывают её поверх
+   страницы, как подсмотреть (см. SidebarToggle). */
+@media (min-width: 1024px) and (max-width: 1179px) {
+  .shell:not(.sidebar-peek):not(.landing-shell) {
+    grid-template-columns: 68px minmax(0, 1fr);
+  }
+  .shell:not(.sidebar-peek):not(.landing-shell) .sidebar {
+    align-items: center;
+    padding-left: max(10px, var(--safe-left));
+    padding-right: 10px;
+  }
+  .shell:not(.sidebar-peek):not(.landing-shell) .sidebar-top {
+    flex-direction: column;
+    gap: 4px;
+  }
+  .shell:not(.sidebar-peek):not(.landing-shell) .sidebar-brand {
+    padding: 4px;
+  }
+  .shell:not(.sidebar-peek):not(.landing-shell) .sidebar-label,
+  .shell:not(.sidebar-peek):not(.landing-shell) .sidebar-title {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .shell:not(.sidebar-peek):not(.landing-shell) .sidebar-eyebrow,
+  .shell:not(.sidebar-peek):not(.landing-shell) .sidebar-fold,
+  .shell:not(.sidebar-peek):not(.landing-shell) .sidebar-today {
+    display: none;
+  }
+  .shell:not(.sidebar-peek):not(.landing-shell) .sidebar-link {
+    position: relative;
+    width: 40px;
+    justify-content: center;
+    padding: 0;
+  }
+  .shell:not(.sidebar-peek):not(.landing-shell) .sidebar-current {
+    margin: 0;
+  }
+  .shell:not(.sidebar-peek):not(.landing-shell) .sidebar-sub {
+    padding-left: 0;
+  }
+  .shell:not(.sidebar-peek):not(.landing-shell) .sidebar .count-badge {
+    position: absolute;
+    top: 0;
+    right: -2px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    font-size: 10px;
+  }
+  .shell:not(.sidebar-peek):not(.landing-shell) .sidebar-foot {
+    flex-direction: column;
+  }
+
 }
 @media (min-width: 1024px) and (prefers-reduced-motion: reduce) {
   .sidebar-peek > .sidebar {

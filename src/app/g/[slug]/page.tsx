@@ -33,7 +33,7 @@ import {
   toBoardPayload,
 } from "@/lib/group";
 import { feedPath } from "@/lib/calendarFeed";
-import { BEST_COOKIE } from "@/lib/cookies";
+import { BEST_COOKIE, WINDOWS_COOKIE } from "@/lib/cookies";
 import { formatCode } from "@/lib/invite";
 import { hasBot } from "@/lib/config";
 import { baseUrl } from "@/lib/url";
@@ -92,7 +92,9 @@ export default async function GroupPage({
     repo.scheduleUpdatedAt(roster.map((entry) => entry.user.userId)),
   ]);
   const payload = toBoardPayload(state, lang, user.userId);
-  const bestHidden = (await cookies()).get(BEST_COOKIE)?.value === "hidden";
+  const viewCookies = await cookies();
+  const bestHidden = viewCookies.get(BEST_COOKIE)?.value === "hidden";
+  const windowsHidden = viewCookies.get(WINDOWS_COOKIE)?.value === "hidden";
   const base = await baseUrl();
   const inviteUrl = `${base}/g/${slug}`;
   // Ссылка для чата в Telegram открывает группу сразу в мини-приложении — если оно у бота есть.
@@ -300,6 +302,7 @@ export default async function GroupPage({
                   initial={payload}
                   durationOptions={durationOptions(state.duration)}
                   initialBestHidden={bestHidden}
+                  initialWindowsHidden={windowsHidden}
                   labels={{
                     bestTitle: t("w_best_title"),
                     bestHide: t("w_best_hide"),
@@ -337,6 +340,12 @@ export default async function GroupPage({
                     freeNames: t("w_free_names"),
                     busyNames: t("w_busy_names"),
                     softNames: t("w_soft_names", { names: "{names}" }),
+                    windowsHide: t("w_windows_hide"),
+                    whoWithout: t("w_who_without", { names: "{names}" }),
+                    whoEveryone: t("w_who_everyone"),
+                    whoHelp: t("w_who_help"),
+                    whoSearch: t("w_who_search"),
+                    whoDone: t("w_who_done"),
                     agendaRun: t("w_agenda_run", { from: "{from}", to: "{to}", time: "{time}", count: "{count}" }),
                     nobody: t("w_nobody"),
                     windowsTitle: t("w_windows_title"),

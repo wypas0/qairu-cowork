@@ -33,6 +33,8 @@ export function parseRecent(value: string | undefined): string[] {
  */
 export const SIDEBAR_COOKIE = "qairu_sidebar";
 export const BEST_COOKIE = "qairu_best";
+/** «Общие окна» свёрнуты — как «Лучшее время», на этом устройстве. */
+export const WINDOWS_COOKIE = "qairu_windows";
 export const VIEW_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
 /** Записать куку вида из браузера. */

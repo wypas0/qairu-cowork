@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { SIDEBAR_COOKIE, setViewCookie } from "@/lib/cookies";
 import { IconSidebar } from "./icons";
@@ -15,7 +15,19 @@ import { IconSidebar } from "./icons";
  * Мышь на свёрнутой полосе раскрывает панель поверх доски (класс
  * .sidebar-peek), ушла с неё — панель снова полоса. Доска под ней не
  * сдвигается, а кука не меняется: это подсмотреть, а не развернуть.
+ *
+ * При увеличении 125% и больше (страница 1024–1179 px) панель всегда полоса
+ * (CSS в shell.css) — карте нужно место. Там кнопка и наведение только
+ * подсматривают: раскрыть панель насовсем на такой ширине нельзя.
  */
+const NARROW = "(min-width: 1024px) and (max-width: 1179px)";
+const isNarrow = () => window.matchMedia(NARROW).matches;
+const subscribeNarrow = (change: () => void) => {
+  const query = window.matchMedia(NARROW);
+  query.addEventListener("change", change);
+  return () => query.removeEventListener("change", change);
+};
+
 export function SidebarToggle({
   initialClosed,
   labels,
@@ -24,19 +36,31 @@ export function SidebarToggle({
   labels: { collapse: string; expand: string };
 }) {
   const [closed, setClosed] = useState(initialClosed);
+  const narrow = useSyncExternalStore(subscribeNarrow, isNarrow, () => false);
   const current = useRef(initialClosed);
   const button = useRef<HTMLButtonElement>(null);
   const hoverTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   function peek(on: boolean) {
     const shell = button.current?.closest(".shell");
-    if (!shell || !current.current) return;
+    if (!shell) return;
+    // Узкая страница: полосу держит CSS, мы только раскрываем её поверх.
+    if (isNarrow()) {
+      shell.classList.toggle("sidebar-peek", on);
+      return;
+    }
+    if (!current.current) return;
     shell.classList.toggle("sidebar-closed", !on);
     shell.classList.toggle("sidebar-peek", on);
   }
 
   function apply(next: boolean) {
     clearTimeout(hoverTimer.current);
+    if (isNarrow()) {
+      const shell = button.current?.closest(".shell");
+      peek(!shell?.classList.contains("sidebar-peek"));
+      return;
+    }
     current.current = next;
     setClosed(next);
     const shell = button.current?.closest(".shell");
@@ -47,7 +71,7 @@ export function SidebarToggle({
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape" && current.current && !document.querySelector("dialog[open], .profile-overlay")) {
+      if (event.key === "Escape" && (current.current || isNarrow()) && !document.querySelector("dialog[open], .profile-overlay")) {
         clearTimeout(hoverTimer.current);
         peek(false);
         return;
@@ -60,7 +84,7 @@ export function SidebarToggle({
     // раскрывает, а короткий выход за её край не сворачивает. Панель профиля
     // открывается внутри сайдбара, поэтому мышь над ней его не сворачивает.
     function onHover(event: PointerEvent) {
-      if (event.pointerType !== "mouse" || !current.current) return;
+      if (event.pointerType !== "mouse" || !(current.current || isNarrow())) return;
       const inside = event.type === "pointerenter";
       clearTimeout(hoverTimer.current);
       hoverTimer.current = setTimeout(() => peek(inside), inside ? 80 : 200);
@@ -76,9 +100,11 @@ export function SidebarToggle({
       sidebar?.removeEventListener("pointerleave", onHover as EventListener);
     };
     // apply и peek пишут только в ref, состояние, классы и куку — пересоздавать слушатели незачем.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const label = closed ? labels.expand : labels.collapse;
+  const shown = closed || narrow;
+  const label = shown ? labels.expand : labels.collapse;
   return (
     <button
       ref={button}
@@ -86,9 +112,9 @@ export function SidebarToggle({
       className="icon-btn sidebar-toggle"
       aria-label={label}
       title={label}
-      aria-expanded={!closed}
+      aria-expanded={!shown}
       aria-controls="sidebar"
-      onClick={() => apply(!closed)}
+      onClick={() => apply(!current.current)}
     >
       <IconSidebar size={18} />
     </button>

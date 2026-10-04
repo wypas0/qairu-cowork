@@ -376,9 +376,21 @@
   margin-bottom: 20px;
   border: 1px solid var(--card-line);
   border-radius: var(--r-lg);
-  background: var(--seg-fill);
+  /* Непрозрачная: вкладки прилипают к верху, и под ними едет карта. */
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   overflow-x: auto;
   scrollbar-width: none;
+  position: sticky;
+  top: 8px;
+  z-index: 25;
+}
+/* Под липкой шапкой (до 1024 px) — ниже её высоты. */
+@media (max-width: 1023px) {
+  .tabs {
+    top: calc(68px + var(--safe-top));
+  }
 }
 .tabs::-webkit-scrollbar {
   display: none;

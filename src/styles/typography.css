@@ -159,6 +159,21 @@ html.deco-fonts .display-caps {
   margin: 8px 0 0;
   max-width: 62ch;
 }
+/* Телефон, увеличение 150–200%, низкое окно: заголовок не съедает первый экран. */
+@media (max-width: 899px), (max-height: 560px) {
+  .page-head {
+    margin-bottom: 14px;
+    gap: 8px 12px;
+  }
+  .page-head h1 {
+    font-size: clamp(24px, 6vw, 30px);
+    line-height: 1.15;
+  }
+  .page-head .lead {
+    font-size: 15px;
+    margin-top: 4px;
+  }
+}
 /* Справа от заголовка — короткая сводка и одно действие. */
 .page-head-side {
   display: flex;

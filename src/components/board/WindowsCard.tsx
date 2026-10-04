@@ -3,6 +3,7 @@
 import { fmtMinutes } from "@/core/intervals";
 import type { BoardPayload } from "@/lib/group";
 import { CopyButton } from "../CopyButton";
+import { IconClose } from "../icons";
 import { type BoardLabels, durationText, whoText } from "./labels";
 
 type SlotDay = BoardPayload["slotDays"][number];
@@ -21,6 +22,7 @@ export function WindowsCard({
   loading,
   labels,
   onPick,
+  onHide,
 }: {
   slotDays: SlotDay[];
   day: SlotDay | undefined;
@@ -31,6 +33,8 @@ export function WindowsCard({
   loading: boolean;
   labels: BoardLabels;
   onPick: (date: string, start: number, end: number, text: string) => void;
+  /** Закрыть карточку — как «Лучшее время»: остаётся кнопкой-сводкой. */
+  onHide: () => void;
 }) {
   // Окна текстом — вставить в чат группы одним сообщением.
   const windowsText = [
@@ -52,11 +56,17 @@ export function WindowsCard({
 
   return (
     <section className="card windows-card" aria-busy={loading}>
-      <div className="card-head">
+      <div className="card-head best-head">
         <h2>{labels.windowsTitle}</h2>
-        {hasWindows && (
-          <CopyButton value={windowsText} label={labels.copyWindows} copiedLabel={labels.copiedWindows} small />
-        )}
+        <button
+          type="button"
+          className="icon-btn best-close"
+          aria-label={labels.windowsHide}
+          title={labels.windowsHide}
+          onClick={onHide}
+        >
+          <IconClose size={18} />
+        </button>
       </div>
 
       <div className="field">
@@ -119,6 +129,13 @@ export function WindowsCard({
           </ul>
         )}
       </div>
+
+      {/* Окна недели текстом — для чата группы; внизу, после того как их посмотрели. */}
+      {hasWindows && (
+        <div className="windows-copy">
+          <CopyButton value={windowsText} label={labels.copyWindows} copiedLabel={labels.copiedWindows} small />
+        </div>
+      )}
     </section>
   );
 }

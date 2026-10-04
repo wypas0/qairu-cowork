@@ -78,7 +78,7 @@ test.describe("доска группы", () => {
 
   test("наведение на имя подсвечивает, когда человек свободен", async ({ page }) => {
     await page.goto(group());
-    await page.locator(".who-chips li", { hasText: "Ерлан" }).hover();
+    await page.locator('.who-avatars [data-person="Ерлан"]').hover();
     await expect(page.locator("table.week.periods.spotting")).toBeVisible();
     // По вторникам и четвергам Ерлан занят с 12 до 15 — эти клетки гаснут.
     await expect(page.locator("td.cell.spot-off").first()).toBeVisible();
@@ -113,7 +113,8 @@ test.describe("доска группы", () => {
 
     // Вернуть как было — чтобы не влиять на другие тесты.
     await page.getByRole("button", { name: "Развернуть панель" }).click();
-    await page.locator(".best-collapsed").getByRole("button", { name: "Показать" }).click();
+    // Закрытое «Лучшее время» — кнопка-сводка над картой: нажатие возвращает карточку.
+    await page.locator(".best-collapsed").click();
     await expect(page.locator(".shell")).not.toHaveClass(/sidebar-closed/);
   });
 
@@ -176,6 +177,68 @@ test.describe("телефон", () => {
     await expect(chips.nth(6)).toHaveAttribute("aria-selected", "true");
     // Воскресенье: Дана работает с 20 до 22 — «нет: Дана» в вечерних строках.
     await expect(agenda).toContainText("нет: Дана");
+  });
+});
+
+// Увеличение браузера меняет ширину страницы: 67% на экране 1440 — это 2150 px, 200% — 720.
+test.describe("масштаб браузера", () => {
+  const widths = [
+    { zoom: "67%", width: 2150, height: 1343 },
+    { zoom: "80%", width: 1800, height: 1125 },
+    { zoom: "100%", width: 1440, height: 900 },
+    { zoom: "125%", width: 1152, height: 720 },
+    { zoom: "150%", width: 960, height: 600 },
+    { zoom: "200%", width: 720, height: 450 },
+  ];
+  for (const { zoom, width, height } of widths) {
+    test(`${zoom}: без горизонтальной прокрутки, карта и ответы на месте`, async ({ page }) => {
+      await page.setViewportSize({ width, height });
+      await page.goto(group());
+      await expect(page.locator(".heatmap")).toBeVisible();
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      expect(overflow).toBeLessThanOrEqual(1);
+
+      const map = (await page.locator(".heatmap").boundingBox())!;
+      const rail = (await page.locator(".board-rail").boundingBox())!;
+      const pick = (await page.locator(".pick-bar").boundingBox())!;
+      if (width >= 1500) {
+        // Широко: ответы колонкой справа от карты, пустых полей по бокам нет.
+        expect(rail.x).toBeGreaterThanOrEqual(map.x + map.width - 1);
+        const main = (await page.locator("main.wrap").boundingBox())!;
+        expect(width - (main.x + main.width)).toBeLessThan(width * 0.12);
+      } else {
+        // Уже — ответы над картой, не налезают на неё.
+        expect(rail.y + rail.height).toBeLessThanOrEqual(map.y + 1);
+      }
+      // Полоса подбора — над картой (на широком экране колонка ответов начинается вровень с ней).
+      expect(pick.y + pick.height).toBeLessThanOrEqual(map.y + 1);
+      if (width < 1500) expect(pick.y + pick.height).toBeLessThanOrEqual(rail.y + 1);
+      if (width >= 1024 && width < 1180) {
+        // 125%: сайдбар сам стал полосой.
+        expect((await page.locator("#sidebar").boundingBox())!.width).toBeLessThan(80);
+      }
+    });
+  }
+
+  test("«Общие окна» закрываются и возвращаются, выбор запоминается", async ({ page }) => {
+    await page.goto(group());
+    await page.getByRole("button", { name: "Скрыть «Общие окна»" }).click();
+    await expect(page.locator(".windows-card")).toHaveCount(0);
+    await page.reload();
+    await expect(page.locator(".windows-collapsed")).toBeVisible();
+    await page.locator(".windows-collapsed").click();
+    await expect(page.locator(".windows-card")).toBeVisible();
+  });
+
+  test("на узком экране полоса подбора — одна строка, раскрывается", async ({ page }) => {
+    await page.setViewportSize({ width: 720, height: 450 });
+    await page.goto(group());
+    const summary = page.locator(".pick-summary");
+    await expect(summary).toBeVisible();
+    await expect(page.locator(".pick-body")).toBeHidden();
+    await summary.click();
+    await expect(page.locator(".pick-body")).toBeVisible();
+    await expect(page.locator(".seg [role=radio]").first()).toBeVisible();
   });
 });
 
@@ -332,8 +395,8 @@ test.describe("состояния", () => {
       await new Promise((resolve) => setTimeout(resolve, 1500));
       await route.continue();
     });
-    // Длина встречи — в полосе подбора, пересчитываются и «Общие окна».
-    await page.locator(".pick-bar select").selectOption({ index: 2 });
+    // Длина встречи — кнопками в полосе подбора, пересчитываются и «Общие окна».
+    await page.locator(".pick-bar .seg [role=radio]").nth(2).click();
     const card = page.locator(".windows-card");
     await expect(card).toHaveAttribute("aria-busy", "true");
     // Бегущая полоса — псевдоэлемент поверх карточки.

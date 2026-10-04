@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { fmtMinutes } from "@/core/intervals";
-import { BEST_COOKIE, setViewCookie } from "@/lib/cookies";
+import { BEST_COOKIE, WINDOWS_COOKIE, setViewCookie } from "@/lib/cookies";
 import type { BoardPayload } from "@/lib/group";
 import { pickMeeting } from "../pick";
 import { BestTime } from "./BestTime";
@@ -23,9 +23,11 @@ function firstDayWithSlots(payload: BoardPayload): string {
 }
 
 /**
- * Доска группы: полоса подбора (длина встречи, кто должен прийти), под ней
- * два ответа рядом — «Лучшее время» и «Общие окна» выбранного дня, — а ниже
- * карта недели во всю ширину.
+ * Доска группы: полоса подбора (длина встречи, кто должен прийти), карта
+ * недели и два ответа — «Лучшее время» и «Общие окна». На широком экране
+ * ответы — колонкой справа от карты (она прилипает при прокрутке), уже —
+ * рядом над картой, на телефоне — друг под другом. Каждый ответ можно
+ * закрыть: он становится кнопкой-сводкой над картой.
  *
  * Здесь только состояние и загрузка данных; каждая карточка — свой файл.
  * Выбор участников, длины встречи и недели пересчитывается на сервере
@@ -37,6 +39,7 @@ export function Board({
   durationOptions,
   labels,
   initialBestHidden = false,
+  initialWindowsHidden = false,
 }: {
   slug: string;
   initial: BoardPayload;
@@ -44,9 +47,12 @@ export function Board({
   labels: BoardLabels;
   /** «Лучшее время» свёрнуто — запоминается кукой на устройстве. */
   initialBestHidden?: boolean;
+  /** «Общие окна» свёрнуты — так же. */
+  initialWindowsHidden?: boolean;
 }) {
   const [payload, setPayload] = useState(initial);
   const [bestHidden, setBestHidden] = useState(initialBestHidden);
+  const [windowsHidden, setWindowsHidden] = useState(initialWindowsHidden);
   // Кто должен прийти. null — все, у кого есть расписание.
   const [selected, setSelected] = useState<number[] | null>(initial.selected);
   const [duration, setDuration] = useState(initial.duration);
@@ -131,6 +137,11 @@ export function Board({
     return () => clearTimeout(timer);
   }, [selected, duration, week, refresh]);
 
+  function toggleWindows(hide: boolean) {
+    setWindowsHidden(hide);
+    setViewCookie(WINDOWS_COOKIE, hide ? "hidden" : null);
+  }
+
   function toggleBest(hide: boolean) {
     setBestHidden(hide);
     setViewCookie(BEST_COOKIE, hide ? "hidden" : null);
@@ -158,7 +169,7 @@ export function Board({
   const day = slotDays.find((entry) => entry.date === selectedDay) ?? slotDays[0];
 
   return (
-    <>
+    <div className={`board${bestHidden && windowsHidden ? " rail-closed" : ""}`}>
       <PickBar
         chosenDuration={duration}
         durationOptions={durationOptions}
@@ -172,19 +183,26 @@ export function Board({
         labels={labels}
       />
 
-      {/* Свёрнутое «Лучшее время» — строкой над окнами, и окна занимают всю ширину. */}
-      {bestHidden && (
-        <BestTime
-          best={best}
-          total={payload.selectedTotal}
-          hidden
-          loading={loading}
-          labels={labels}
-          onToggle={toggleBest}
-          onPick={pick}
-        />
-      )}
-      <div className={`board-pair${bestHidden ? " single" : ""}`}>
+      {/* Ответы: открытые — карточками, закрытые — кнопками-сводками. */}
+      <div className={`board-rail${bestHidden && windowsHidden ? " rail-closed" : ""}`}>
+        {(bestHidden || windowsHidden) && (
+          <div className="board-chips">
+            {bestHidden && (
+              <button type="button" className="chipbtn best-collapsed" onClick={() => toggleBest(false)}>
+                <b>{labels.bestTitle}</b>
+                <span className="muted">{labels.variantsTemplate.replace("{n}", String(best.length))}</span>
+              </button>
+            )}
+            {windowsHidden && (
+              <button type="button" className="chipbtn windows-collapsed" onClick={() => toggleWindows(false)}>
+                <b>{labels.windowsTitle}</b>
+                <span className="muted">
+                  {day ? `${day.short} · ${labels.variantsTemplate.replace("{n}", String(day.items.length))}` : ""}
+                </span>
+              </button>
+            )}
+          </div>
+        )}
         {!bestHidden && (
           <BestTime
             best={best}
@@ -196,16 +214,19 @@ export function Board({
             onPick={pick}
           />
         )}
-        <WindowsCard
-          slotDays={slotDays}
-          day={day}
-          onDay={setSelectedDay}
-          duration={payload.duration}
-          selectedTotal={payload.selectedTotal}
-          loading={loading}
-          labels={labels}
-          onPick={pick}
-        />
+        {!windowsHidden && (
+          <WindowsCard
+            slotDays={slotDays}
+            day={day}
+            onDay={setSelectedDay}
+            duration={payload.duration}
+            selectedTotal={payload.selectedTotal}
+            loading={loading}
+            labels={labels}
+            onPick={pick}
+            onHide={() => toggleWindows(true)}
+          />
+        )}
       </div>
 
       <HeatMap
@@ -240,6 +261,6 @@ export function Board({
           }}
         />
       )}
-    </>
+    </div>
   );
 }

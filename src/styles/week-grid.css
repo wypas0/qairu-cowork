@@ -91,8 +91,16 @@ table.week.periods {
   table-layout: fixed;
 }
 table.week.periods td.cell {
-  height: 40px;
+  /* На широком экране клетки выше — карта не выглядит полоской, на узком
+     компактнее; пальцу на тач-экране — не меньше 44 px. */
+  height: clamp(34px, 2.6vw, 52px);
   border-radius: var(--r-md);
+}
+@media (pointer: coarse) {
+  table.week.periods td.cell {
+    min-height: 44px;
+    height: max(44px, 2.6vw);
+  }
 }
 /* Сегодняшний день: заголовок столбца выделен, как в календарях. */
 table.week th.today {

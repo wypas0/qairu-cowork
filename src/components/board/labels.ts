@@ -39,6 +39,18 @@ export type BoardLabels = {
   busyNames: string;
   /** «неудобно: {names}» — литеральный {names}. */
   softNames: string;
+  /** Закрыть «Общие окна» (как «Лучшее время»). */
+  windowsHide: string;
+  /** «Без: {names}» — кого сняли в «Кто должен прийти». */
+  whoWithout: string;
+  /** «Все, у кого есть расписание». */
+  whoEveryone: string;
+  /** Подпись кнопки «?» у «Кто должен прийти». */
+  whoHelp: string;
+  /** Поиск по имени в большой группе. */
+  whoSearch: string;
+  /** Закрыть список людей. */
+  whoDone: string;
   /** Склейка одинаковых пар на телефоне: «Пары {from}–{to}, {time}: {count}. Раскрыть». */
   agendaRun: string;
   nobody: string;
