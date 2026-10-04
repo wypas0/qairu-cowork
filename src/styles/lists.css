@@ -143,15 +143,38 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* --- новая встреча: наверху раздела, свёрнутой кнопкой --- */
+/* --- новая встреча ---
+   На телефоне — кнопка над списком встреч (без рамки карточки вокруг одной
+   кнопки), раскрытая форма — своей карточкой. На широком экране — карточка
+   в правой колонке, форма в ней сразу раскрыта. */
+.split-new {
+  background: transparent;
+  border-color: transparent;
+  padding: 0;
+}
 .new-meeting {
-  margin-bottom: 16px;
+  margin: 0;
 }
 .meeting-form {
-  margin-bottom: 20px;
-  padding: 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--r-lg);
+  padding: 20px;
+  background: var(--card);
+  border: 1px solid var(--card-line);
+  border-radius: var(--r-xl);
+}
+@media (min-width: 900px) and (max-width: 1023px), (min-width: 1180px) {
+  .split-new {
+    background: var(--card);
+    border-color: var(--card-line);
+    padding: 24px;
+  }
+  .split-new .meeting-form {
+    padding: 0;
+    background: transparent;
+    border: 0;
+  }
+  .split-new .new-meeting {
+    width: 100%;
+  }
 }
 
 /* Дата конца серии — под галочкой, с отступом как у её подписи. */
@@ -160,12 +183,7 @@
   margin: 4px 0 0 26px;
 }
 
-/* --- подписка на календарь группы --- */
-.calendar-sub {
-  margin-top: 24px;
-  padding-top: 20px;
-  border-top: 1px solid var(--border);
-}
+/* --- подписка на календарь группы: карточка справа от встреч --- */
 .calendar-sub .dated-actions {
   margin-top: 8px;
 }
@@ -289,6 +307,19 @@
   font-size: 15px;
   font-weight: 600;
 }
+/* Сведения о человеке для старосты: часы, источник расписания, явка. */
+.roster-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+.roster-facts span + span::before {
+  content: "· ";
+  margin-left: -8px;
+  margin-right: 2px;
+}
 .roster-actions {
   display: flex;
   gap: 8px;
@@ -329,12 +360,6 @@
 .badge.stale {
   background: color-mix(in srgb, var(--warning) 22%, transparent);
   color: var(--text);
-}
-.semester-box {
-  margin-top: 24px;
-  padding-top: 20px;
-  border-top: 1px solid var(--border);
-  max-width: 560px;
 }
 .badge.ok {
   background: color-mix(in srgb, var(--success) 14%, transparent);
@@ -436,6 +461,19 @@
 }
 .qr .qr-ink {
   fill: var(--qr-ink);
+}
+.invite-card h3 {
+  margin-top: 16px;
+}
+.invite-card h2 + h3 {
+  margin-top: 0;
+}
+.invite-row {
+  flex-wrap: wrap;
+}
+.invite-row input {
+  flex: 1 1 200px;
+  min-width: 0;
 }
 .invite-qr {
   display: flex;

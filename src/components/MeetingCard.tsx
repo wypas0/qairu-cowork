@@ -1,5 +1,6 @@
 import {
   cancelMeetingAction,
+  markAttendanceAction,
   pingNonRespondersAction,
   saveSummaryAction,
   voteAction,
@@ -73,6 +74,7 @@ export function MeetingCard({
   canManage,
   canSummarize = false,
   past = false,
+  attendance = null,
 }: {
   slug: string;
   lang: string;
@@ -86,6 +88,8 @@ export function MeetingCard({
   /** Может записать итоги: приглашён, создал встречу или староста. */
   canSummarize?: boolean;
   past?: boolean;
+  /** Кто был на последнем прошедшем повторе (только у прошедших встреч). */
+  attendance?: { attended: number[]; missed: number[]; mine: boolean | null } | null;
 }) {
   const t = translator(lang);
   const byUser = new Map(answers.map((answer) => [answer.userId, answer]));
@@ -240,6 +244,38 @@ export function MeetingCard({
       {/* Прошедшая встреча: итоги и «повторить». Для отменённой — только повтор. */}
       {past && (
         <div className="meeting-after">
+          {/* Кто дошёл: отвечают в боте после встречи или здесь. */}
+          {!cancelled && attendance && (
+            <div className="attendance">
+              <b className="small">
+                {t("w_attend_title", { n: attendance.attended.length, total: invitees.length })}
+              </b>
+              {(attendance.attended.length > 0 || attendance.missed.length > 0) && (
+                <p className="small muted">
+                  {attendance.attended.length > 0 &&
+                    t("w_attend_were", { names: attendance.attended.map((id) => names.get(id) ?? "—").join(", ") })}
+                  {attendance.attended.length > 0 && attendance.missed.length > 0 && " · "}
+                  {attendance.missed.length > 0 &&
+                    t("w_attend_missed", { names: attendance.missed.map((id) => names.get(id) ?? "—").join(", ") })}
+                </p>
+              )}
+              {invited && (
+                <div className="votes">
+                  {([true, false] as const).map((value) => (
+                    <form key={String(value)} action={markAttendanceAction.bind(null, slug, meeting.id, value)}>
+                      <button
+                        className={`daychip${attendance.mine === value ? " active" : ""}`}
+                        type="submit"
+                        aria-pressed={attendance.mine === value}
+                      >
+                        {value ? t("w_attend_yes") : t("w_attend_no")}
+                      </button>
+                    </form>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           {!cancelled && (meeting.summary || canSummarize) && (
             <div className="summary">
               <b className="small">{t("w_summary_title")}</b>

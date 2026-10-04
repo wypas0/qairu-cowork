@@ -27,16 +27,29 @@ export function ExtensionHint({
   labels,
 }: {
   lang: string;
-  labels: { install: string; update: string; how: string; later: string };
+  labels: { install: string; update: string; how: string; later: string; changed: string; pull: string };
 }) {
   const [state, setState] = useState<"hidden" | "install" | "update">("hidden");
+  // Фоновая сверка расширения нашла изменения в кампусе — предлагаем подставить.
+  const [change, setChange] = useState<{ added: number; removed: number } | null>(null);
 
   useEffect(() => {
     let version: string | null = null;
     function onMessage(event: MessageEvent) {
       if (event.source !== window || event.origin !== window.location.origin) return;
-      const data = event.data as { source?: unknown; type?: unknown; version?: unknown } | null;
-      if (data?.source !== EXT_SOURCE || data.type !== "campus-present") return;
+      const data = event.data as { source?: unknown; type?: unknown; version?: unknown; change?: unknown } | null;
+      if (data?.source !== EXT_SOURCE) return;
+      // Пары пришли (по «Подставить» или из окна расширения) — сообщение больше не нужно.
+      if (data.type === "campus-slots") setChange(null);
+      if (data.type !== "campus-present") return;
+      const found = data.change as { added?: unknown; removed?: unknown } | null | undefined;
+      const added = Number(found?.added);
+      const removed = Number(found?.removed);
+      setChange(
+        found && Number.isInteger(added) && Number.isInteger(removed) && added + removed > 0 && added >= 0 && removed >= 0
+          ? { added, removed }
+          : null,
+      );
       // Расширение могло загрузиться позже нашего ping и ответить само — язык сообщаем отдельно.
       if (!version) window.postMessage({ source: PAGE_SOURCE, type: "campus-lang", lang }, window.location.origin);
       version = typeof data.version === "string" ? data.version : "0.0.0";
@@ -64,7 +77,22 @@ export function ExtensionHint({
     };
   }, [lang]);
 
-  if (state === "hidden") return null;
+  const changeNotice = change && (
+    <div className="notice notice-row ext-hint" role="status">
+      <span>{labels.changed.replace("{added}", String(change.added)).replace("{removed}", String(change.removed))}</span>
+      <span className="notice-actions">
+        <button
+          type="button"
+          className="btn btn-sm"
+          onClick={() => window.postMessage({ source: PAGE_SOURCE, type: "campus-pull" }, window.location.origin)}
+        >
+          {labels.pull}
+        </button>
+      </span>
+    </div>
+  );
+
+  if (state === "hidden") return changeNotice || null;
 
   function dismiss() {
     setState("hidden");
@@ -77,6 +105,8 @@ export function ExtensionHint({
   }
 
   return (
+    <>
+    {changeNotice}
     <div className="notice notice-row ext-hint" role="status">
       <span>{state === "update" ? labels.update : labels.install}</span>
       <span className="notice-actions">
@@ -88,5 +118,6 @@ export function ExtensionHint({
         </button>
       </span>
     </div>
+    </>
   );
 }

@@ -16,6 +16,7 @@ import { ScrollToAnchor } from "@/components/ScrollToAnchor";
 import { StartChecklist } from "@/components/StartChecklist";
 import { fmtMinutes } from "@/core/intervals";
 import { meetingIsOver, nextStart } from "@/core/recurrence";
+import { lastEnded } from "@/core/attendance";
 import { chatTz, formatDM, todayIn, utcToZonedWall } from "@/core/timeutils";
 import * as repo from "@/db/repo";
 import { ROLE_ADMIN, displayName, telegramName } from "@/db/schema";
@@ -25,6 +26,7 @@ import { pageUser } from "@/lib/gate";
 import {
   durationOptions,
   isOutdated,
+  meetingDurationMin,
   loadGroupState,
   normalizeWeek,
   semesterCutoff,
@@ -40,6 +42,7 @@ import {
   newSemesterAction,
   createMeetingAction,
   dismissNoticeAction,
+  leaveGroupFromPageAction,
   remindFillAction,
   removeMemberAction,
   saveSettingsAction,
@@ -112,6 +115,30 @@ export default async function GroupPage({
     .filter((meeting) => !over(meeting))
     .sort((a, b) => startsAt(a) - startsAt(b));
   const archivedMeetings = state.meetings.filter(over);
+
+  // Кто был на прошедших встречах (последний закончившийся повтор), а старосте —
+  // сведения об участниках: сколько занят, откуда расписание, доходит ли на встречи.
+  const memberIds = roster.map((entry) => entry.user.userId);
+  const [attendanceRows, origins, busyMinutes, attendanceStats] = await Promise.all([
+    repo.attendanceFor(archivedMeetings.map((meeting) => meeting.id)),
+    isAdmin ? repo.scheduleOrigins(memberIds) : Promise.resolve(new Map<number, string>()),
+    isAdmin ? repo.weeklyBusyMinutes(memberIds) : Promise.resolve(new Map<number, number>()),
+    isAdmin ? repo.attendanceByUser(chat.chatId) : Promise.resolve(new Map<number, { attended: number; total: number }>()),
+  ]);
+  const attendanceOf = (meeting: (typeof state.meetings)[number]) => {
+    if (meeting.status === "cancelled") return null;
+    const tz = chatTz(chat);
+    const occurrence = lastEnded(meeting, meetingDurationMin(meeting, tz), tz, now);
+    if (!occurrence) return null;
+    const rows = (attendanceRows.get(meeting.id) ?? []).filter((row) => row.occurrence === occurrence);
+    return {
+      attended: rows.filter((row) => row.attended).map((row) => row.userId),
+      missed: rows.filter((row) => !row.attended).map((row) => row.userId),
+      mine: rows.find((row) => row.userId === user.userId)?.attended ?? null,
+    };
+  };
+  const originLabel = (origin: string | undefined) =>
+    origin === "campus" ? t("w_member_origin_campus") : origin === "photo" ? t("w_member_origin_photo") : t("w_member_origin_manual");
   // Встречи, на которые тебя позвали, а ты ещё не ответил, — счётчик на вкладке.
   const awaitingMyAnswer = upcomingMeetings.filter(
     (meeting) =>
@@ -128,6 +155,7 @@ export default async function GroupPage({
     return at ? formatDM(utcToZonedWall(at, chatTz(chat)).day) : "";
   };
 
+  const filledCount = roster.filter((entry) => upToDate(entry.user.userId)).length;
   const unfilledOthers = roster.filter(
     (entry) => !upToDate(entry.user.userId) && entry.user.userId !== user.userId,
   );
@@ -177,6 +205,11 @@ export default async function GroupPage({
           <div>
             <p className="eyebrow">{t("w_eyebrow_group")}</p>
             <h1>{chat.title}</h1>
+          </div>
+          {/* Сколько заполнили и приглашение — раньше были только на вкладке «Участники». */}
+          <div className="page-head-side">
+            <span className="small muted">{t("w_members_count", { filled: filledCount, n: roster.length })}</span>
+            <CopyButton value={inviteUrl} label={t("w_invite_copy")} copiedLabel={t("w_invite_copied")} small />
           </div>
         </header>
 
@@ -304,6 +337,7 @@ export default async function GroupPage({
                     freeNames: t("w_free_names"),
                     busyNames: t("w_busy_names"),
                     softNames: t("w_soft_names", { names: "{names}" }),
+                    agendaRun: t("w_agenda_run", { from: "{from}", to: "{to}", time: "{time}", count: "{count}" }),
                     nobody: t("w_nobody"),
                     windowsTitle: t("w_windows_title"),
                     windowsEmpty: t("w_windows_empty"),
@@ -322,13 +356,14 @@ export default async function GroupPage({
               </>
             ),
             meetings: (
-              <>
-                <section className="card">
-                  <h2>{t("w_meetings")}</h2>
-
-                  {/* Новая встреча — наверху, свёрнутой кнопкой: раньше форма была под всеми встречами. */}
+              // Слева встречи, справа «Новая встреча» и календарь группы. На телефоне
+              // одна колонка: сперва кнопка новой встречи, потом список, календарь в конце.
+              <div className="split meetings-split">
+                <section className="card split-new">
+                  {/* На широком экране форма сразу раскрыта: место справа всё равно пустует. */}
                   <MeetingForm
                     action={createMeetingAction.bind(null, slug)}
+                    openOnWide
                     labels={{
                       newMeeting: t("w_new_meeting"),
                       place: t("w_place"),
@@ -344,6 +379,10 @@ export default async function GroupPage({
                       repeatHint: t("w_repeat_hint"),
                     }}
                   />
+                </section>
+
+                <section className="card split-main">
+                  <h2>{t("w_meetings")}</h2>
 
                   {upcomingMeetings.length === 0 && (
                     <div className="empty">
@@ -391,45 +430,43 @@ export default async function GroupPage({
                             repo.inviteeIds(meeting).includes(user.userId)
                           }
                           past
+                          attendance={attendanceOf(meeting)}
                         />
                       ))}
                     </details>
                   )}
+                </section>
 
-                  {/* Подписка: встречи сами появляются в календаре и обновляются. */}
-                  <div className="calendar-sub">
-                    <h3>{t("w_cal_title")}</h3>
-                    <p className="small muted">{t("w_cal_lead")}</p>
-                    <div className="dated-actions">
-                      <a
-                        className="btn btn-sm"
-                        href={`https://calendar.google.com/calendar/render?cid=${encodeURIComponent(webcalUrl)}`}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        {t("w_cal_google")}
-                      </a>
-                      <a className="btn btn-sm" href={webcalUrl}>
-                        {t("w_cal_apple")}
-                      </a>
-                      <CopyButton value={feedUrl} label={t("w_cal_copy")} copiedLabel={t("w_copied")} small />
-                    </div>
+                {/* Подписка: встречи сами появляются в календаре и обновляются. */}
+                <section className="card split-side calendar-sub">
+                  <h2>{t("w_cal_title")}</h2>
+                  <p className="small muted">{t("w_cal_lead")}</p>
+                  <div className="dated-actions">
+                    <a
+                      className="btn btn-sm"
+                      href={`https://calendar.google.com/calendar/render?cid=${encodeURIComponent(webcalUrl)}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {t("w_cal_google")}
+                    </a>
+                    <a className="btn btn-sm" href={webcalUrl}>
+                      {t("w_cal_apple")}
+                    </a>
+                    <CopyButton value={feedUrl} label={t("w_cal_copy")} copiedLabel={t("w_copied")} small />
                   </div>
                 </section>
-              </>
+              </div>
             ),
             members: (
-              <>
+              <div className="split">
                 {/* ============ участники ============ */}
-                <section className="card" id="members">
+                <section className="card split-main" id="members">
                   <div className="card-head">
                     <h2>
                       {t("w_members")}{" "}
                       <span className="small muted">
-                        {t("w_members_count", {
-                          filled: roster.filter((entry) => upToDate(entry.user.userId)).length,
-                          n: roster.length,
-                        })}
+                        {t("w_members_count", { filled: filledCount, n: roster.length })}
                       </span>
                     </h2>
                     {isAdmin && unfilledOthers.length > 0 && (
@@ -476,6 +513,33 @@ export default async function GroupPage({
                             )}
                           </div>
 
+                          {/* Старосте — сведения о человеке: в середине строки было пусто. */}
+                          {isAdmin && (
+                            <div className="roster-facts small muted">
+                              {state.filledIds.has(member.userId) && (
+                                <>
+                                  <span>
+                                    {t("w_member_busy", {
+                                      h: String(Math.round(((busyMinutes.get(member.userId) ?? 0) / 60) * 10) / 10).replace(
+                                        ".",
+                                        lang === "en" ? "." : ",",
+                                      ),
+                                    })}
+                                  </span>
+                                  <span>{originLabel(origins.get(member.userId))}</span>
+                                </>
+                              )}
+                              {(attendanceStats.get(member.userId)?.total ?? 0) > 0 && (
+                                <span>
+                                  {t("w_member_attended", {
+                                    n: attendanceStats.get(member.userId)!.attended,
+                                    total: attendanceStats.get(member.userId)!.total,
+                                  })}
+                                </span>
+                              )}
+                            </div>
+                          )}
+
                           {isAdmin && !self && (
                             <div className="roster-actions">
                               {!filled && (
@@ -516,8 +580,12 @@ export default async function GroupPage({
                       );
                     })}
                   </ul>
+                </section>
 
-                  <h3 style={{ marginTop: 16 }}>{t("w_code_title")}</h3>
+                {/* ============ приглашение: код, ссылки, QR — справа ============ */}
+                <section className="card split-side invite-card">
+                  <h2>{t("w_invite_title")}</h2>
+                  <h3>{t("w_code_title")}</h3>
                   <div className="invite-code">
                     <b className="code">{formatCode(slug)}</b>
                     <CopyButton
@@ -541,7 +609,7 @@ export default async function GroupPage({
 
                   <h3 style={{ marginTop: 16 }}>{t("w_invite")}</h3>
                   <p className="small muted">{t("w_invite_hint")}</p>
-                  <div className="row">
+                  <div className="row invite-row">
                     <input type="text" readOnly value={inviteUrl} aria-label={t("w_invite")} />
                     <CopyButton value={inviteUrl} label={t("w_copy")} copiedLabel={t("w_copied")} />
                   </div>
@@ -550,7 +618,7 @@ export default async function GroupPage({
                       <p className="small muted" style={{ marginTop: 10 }}>
                         {t("w_invite_tg_hint")}
                       </p>
-                      <div className="row">
+                      <div className="row invite-row">
                         <input type="text" readOnly value={telegramInvite} aria-label={t("w_invite_tg")} />
                         <CopyButton value={telegramInvite} label={t("w_copy")} copiedLabel={t("w_copied")} />
                       </div>
@@ -569,12 +637,12 @@ export default async function GroupPage({
                     </div>
                   </div>
                 </section>
-              </>
+              </div>
             ),
             settings: (
-              <>
+              <div className="split">
                 {/* ============ настройки ============ */}
-                <section className="card">
+                <section className="card split-main">
                   <h2>{t("w_settings")}</h2>
                   {!isAdmin ? (
                     <>
@@ -678,20 +746,37 @@ export default async function GroupPage({
                     </button>
                   </form>
 
-                  {/* Новый семестр — редкое и заметное действие, отдельно от формы. */}
-                  <div className="semester-box">
-                    <h3>{t("w_semester_new_title")}</h3>
+                  </>
+                )}
+              </section>
+
+              {/* Редкие и заметные действия — справа, отдельно от формы. */}
+              <div className="split-side split-stack">
+                {isAdmin && (
+                  <section className="card">
+                    <h2>{t("w_semester_new_title")}</h2>
                     <p className="small muted">{t("w_semester_new_lead")}</p>
                     <form action={newSemesterAction.bind(null, slug)}>
                       <ConfirmSubmit className="btn" confirm={t("w_semester_new_confirm")}>
                         {t("w_semester_new_btn")}
                       </ConfirmSubmit>
                     </form>
-                  </div>
-                  </>
+                  </section>
                 )}
-              </section>
-              </>
+                <section className="card">
+                  <h2>{t("w_leave_title")}</h2>
+                  <p className="small muted">{t("w_leave_lead")}</p>
+                  <form action={leaveGroupFromPageAction.bind(null, slug)}>
+                    <ConfirmSubmit
+                      className="btn btn-quiet btn-danger"
+                      confirm={t("w_leave_confirm", { title: chat.title })}
+                    >
+                      {t("w_leave")}
+                    </ConfirmSubmit>
+                  </form>
+                </section>
+              </div>
+              </div>
             ),
           }}
         />

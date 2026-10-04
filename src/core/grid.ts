@@ -12,7 +12,35 @@ export type WeeklySlot = {
   label: string;
   parity: number | null;
   kind: string;
+  /**
+   * Пара идёт не всегда, а с `from` по `to` (триместр из кампуса), и не в даты
+   * `except` (праздники, отменённые пары). Нет полей — каждую неделю без конца.
+   * Правка клеток сохраняет их у нетронутых пар (editorSlots копирует пару целиком).
+   */
+  from?: string | null;
+  to?: string | null;
+  except?: string[];
 };
+
+/** Больше исключений у одной пары не бывает: это триместр — пятнадцать недель. */
+const MAX_EXCEPT = 60;
+/** Период действия пары — не длиннее года. */
+const MAX_PERIOD_DAYS = 400;
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Проверить период и исключения пары; кривое — отбрасывается, пара остаётся еженедельной. */
+export function cleanPeriod(row: { from?: unknown; to?: unknown; except?: unknown }): Pick<WeeklySlot, "from" | "to" | "except"> {
+  const from = typeof row.from === "string" && DATE_RE.test(row.from) ? row.from : null;
+  const to = typeof row.to === "string" && DATE_RE.test(row.to) ? row.to : null;
+  if (!from || !to || to < from) return {};
+  if ((Date.parse(to) - Date.parse(from)) / 86_400_000 > MAX_PERIOD_DAYS) return {};
+  const except = Array.isArray(row.except)
+    ? [...new Set(row.except.filter((day): day is string => typeof day === "string" && DATE_RE.test(day) && day >= from && day <= to))]
+        .sort()
+        .slice(0, MAX_EXCEPT)
+    : [];
+  return { from, to, except };
+}
 
 /** Начала клеток рабочего дня: 08:00, 08:30, … — последняя не выходит за границу. */
 export function slotTimes(dayStart: number, dayEnd: number, step: number): number[] {
@@ -194,6 +222,9 @@ type IncomingSlot = {
   label?: unknown;
   parity?: unknown;
   kind?: unknown;
+  from?: unknown;
+  to?: unknown;
+  except?: unknown;
 };
 
 /**
@@ -229,6 +260,7 @@ export function cleanIncomingSlots(rows: unknown, limit = 400): WeeklySlot[] {
       label: String(row.label ?? "").slice(0, 60),
       parity,
       kind: String(row.kind ?? "class").slice(0, 16),
+      ...cleanPeriod(row),
     });
   }
   return cleaned;

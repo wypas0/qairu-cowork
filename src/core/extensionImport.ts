@@ -39,6 +39,8 @@ export type ExtensionImport = {
   slots: ExtensionSlot[];
   /** Пар в неделю по словам расширения (до склейки соседних); иначе число промежутков. */
   count: number;
+  /** Версия расширения, если оно её прислало. */
+  version: string | null;
 };
 
 /** Разобрать сообщение расширения; не его или пустое — null. */
@@ -58,7 +60,9 @@ export function readExtensionMessage(data: unknown): ExtensionImport | null {
 
   const meetings = Number(message.meetings);
   const count = Number.isInteger(meetings) && meetings >= slots.length && meetings <= 200 ? meetings : slots.length;
-  return { id: message.id, slots, count };
+  const version =
+    typeof message.version === "string" && /^\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(message.version) ? message.version : null;
+  return { id: message.id, slots, count, version };
 }
 
 /** Отчёт расширения о поломке: кампус отдал страницу, а расписания в ней нет. */
@@ -97,7 +101,7 @@ export function readExtensionReport(data: unknown): ExtensionReport | null {
  * расширение само не обновляется, поэтому сайт сравнивает её с присланной
  * расширением и предлагает обновиться. Менять вместе с архивом.
  */
-export const LATEST_EXTENSION = "0.2.0";
+export const LATEST_EXTENSION = "0.3.0";
 export const EXTENSION_ZIP = "/downloads/qairu-schedule-ext.zip";
 
 /** Версия a старше b («0.1.0» < «0.2.0»). */

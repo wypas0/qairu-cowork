@@ -119,6 +119,12 @@ export const busySlots = pgTable(
     label: varchar("label", { length: 64 }).notNull().default(""),
     kind: varchar("kind", { length: 16 }).notNull().default("class"), // class|work|sport|exam|other
     source: varchar("source", { length: 16 }).notNull().default("wizard"), // wizard|import|csv|web
+    // Недельная пара, которая идёт не всегда, а с valid_from по valid_to (триместр
+    // из кампуса), и не в даты except_dates («2026-11-02,2026-12-16» — праздники,
+    // отменённые пары). NULL — каждую неделю без конца, как раньше.
+    validFrom: date("valid_from"),
+    validTo: date("valid_to"),
+    exceptDates: text("except_dates").notNull().default(""),
     createdAt: createdAt(),
   },
   (table) => [
@@ -137,6 +143,12 @@ export const scheduleState = pgTable("schedule_state", {
     .references(() => users.userId, { onDelete: "cascade" }),
   filled: boolean("filled").notNull().default(false),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  // Откуда последний раз пришло расписание: manual (сетка), photo (файл или
+  // фото), campus (расширение кампуса). Правка клеток после импорта его не
+  // меняет — расписание всё равно «из кампуса», просто поправленное.
+  origin: varchar("origin", { length: 16 }).notNull().default("manual"),
+  // Версия расширения кампуса, которым его принесли (для статистики версий).
+  extVersion: varchar("ext_version", { length: 16 }),
 }).enableRLS();
 
 /**
@@ -263,6 +275,26 @@ export const meetingResponses = pgTable(
     respondedAt: timestamp("responded_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [primaryKey({ columns: [table.meetingId, table.userId] })],
+).enableRLS();
+
+/**
+ * Был ли человек на встрече. У серии — на каждом повторе отдельно
+ * (`occurrence` — день повтора в поясе группы), у разовой — её день.
+ * Отвечают в боте после встречи («Был» / «Не был») или на сайте у
+ * прошедшей встречи.
+ */
+export const meetingAttendance = pgTable(
+  "meeting_attendance",
+  {
+    meetingId: integer("meeting_id")
+      .notNull()
+      .references(() => meetings.id, { onDelete: "cascade" }),
+    occurrence: date("occurrence").notNull(),
+    userId: bigint("user_id", { mode: "number" }).notNull(),
+    attended: boolean("attended").notNull(),
+    answeredAt: timestamp("answered_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.meetingId, table.occurrence, table.userId] })],
 ).enableRLS();
 
 /**

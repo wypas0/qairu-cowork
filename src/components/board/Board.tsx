@@ -9,6 +9,7 @@ import { pickMeeting } from "../pick";
 import { BestTime } from "./BestTime";
 import { type CellDetail, CellPopover, CellTooltip, type Hover } from "./CellDetails";
 import { HeatMap } from "./HeatMap";
+import { PickBar } from "./PickBar";
 import { useWallNow } from "./hooks";
 import type { BoardLabels } from "./labels";
 import { clipToNow, selectionKey } from "./time";
@@ -22,7 +23,9 @@ function firstDayWithSlots(payload: BoardPayload): string {
 }
 
 /**
- * Доска группы: «Лучшее время», карта недели и «Общие окна».
+ * Доска группы: полоса подбора (длина встречи, кто должен прийти), под ней
+ * два ответа рядом — «Лучшее время» и «Общие окна» выбранного дня, — а ниже
+ * карта недели во всю ширину.
  *
  * Здесь только состояние и загрузка данных; каждая карточка — свой файл.
  * Выбор участников, длины встречи и недели пересчитывается на сервере
@@ -156,48 +159,67 @@ export function Board({
 
   return (
     <>
-      <BestTime
-        best={best}
-        total={payload.selectedTotal}
-        hidden={bestHidden}
+      <PickBar
+        chosenDuration={duration}
+        durationOptions={durationOptions}
+        onDuration={setDuration}
+        people={payload.people}
+        selected={selected}
+        onSelected={setSelected}
+        spot={spot}
+        onSpot={setSpot}
         loading={loading}
         labels={labels}
-        onToggle={toggleBest}
-        onPick={pick}
       />
 
-      <div className="grid-2 board-grid">
-        <HeatMap
-          payload={payload}
-          week={week}
-          onWeek={setWeek}
-          now={now}
-          spot={spot}
+      {/* Свёрнутое «Лучшее время» — строкой над окнами, и окна занимают всю ширину. */}
+      {bestHidden && (
+        <BestTime
+          best={best}
+          total={payload.selectedTotal}
+          hidden
           loading={loading}
           labels={labels}
-          onHover={setHover}
-          onOpen={setActiveCell}
+          onToggle={toggleBest}
           onPick={pick}
         />
+      )}
+      <div className={`board-pair${bestHidden ? " single" : ""}`}>
+        {!bestHidden && (
+          <BestTime
+            best={best}
+            total={payload.selectedTotal}
+            hidden={false}
+            loading={loading}
+            labels={labels}
+            onToggle={toggleBest}
+            onPick={pick}
+          />
+        )}
         <WindowsCard
           slotDays={slotDays}
           day={day}
           onDay={setSelectedDay}
           duration={payload.duration}
-          chosenDuration={duration}
-          durationOptions={durationOptions}
-          onDuration={setDuration}
-          people={payload.people}
-          selected={selected}
-          onSelected={setSelected}
-          spot={spot}
-          onSpot={setSpot}
           selectedTotal={payload.selectedTotal}
           loading={loading}
           labels={labels}
           onPick={pick}
         />
       </div>
+
+      <HeatMap
+        payload={payload}
+        week={week}
+        onWeek={setWeek}
+        now={now}
+        spot={spot}
+        loading={loading}
+        labels={labels}
+        onHover={setHover}
+        onOpen={setActiveCell}
+        onPick={pick}
+      />
 
       {hover && !activeCell && <CellTooltip hover={hover} total={payload.total} labels={labels} />}
 

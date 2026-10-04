@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 
+import { askAttendance } from "@/bot/handlers/attendance";
 import { sendDueReminders } from "@/bot/handlers/meeting";
 import * as repo from "@/db/repo";
 import { syncStaleCalendars } from "@/lib/calendarSync";
@@ -10,7 +11,8 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 /**
- * Напоминания о встречах и обновление подключённых календарей.
+ * Напоминания о встречах, вопрос «был ли ты» после них и обновление
+ * подключённых календарей.
  *
  * Вызывают по расписанию Vercel (`vercel.json`, раз в сутки) и GitHub Actions
  * (`reminders.yml`, каждые 10 минут). Оба подписывают запрос заголовком
@@ -35,7 +37,9 @@ export async function GET(request: Request) {
   if (!hasBot()) return Response.json({ ok: true, sent: 0, calendars, sessions, detail: "BOT_TOKEN не задан" });
 
   const sent = await sendDueReminders();
-  return Response.json({ ok: true, sent, calendars, sessions });
+  // После встречи — «был ли ты»: тем, кто собирался прийти.
+  const attendance = await askAttendance();
+  return Response.json({ ok: true, sent, attendance, calendars, sessions });
 }
 
 /** Сравнение без утечки по времени ответа: сравниваются хеши одинаковой длины. */

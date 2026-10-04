@@ -148,10 +148,21 @@ html.deco-fonts .display-caps {
 .page-head > div {
   min-width: 0;
 }
+/* Заголовок с лидом занимает строку, сводка справа не уезжает под него. */
+.page-head > div:first-child {
+  flex: 1 1 420px;
+}
 .page-head h1 {
   margin: 2px 0 0;
 }
 .page-head .lead {
   margin: 8px 0 0;
   max-width: 62ch;
+}
+/* Справа от заголовка — короткая сводка и одно действие. */
+.page-head-side {
+  display: flex;
+  align-items: center;
+  gap: 8px 12px;
+  flex-wrap: wrap;
 }

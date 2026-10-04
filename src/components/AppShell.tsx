@@ -7,6 +7,7 @@ import { BrandMark, IconCalendarUser, IconMeeting, IconPlus } from "./icons";
 import { ProfilePanel } from "./ProfilePanel";
 import { profilePanelProps } from "./profilePanelProps";
 import { GroupLink, GroupMeetings, type MeetingLabels } from "./SidebarGroups";
+import { SidebarToday } from "./SidebarToday";
 import { SidebarToggle } from "./SidebarToggle";
 import { SiteFooter } from "./SiteFooter";
 import { HomeScreenPrompt, WriteAccessPrompt } from "./TelegramHome";
@@ -111,6 +112,8 @@ export async function AppShell({
           <IconPlus size={18} />
           <span className="sidebar-label">{t("w_pp_create")}</span>
         </Link>
+
+        <SidebarToday lang={lang} slug={slug} groups={panel.groups} />
 
         <div className="sidebar-foot">
           <ProfilePanel {...panel} />

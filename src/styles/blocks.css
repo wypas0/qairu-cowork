@@ -33,6 +33,67 @@
   }
 }
 
+/* --- две колонки: главное слева, редкое и короткое справа ---
+   На широком экране правая колонка больше не пустует: туда уходят форма
+   новой встречи, календарь, приглашение, «новый семестр». На телефоне —
+   одна колонка в порядке разметки. Колонки — только когда им есть место:
+   без сайдбара от 900px, с сайдбаром от 1180px. */
+.split {
+  display: grid;
+  gap: 20px;
+  align-items: start;
+  margin-bottom: 20px;
+}
+.split > * {
+  min-width: 0;
+}
+.split > .card,
+.split-stack > .card {
+  margin-bottom: 0;
+}
+.split-stack {
+  display: grid;
+  gap: 20px;
+}
+@media (min-width: 900px) and (max-width: 1023px), (min-width: 1180px) {
+  .split {
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+    /* Лишняя высота длинной левой колонки уходит в последний ряд, а не
+       раздвигает карточки справа. */
+    grid-template-rows: auto auto 1fr;
+  }
+  .split-main {
+    grid-column: 1;
+    grid-row: 1 / -1;
+  }
+  .split-side,
+  .split-new {
+    grid-column: 2;
+  }
+}
+
+/* Две карточки рядом на равных — «Разовая занятость» и «Мой календарь». */
+.pair {
+  display: grid;
+  gap: 20px;
+  align-items: start;
+  margin-bottom: 20px;
+}
+.pair > .card {
+  margin-bottom: 0;
+  min-width: 0;
+}
+@media (min-width: 900px) and (max-width: 1023px), (min-width: 1180px) {
+  .pair {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* Пары из кампуса — до конца триместра: строка над редактором. */
+.period-note {
+  margin: -8px 0 16px;
+}
+
 /* --- подвал редактора расписания --- */
 /* Сохранение идёт само, поэтому внизу не кнопка, а состояние: что уже
    записано, сколько занято за неделю и как откатить последний шаг. */
@@ -122,6 +183,23 @@
   gap: 8px;
   flex-wrap: wrap;
   margin: 4px 0 12px;
+}
+/* На телефоне три кнопки шаблонов занимали три строки — теперь одна строка,
+   листается пальцем, как ряд дней. */
+@media (max-width: 639px) {
+  .templates {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    margin-right: -16px;
+    padding-right: 16px;
+    scrollbar-width: none;
+  }
+  .templates::-webkit-scrollbar {
+    display: none;
+  }
+  .templates > * {
+    flex: none;
+  }
 }
 
 /* --- проверка импорта над сеткой --- */

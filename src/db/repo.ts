@@ -23,3 +23,5 @@ export * from "./queries/avatars";
 export * from "./queries/notices";
 export * from "./queries/botState";
 export * from "./queries/merge";
+export * from "./queries/attendance";
+export * from "./queries/stats";

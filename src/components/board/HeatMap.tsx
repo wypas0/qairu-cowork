@@ -7,6 +7,7 @@ import type { BoardPayload } from "@/lib/group";
 import { moveFocusByArrow } from "../gridKeys";
 import { IconChevronLeft, IconChevronRight, IconMeeting } from "../icons";
 import { PauseTime, PeriodTime } from "../PeriodRow";
+import { type AgendaItem, agendaRuns } from "./agenda";
 import type { CellDetail, Hover } from "./CellDetails";
 import { useDragSelect } from "./hooks";
 import type { BoardLabels } from "./labels";
@@ -212,6 +213,139 @@ export function HeatMap({
     const next = payload.days[dayIndex + delta];
     if (next) setMobileDay(next.date);
   };
+  // Раскрытые склейки одинаковых пар: «день-начало первой пары».
+  const [openRuns, setOpenRuns] = useState<Set<string>>(() => new Set());
+  const toggleRun = (key: string) =>
+    setOpenRuns((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
+  /** Строка пары на телефоне: время, счётчик, кого нет. */
+  function agendaRow(entry: BoardPayload["days"][number], period: BoardPayload["periods"][number], row: number) {
+    const { cell, here, detail, past, current } = describe(entry, row);
+    const tone = here.length > 0 ? "meeting" : heatClass(cell.count, total);
+    return (
+      <li key={period.start}>
+        <button
+          type="button"
+          className={`agenda-row${period.pause ? " pause" : ""}${past ? " past" : ""}${current ? " current" : ""}`}
+          aria-label={cellLabel(detail, total, labels)}
+          onClick={() => onOpen(detail)}
+        >
+          <span className="agenda-time">
+            {period.n > 0 && <b>{period.n}</b>}
+            {period.pause && <span className="agenda-pause">{labels.breakShort}</span>}
+            {fmtMinutes(period.start)}–{fmtMinutes(period.end)}
+          </span>
+          {/* Цвет — только у счётчика: текст на шкале читался бы не на всех ступенях. */}
+          <span className={`agenda-count ${tone}${cell.mine ? " mine" : ""}`}>
+            {here.length > 0 ? <IconMeeting size={period.pause ? 16 : 18} /> : `${cell.count}/${total}`}
+          </span>
+          <span className="agenda-text">
+            <span className="agenda-who">{agendaWho(cell, here)}</span>
+            {cell.soft.length > 0 && here.length === 0 && (
+              <span className="agenda-soft">{labels.softNames.replace("{names}", cell.soft.join(", "))}</span>
+            )}
+          </span>
+        </button>
+      </li>
+    );
+  }
+
+  /** Перерыв без встречи — тонкая подпись между парами, как на широком экране. */
+  function agendaBreak(entry: BoardPayload["days"][number], period: BoardPayload["periods"][number], row: number) {
+    const { detail } = describe(entry, row);
+    return (
+      <li key={period.start}>
+        <button
+          type="button"
+          className="agenda-break"
+          aria-label={cellLabel(detail, total, labels)}
+          onClick={() => onOpen(detail)}
+        >
+          {labels.breakRow.replace("{m}", String(period.end - period.start))} · {fmtMinutes(period.start)}–
+          {fmtMinutes(period.end)}
+        </button>
+      </li>
+    );
+  }
+
+  function agendaWho(cell: BoardPayload["days"][number]["cells"][number], here: BoardPayload["meetings"]) {
+    if (here.length > 0) return here.map((meeting) => meeting.title).join(", ");
+    return cell.missing.length === 0 ? labels.bestAll : `${labels.missingShort} ${cell.missing.join(", ")}`;
+  }
+
+  /**
+   * Строки дня с учётом склеек: одинаковые пары подряд — одна строка «1–6»,
+   * нажатие раскрывает их по одной (и снова сворачивает).
+   */
+  function agendaList(entry: BoardPayload["days"][number]) {
+    const items: AgendaItem[] = shownRows.map(({ period, row }) => {
+      const { cell, here, past, current } = describe(entry, row);
+      if (period.pause && here.length === 0) return { kind: "break" };
+      if (here.length > 0 || current) return { kind: "row", sig: null };
+      return {
+        kind: "row",
+        sig: [cell.count, cell.missing.join(","), cell.soft.join(","), cell.mine, past, period.pause].join("|"),
+      };
+    });
+    return agendaRuns(items).flatMap((part) => {
+      if (part.type !== "run") {
+        const { period, row } = shownRows[part.index]!;
+        return [part.type === "break" ? agendaBreak(entry, period, row) : agendaRow(entry, period, row)];
+      }
+      const first = shownRows[part.rows[0]!]!;
+      const last = shownRows[part.rows[part.rows.length - 1]!]!;
+      const key = `${entry.date}-${first.period.start}`;
+      const open = openRuns.has(key);
+      const { cell, past } = describe(entry, first.row);
+      const head = (
+        <li key={`run-${first.period.start}`}>
+          <button
+            type="button"
+            className={`agenda-row agenda-run${past ? " past" : ""}${open ? " open" : ""}`}
+            aria-expanded={open}
+            aria-label={labels.agendaRun
+              .replace("{from}", String(first.period.n))
+              .replace("{to}", String(last.period.n))
+              .replace("{time}", `${fmtMinutes(first.period.start)}–${fmtMinutes(last.period.end)}`)
+              .replace("{count}", `${cell.count}/${total}`)}
+            onClick={() => toggleRun(key)}
+          >
+            <span className="agenda-time">
+              <b>
+                {first.period.n}–{last.period.n}
+              </b>
+              {fmtMinutes(first.period.start)}–{fmtMinutes(last.period.end)}
+            </span>
+            <span className={`agenda-count ${heatClass(cell.count, total)}${cell.mine ? " mine" : ""}`}>
+              {`${cell.count}/${total}`}
+            </span>
+            <span className="agenda-text">
+              <span className="agenda-who">{agendaWho(cell, [])}</span>
+              {cell.soft.length > 0 && (
+                <span className="agenda-soft">{labels.softNames.replace("{names}", cell.soft.join(", "))}</span>
+              )}
+            </span>
+            <IconChevronRight size={16} className="agenda-run-icon" />
+          </button>
+        </li>
+      );
+      if (!open) return [head];
+      return [
+        head,
+        ...part.covered.map((index) => {
+          const { period, row } = shownRows[index]!;
+          return period.pause && describe(entry, row).here.length === 0
+            ? agendaBreak(entry, period, row)
+            : agendaRow(entry, period, row);
+        }),
+      ];
+    });
+  }
 
   return (
     <section className="card heatmap" aria-busy={loading}>
@@ -347,60 +481,7 @@ export function HeatMap({
               if (Math.abs(dx) > 60 && Math.abs(dy) < 40) stepDay(dx < 0 ? 1 : -1);
             }}
           >
-            {shownRows.map(({ period, row }) => {
-              const { cell, here, detail, past, current } = describe(heatDay, row);
-              // Перерыв без встречи — тонкая подпись между парами, как на широком экране.
-              if (period.pause && here.length === 0) {
-                return (
-                  <li key={period.start}>
-                    <button
-                      type="button"
-                      className="agenda-break"
-                      aria-label={cellLabel(detail, total, labels)}
-                      onClick={() => onOpen(detail)}
-                    >
-                      {labels.breakRow.replace("{m}", String(period.end - period.start))} · {fmtMinutes(period.start)}–
-                      {fmtMinutes(period.end)}
-                    </button>
-                  </li>
-                );
-              }
-              const tone = here.length > 0 ? "meeting" : heatClass(cell.count, total);
-              const who =
-                here.length > 0
-                  ? here.map((meeting) => meeting.title).join(", ")
-                  : cell.missing.length === 0
-                    ? labels.bestAll
-                    : `${labels.missingShort} ${cell.missing.join(", ")}`;
-              return (
-                <li key={period.start}>
-                  <button
-                    type="button"
-                    className={`agenda-row${period.pause ? " pause" : ""}${past ? " past" : ""}${current ? " current" : ""}`}
-                    aria-label={cellLabel(detail, total, labels)}
-                    onClick={() => onOpen(detail)}
-                  >
-                    <span className="agenda-time">
-                      {period.n > 0 && <b>{period.n}</b>}
-                      {period.pause && (
-                        <span className="agenda-pause">{labels.breakShort}</span>
-                      )}
-                      {fmtMinutes(period.start)}–{fmtMinutes(period.end)}
-                    </span>
-                    {/* Цвет — только у счётчика: текст на шкале читался бы не на всех ступенях. */}
-                    <span className={`agenda-count ${tone}${cell.mine ? " mine" : ""}`}>
-                      {here.length > 0 ? <IconMeeting size={period.pause ? 16 : 18} /> : `${cell.count}/${total}`}
-                    </span>
-                    <span className="agenda-text">
-                      <span className="agenda-who">{who}</span>
-                      {cell.soft.length > 0 && here.length === 0 && (
-                        <span className="agenda-soft">{labels.softNames.replace("{names}", cell.soft.join(", "))}</span>
-                      )}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
+            {agendaList(heatDay)}
           </ul>
         </div>
       )}

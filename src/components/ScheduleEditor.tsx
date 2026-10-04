@@ -178,6 +178,10 @@ type ParsedSlot = {
   parity?: number | null;
   kind?: string;
   text: string;
+  /** Период и исключения (пары из кампуса), см. WeeklySlot. */
+  from?: string | null;
+  to?: string | null;
+  except?: string[];
 };
 
 function cellKey(weekday: number, start: number): string {
@@ -230,6 +234,9 @@ export function ScheduleEditor({
   // Шаги для отмены: один шаг — один мазок или одно целое действие.
   const [history, setHistory] = useState<{ cells: Set<string>; base: WeeklySlot[] }[]>([]);
   const [preview, setPreview] = useState<{ slots: ParsedSlot[]; source: ImportSource; count: number } | null>(null);
+  // Откуда последний импорт (и версия расширения): уходит на сервер с первым
+  // сохранением после него — для сводки у старосты и статистики.
+  const importOrigin = useRef<{ origin: ImportSource; ext: string | null } | null>(null);
   // Распознанное с фото ждёт проверки: пока человек не нажал
   // «Сохранить», автосохранение молчит. Снимок — чтобы «Отменить импорт»
   // вернул сетку ровно к тому, что было до него.
@@ -481,9 +488,10 @@ export function ScheduleEditor({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
-        body: JSON.stringify({ slots }),
+        body: JSON.stringify({ slots, ...(importOrigin.current ?? {}) }),
       });
       if (!response.ok) throw new Error(String(response.status));
+      importOrigin.current = null;
       // Сохранённое — новая основа: следующие правки сравниваются уже с ним.
       base.current = slots;
       setDirty(false);
@@ -542,7 +550,13 @@ export function ScheduleEditor({
    * и только потом жмёт «Сохранить». Клетка занята, если пара задевает её хотя
    * бы частично.
    */
-  function applyParsed(slots: ParsedSlot[], source: ImportSource = "photo", count = slots.length) {
+  function applyParsed(
+    slots: ParsedSlot[],
+    source: ImportSource = "photo",
+    count = slots.length,
+    ext: string | null = null,
+  ) {
+    importOrigin.current = { origin: source, ext };
     // Отметки «неудобно» распознавание не приносит — их оставляем как были.
     const next = new Set<string>([...busy].filter((key) => key.startsWith(SOFT)));
     for (const slot of slots) {
@@ -567,6 +581,7 @@ export function ScheduleEditor({
         label: slot.label ?? "",
         parity: slot.parity ?? null,
         kind: slot.kind ?? "class",
+        ...(slot.from && slot.to ? { from: slot.from, to: slot.to, except: slot.except ?? [] } : {}),
       })),
     ];
     setBusy(next);
@@ -591,6 +606,7 @@ export function ScheduleEditor({
       setDirty(snapshot.dirty);
     }
     beforeImport.current = null;
+    importOrigin.current = null;
     setReviewing(false);
     setPreview(null);
   }
@@ -611,7 +627,7 @@ export function ScheduleEditor({
       window.postMessage({ source: PAGE_SOURCE, type: "campus-received", id: incoming.id }, window.location.origin);
       setFailed(null);
       setMode("manual");
-      applyParsedRef.current(incoming.slots, "campus", incoming.count);
+      applyParsedRef.current(incoming.slots, "campus", incoming.count, incoming.version);
     }
     window.addEventListener("message", onMessage);
     window.postMessage({ source: PAGE_SOURCE, type: "campus-ready" }, window.location.origin);

@@ -38,6 +38,8 @@ export type GroupNextMeeting = {
   invited: number;
   /** Тебя позвали, а ты ещё не ответил. */
   awaiting: boolean;
+  /** Начинается сегодня — в поясе группы. */
+  today?: boolean;
 };
 
 export type ProfileUser = {

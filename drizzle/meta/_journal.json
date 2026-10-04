@@ -64,6 +64,13 @@
       "when": 1790162545278,
       "tag": "0008_session_token_hash",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791133297512,
+      "tag": "0009_attendance_and_origin",
+      "breakpoints": true
     }
   ]
 }

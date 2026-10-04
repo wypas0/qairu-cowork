@@ -14,6 +14,7 @@ import "server-only";
 
 import { getMe, isPrivate, type TgUpdate } from "./api";
 import { parseCommand } from "./context";
+import * as attendance from "./handlers/attendance";
 import * as availability from "./handlers/availability";
 import * as common from "./handlers/common";
 import * as meeting from "./handlers/meeting";
@@ -159,6 +160,7 @@ async function handleCallback(query: NonNullable<TgUpdate["callback_query"]>): P
   if (data === "members:show") return registration.onMembersButton(query);
   if (data.startsWith("mtg:")) return meeting.onTimeButton(query);
   if (data.startsWith("vote:")) return meeting.onVote(query);
+  if (data.startsWith("att:")) return attendance.onAttendanceButton(query);
   if (data.startsWith("card:")) return meeting.onCardButton(query);
   if (weblogin.isWebLoginCallback(data)) return weblogin.onWebLoginButton(query);
   // Кнопки мастера расписания и выбора чата из старых сообщений.

@@ -19,6 +19,7 @@ import { formatDay, normalizeLang } from "@/i18n";
 import { adminSource, isGroupAdmin, telegramAdminIds } from "@/lib/admin";
 import { currentUser } from "@/lib/auth";
 import { connectUrl, requireTelegramUser } from "@/lib/gate";
+import { leaveGroupAction } from "../../profile/actions";
 import {
   type Delivery,
   notifyFillSchedule,
@@ -28,7 +29,8 @@ import {
   notifyVote,
 } from "@/lib/notify";
 import { afterJoinPath, afterNamePath } from "@/lib/afterJoin";
-import { DEFAULT_MEETING_MIN, isOutdated, normalizeDuration, semesterCutoff } from "@/lib/group";
+import { DEFAULT_MEETING_MIN, isOutdated, meetingDurationMin, normalizeDuration, semesterCutoff } from "@/lib/group";
+import { lastEnded } from "@/core/attendance";
 
 /** Не чаще раза в 10 минут на одного адресата — напоминание не должно становиться спамом. */
 const REMIND_WINDOW_MS = 10 * 60 * 1000;
@@ -377,4 +379,23 @@ export async function dismissNoticeAction(slug: string, noticeId: number): Promi
   const { user } = await requireMember(slug);
   await repo.markNoticeRead(noticeId, user.userId);
   back(slug);
+}
+
+/** «Выйти из группы» из настроек: то же, что в панели профиля, и сразу на главную. */
+export async function leaveGroupFromPageAction(slug: string): Promise<void> {
+  await leaveGroupAction(slug);
+  redirect("/");
+}
+
+/** «Я был / Я не был» у прошедшей встречи — на последнем закончившемся повторе. */
+export async function markAttendanceAction(slug: string, meetingId: number, attended: boolean): Promise<void> {
+  const { chat, user } = await requireMember(slug);
+  const meeting = await repo.getMeeting(meetingId);
+  if (!meeting || meeting.chatId !== chat.chatId) back(slug);
+  if (!repo.inviteeIds(meeting).includes(user.userId)) back(slug, { err: "not_admin" }, `#meeting-${meetingId}`);
+  const tz = chatTz(chat);
+  const occurrence = lastEnded(meeting, meetingDurationMin(meeting, tz), tz, new Date());
+  if (!occurrence) back(slug, {}, `#meeting-${meetingId}`);
+  await repo.setAttendance({ meetingId, occurrence, userId: user.userId, attended });
+  back(slug, {}, `#meeting-${meetingId}`);
 }

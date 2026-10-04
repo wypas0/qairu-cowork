@@ -1,9 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { PICK_EVENT, type PickDetail, repick } from "./pick";
 import { IconPlus } from "./icons";
+
+/** Широкий экран: здесь форма стоит в своей колонке и может быть раскрыта сразу. */
+const WIDE = "(min-width: 1180px)";
+const subscribeWide = (change: () => void) => {
+  const query = window.matchMedia(WIDE);
+  query.addEventListener("change", change);
+  return () => query.removeEventListener("change", change);
+};
 
 export type MeetingFormLabels = {
   newMeeting: string;
@@ -35,11 +43,21 @@ export type MeetingFormLabels = {
 export function MeetingForm({
   action,
   labels,
+  openOnWide = false,
 }: {
   action: (formData: FormData) => void;
   labels: MeetingFormLabels;
+  /** На широком экране сразу раскрыта (своя колонка справа); на телефоне — кнопкой. */
+  openOnWide?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  // null — человек ещё не раскрывал и не сворачивал: решает ширина экрана.
+  const [chosen, setOpen] = useState<boolean | null>(null);
+  const wide = useSyncExternalStore(
+    subscribeWide,
+    () => window.matchMedia(WIDE).matches,
+    () => false,
+  );
+  const open = chosen ?? (openOnWide && wide);
   const [picked, setPicked] = useState<PickDetail | null>(null);
   // Выбор с карты как пришёл: от него пересчитываются правки часов в поле.
   const [anchor, setAnchor] = useState<PickDetail | null>(null);

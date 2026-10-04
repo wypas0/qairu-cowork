@@ -64,7 +64,11 @@ export default async function MySchedulePage({
 
   const lang = chat.lang;
   const t = translator(lang);
-  const slots = await repo.getSlots(user.userId);
+  const [slots, updated] = await Promise.all([
+    repo.getSlots(user.userId),
+    repo.scheduleUpdatedAt([user.userId]),
+  ]);
+  const updatedAt = updated.get(user.userId);
   // Занятость из подключённого календаря в список разовых не выводим: её
   // десятки, и правится она в самом календаре.
   const dated = (await repo.datedSlots(user.userId)).filter((slot) => slot.source !== repo.CALENDAR_SOURCE);
@@ -82,7 +86,12 @@ export default async function MySchedulePage({
       label: slot.label,
       parity: slot.weekParity,
       kind: slot.kind,
+      ...(slot.validFrom && slot.validTo
+        ? { from: slot.validFrom, to: slot.validTo, except: slot.exceptDates.split(",").filter(Boolean) }
+        : {}),
     }));
+  // Пары из кампуса идут до конца триместра — после него время освободится само.
+  const validTo = weekly.reduce<string | null>((last, slot) => (slot.to && (!last || slot.to > last) ? slot.to : last), null);
 
   const errorKey = typeof query.err === "string" ? DATED_ERRORS[query.err] : undefined;
   const added = query.added === "1";
@@ -107,6 +116,20 @@ export default async function MySchedulePage({
               {t("w_me_shared")}
             </p>
           </div>
+          {/* Страница длинная: справа — когда обновлялось и переходы к разделам ниже сетки. */}
+          <div className="page-head-side">
+            {updatedAt && (
+              <span className="small muted">
+                {t("w_me_updated", { date: formatDM(utcToZonedWall(updatedAt, chatTz(chat)).day) })}
+              </span>
+            )}
+            <a className="btn btn-sm btn-quiet" href="#dated">
+              {t("w_dated")}
+            </a>
+            <a className="btn btn-sm btn-quiet" href="#calendar">
+              {t("w_cal_sub_title")}
+            </a>
+          </div>
         </header>
 
         <ExtensionHint
@@ -116,8 +139,14 @@ export default async function MySchedulePage({
             update: t("w_ext_hint_update"),
             how: t("w_ext_hint_how"),
             later: t("w_ext_hint_later"),
+            changed: t("w_ext_changed", { added: "{added}", removed: "{removed}" }),
+            pull: t("w_ext_pull"),
           }}
         />
+
+        {validTo && (
+          <p className="small muted period-note">{t("w_me_period_note", { date: formatDMY(validTo) })}</p>
+        )}
 
         <ScheduleEditor
           slug={slug}
@@ -187,6 +216,8 @@ export default async function MySchedulePage({
           }}
         />
 
+        {/* Разовая занятость и календарь — рядом: каждая занимала всю ширину наполовину пустой. */}
+        <div className="pair">
         {/* ============ разовая занятость ============ */}
         <section className="card" id="dated">
           <h2>{t("w_dated")}</h2>
@@ -324,6 +355,7 @@ export default async function MySchedulePage({
             </form>
           )}
         </section>
+        </div>
       </main>
       </AppShell>
     </>

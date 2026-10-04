@@ -31,6 +31,7 @@ describe("readExtensionMessage", () => {
     expect(result).toEqual({
       id: "3f0c1d9e-1111-4a2b-8c3d-000000000001",
       count: 24,
+      version: null,
       slots: [
         {
           weekday: 0,
@@ -52,6 +53,11 @@ describe("readExtensionMessage", () => {
         },
       ],
     });
+  });
+
+  it("версию расширения берёт, только если она похожа на версию", () => {
+    expect(readExtensionMessage(message({ version: "0.3.0" }))?.version).toBe("0.3.0");
+    expect(readExtensionMessage(message({ version: "<b>1</b>" }))?.version).toBeNull();
   });
 
   it("чужие сообщения не трогает", () => {

@@ -144,8 +144,9 @@ postgresql://postgres.abcdefgh:ПАРОЛЬ@aws-0-eu-central-1.pooler.supabase.c
 [`drizzle/0004_recurring_meetings.sql`](drizzle/0004_recurring_meetings.sql),
 [`drizzle/0005_calendar_and_summary.sql`](drizzle/0005_calendar_and_summary.sql),
 [`drizzle/0006_meeting_duration.sql`](drizzle/0006_meeting_duration.sql),
-[`drizzle/0007_row_level_security.sql`](drizzle/0007_row_level_security.sql)
-и [`drizzle/0008_session_token_hash.sql`](drizzle/0008_session_token_hash.sql).
+[`drizzle/0007_row_level_security.sql`](drizzle/0007_row_level_security.sql),
+[`drizzle/0008_session_token_hash.sql`](drizzle/0008_session_token_hash.sql)
+и [`drizzle/0009_attendance_and_origin.sql`](drizzle/0009_attendance_and_origin.sql).
 
 Миграции выполняются **по порядку номеров** и **каждая один раз**. Если база уже
 работает на прошлой версии (`0000` выполнен давно), при обновлении нужно выполнить
@@ -162,7 +163,10 @@ Supabase с публичным ключом проекта не видит ни 
 Advisor** больше не ругается на «RLS disabled in public»,
 `0008_session_token_hash.sql` — токены сессий хранятся только хешем (`token_hash` вместо
 `token` у `web_sessions`); уже выданные куки продолжают работать, сессии без заходов
-дольше 30 дней удаляются.
+дольше 30 дней удаляются,
+`0009_attendance_and_origin.sql` — таблица `meeting_attendance` («был ли ты на встрече»: бот
+спрашивает после встречи, на сайте — кнопки у прошедшей) и колонки `origin` и `ext_version` у
+`schedule_state` (откуда расписание: вручную, с фото, из кампуса — видно старосте и в `/admin/stats`).
 
 > **Миграцию выполнять до того, как новый код попадёт на Vercel.** Код с новыми
 > колонками на старой базе падает на любой странице со встречами. Теперь это
@@ -374,6 +378,7 @@ DNS-записи, которые покажет Vercel. После этого д
 | Страница группы или бот падают с ошибкой про `repeat_until` или `reminded_start` | Не выполнена миграция `0004_recurring_meetings.sql` |
 | Страница группы или бот падают с ошибкой про `duration_min` | Не выполнена миграция `0006_meeting_duration.sql` |
 | Все разом оказались не вошедшими, в логах ошибка про `token_hash` | Не выполнена `0008_session_token_hash.sql`: код новый, а база старая. Выполнить её — куки снова пустят |
+| Падают страницы группы и сохранение расписания, в логах `meeting_attendance` или `origin` | Не выполнена `0009_attendance_and_origin.sql`. Выполнить её в SQL Editor |
 | Сборка падает с `[qairu:schema] Не включён RLS: …` | Не выполнена `0007_row_level_security.sql`. Выполнить её в Supabase и сделать Redeploy |
 | Сборка падает с `[qairu:schema] В базе не хватает: …` | Не выполнена миграция, которую называет сообщение (например, `0005_calendar_and_summary.sql`). Выполнить её в Supabase и сделать Redeploy |
 | Сборка падает с `You are using Node.js … For Next.js, Node.js version ">=20.9.0" is required` | Next 16 требует Node 20.9 или новее: **Vercel → Settings → Build and Deployment → Node.js Version** → 22.x или новее, затем Redeploy |
@@ -432,7 +437,7 @@ Free засыпает после 7 дней без запросов — cron н�
 
 - [ ] 0. `npm test` и `npm run build` локально — зелено
 - [ ] 1. `git init` → коммит → пуш на GitHub
-- [ ] 2. Supabase: проект → пулер-строка (6543) → выполнить `drizzle/0000_init.sql`, затем `0001_admin_login.sql`, `0002_avatars.sql`, `0003_real_name.sql`, `0004_recurring_meetings.sql`, `0005_calendar_and_summary.sql`, `0006_meeting_duration.sql`, `0007_row_level_security.sql` и `0008_session_token_hash.sql`
+- [ ] 2. Supabase: проект → пулер-строка (6543) → выполнить `drizzle/0000_init.sql`, затем `0001_admin_login.sql`, `0002_avatars.sql`, `0003_real_name.sql`, `0004_recurring_meetings.sql`, `0005_calendar_and_summary.sql`, `0006_meeting_duration.sql`, `0007_row_level_security.sql`, `0008_session_token_hash.sql` и `0009_attendance_and_origin.sql`
 - [ ] 3. Vercel: импорт репозитория → `DATABASE_URL` → Deploy
 - [ ] 4. Проверить `/api/healthz` и создание группы
 - [ ] 5. BotFather: `/newbot` → токен → `/setjoingroups` Enable

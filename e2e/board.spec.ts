@@ -31,6 +31,8 @@ test.describe("доска группы", () => {
     await expect(page.locator(".heatmap")).toHaveAttribute("aria-busy", "false");
 
     const rows = page.locator("table.week.periods tbody tr:not(.break-row)");
+    // Карта теперь под полосой подбора и «Лучшим временем» — прокручиваем к ней: мышь ходит по экрану.
+    await rows.nth(2).scrollIntoViewIfNeeded();
     const from = (await rows.nth(0).locator("td.cell").nth(3).boundingBox())!;
     const to = (await rows.nth(2).locator("td.cell").nth(3).boundingBox())!;
     await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
@@ -56,6 +58,7 @@ test.describe("доска группы", () => {
     await expect(strip).toHaveCount(1);
     await expect(strip).toHaveText("Перерыв 20 мин");
 
+    await strip.scrollIntoViewIfNeeded();
     const thursday = (await page.locator("table.week.periods thead th").nth(4).boundingBox())!;
     const box = (await strip.boundingBox())!;
     await page.mouse.click(thursday.x + thursday.width / 2, box.y + box.height / 2);
@@ -75,7 +78,7 @@ test.describe("доска группы", () => {
 
   test("наведение на имя подсвечивает, когда человек свободен", async ({ page }) => {
     await page.goto(group());
-    await page.locator(".who-list li", { hasText: "Ерлан" }).hover();
+    await page.locator(".who-chips li", { hasText: "Ерлан" }).hover();
     await expect(page.locator("table.week.periods.spotting")).toBeVisible();
     // По вторникам и четвергам Ерлан занят с 12 до 15 — эти клетки гаснут.
     await expect(page.locator("td.cell.spot-off").first()).toBeVisible();
@@ -329,7 +332,8 @@ test.describe("состояния", () => {
       await new Promise((resolve) => setTimeout(resolve, 1500));
       await route.continue();
     });
-    await page.locator(".windows-card select").selectOption({ index: 2 });
+    // Длина встречи — в полосе подбора, пересчитываются и «Общие окна».
+    await page.locator(".pick-bar select").selectOption({ index: 2 });
     const card = page.locator(".windows-card");
     await expect(card).toHaveAttribute("aria-busy", "true");
     // Бегущая полоса — псевдоэлемент поверх карточки.

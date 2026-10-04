@@ -21,6 +21,10 @@ export type WeeklySlotInput = {
   label?: string;
   parity?: number | null;
   kind?: string;
+  /** Пара идёт только в этот период и не в эти даты (см. WeeklySlot). */
+  from?: string | null;
+  to?: string | null;
+  except?: string[];
 };
 
 /** Вид слота «могу, но не хочу»: время свободно, но неудобно. */
@@ -67,6 +71,9 @@ export async function replaceWeeklySlots(
         weekParity: slot.parity ?? null,
         kind: (slot.kind ?? "class").slice(0, 16),
         source: source.slice(0, 16),
+        validFrom: slot.from && slot.to ? slot.from : null,
+        validTo: slot.from && slot.to ? slot.to : null,
+        exceptDates: slot.from && slot.to ? (slot.except ?? []).join(",") : "",
       })),
     );
   }
@@ -268,6 +275,15 @@ export async function buildPersonSchedules(
         dateTo: slot.dateTo,
         start: slot.startMin,
         end: slot.endMin,
+      });
+    } else if (slot.weekday !== null && slot.validFrom !== null && slot.validTo !== null) {
+      // Пара из кампуса: только в своём триместре и не в праздники.
+      person.bounded.push({
+        weekday: slot.weekday,
+        interval,
+        from: slot.validFrom,
+        to: slot.validTo,
+        except: new Set(slot.exceptDates.split(",").filter(Boolean)),
       });
     } else if (slot.weekday !== null) {
       if (slot.weekParity === null) {

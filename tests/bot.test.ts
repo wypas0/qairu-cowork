@@ -619,6 +619,55 @@ describe("напоминания", () => {
   });
 });
 
+describe("был ли ты на встрече", () => {
+  it("после конца спрашивает тех, кто собирался, один раз; кнопка записывает ответ", async () => {
+    const repo = await import("@/db/repo");
+    const { askAttendance } = await import("@/bot/handlers/attendance");
+
+    // Встреча закончилась 10 минут назад: шла час.
+    const meeting = await repo.createMeeting({
+      chatId: GROUP_ID,
+      initiatorId: AMIR.id,
+      place: "Коворкинг",
+      whenText: "сегодня",
+      goal: "Подготовка к защите",
+      invitees: [AMIR.id, ASEL.id],
+      whenStart: new Date(Date.now() - 70 * 60_000),
+      durationMin: 60,
+    });
+    await repo.setResponse({ meetingId: meeting.id, userId: ASEL.id, answer: "yes" });
+    await repo.setResponse({ meetingId: meeting.id, userId: AMIR.id, answer: "no" });
+
+    stub.reset();
+    expect(await askAttendance()).toBe(1);
+    const ask = stub.last("sendMessage")!;
+    expect(ask.payload.chat_id).toBe(ASEL.id); // «нет» не спрашиваем
+    expect(stub.lastText()).toContain("Подготовка к защите");
+    const markup = ask.payload.reply_markup as { inline_keyboard: { callback_data: string }[][] };
+    const yes = markup.inline_keyboard[0]![0]!.callback_data;
+    const [kind, id, day, value] = yes.split(":");
+    expect([kind, id, value]).toEqual(["att", String(meeting.id), "1"]);
+    expect(day).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+
+    // Второй запуск cron не спрашивает ещё раз.
+    stub.reset();
+    expect(await askAttendance()).toBe(0);
+
+    stub.reset();
+    await handleUpdate(callback(PRIVATE_ASEL as unknown as typeof GROUP_CHAT, ASEL, yes));
+    expect(stub.lastText("editMessageText")).toContain("ты был");
+    expect((await repo.attendanceByUser(GROUP_ID)).get(ASEL.id)).toEqual({ attended: 1, total: 1 });
+
+    // Не приглашённый ответить не может.
+    const OTHER = { ...ASEL, id: 777, first_name: "Чужой" };
+    stub.reset();
+    await handleUpdate(callback(PRIVATE_ASEL as unknown as typeof GROUP_CHAT, OTHER, yes));
+    expect(stub.last("answerCallbackQuery")?.payload.show_alert).toBe(true);
+    expect((await repo.attendanceByUser(GROUP_ID)).get(777)).toBeUndefined();
+    await repo.updateMeeting(meeting.id, { status: "cancelled" });
+  });
+});
+
 describe("устойчивость", () => {
   it("незнакомая команда не уезжает в парсер расписания", async () => {
     stub.reset();

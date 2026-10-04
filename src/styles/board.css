@@ -73,7 +73,7 @@
   margin-bottom: 0;
 }
 
-/* --- «кто должен прийти» --- */
+/* --- «кто должен прийти» (полоса подбора) --- */
 .who-head {
   display: flex;
   align-items: center;
@@ -84,58 +84,6 @@
 .who-head .label {
   margin: 0;
 }
-.who-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  border: 1px solid var(--card-line);
-  border-radius: var(--r-xl);
-  max-height: 264px;
-  overflow-y: auto;
-}
-.who-list li + li {
-  border-top: 1px solid var(--border);
-}
-.who-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0;
-  padding: 8px 12px;
-  color: var(--text);
-  font-size: 14px;
-  line-height: 20px;
-  cursor: pointer;
-  transition: background-color 150ms var(--ease);
-}
-.who-row:hover {
-  background: color-mix(in srgb, var(--hover) 60%, transparent);
-}
-.who-row input {
-  width: 18px;
-  height: 18px;
-  min-height: 0;
-  flex: none;
-  accent-color: var(--accent);
-}
-.who-name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.who-row.off {
-  cursor: default;
-  color: var(--muted);
-}
-.who-row.off:hover {
-  background: transparent;
-}
-.who-row.spotted {
-  background: var(--accent-soft);
-}
-
 /* --- переключатель недель --- */
 .weeknav {
   display: flex;
@@ -410,20 +358,120 @@
   font-weight: 600;
   overflow-wrap: anywhere;
 }
+/* Склейка одинаковых пар: строка «1–6» со стрелкой, нажатие раскрывает пары. */
+.agenda-run {
+  position: relative;
+  padding-right: 32px;
+}
+.agenda-run-icon {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  margin-top: -8px;
+  color: var(--muted);
+  transition: transform 150ms var(--ease);
+}
+.agenda-run.open .agenda-run-icon {
+  transform: rotate(90deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .agenda-run-icon {
+    transition: none;
+  }
+}
 .agenda-soft {
   color: var(--muted);
   font-size: 12px;
   line-height: 16px;
 }
 
-/* На широком экране карта длинная, а «Общие окна» короткие: карточка
-   прилипает к верху, чтобы выбор дня и людей был под рукой при прокрутке. */
-@media (min-width: 1024px) {
-  .board-grid {
-    align-items: start;
+/* --- доска: полоса подбора, два ответа рядом, карта во всю ширину --- */
+.pick-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 12px 24px;
+}
+.pick-bar .field {
+  margin: 0;
+}
+.pick-duration {
+  flex: none;
+  min-width: 160px;
+}
+/* Людям нужна ширина: на узком экране они уходят под длительность. */
+.pick-who {
+  flex: 1 1 340px;
+  min-width: 0;
+}
+.who-chips {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+/* Человек — пилюля выбора (радиус пилюли — только у выбора, по дизайн-коду). */
+.who-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  min-height: 34px;
+  padding: 0 12px 0 8px;
+  border: 1px solid var(--card-line);
+  border-radius: 9999px;
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 150ms var(--ease), border-color 150ms var(--ease);
+}
+.who-chip input {
+  width: 16px;
+  height: 16px;
+  min-height: 0;
+  flex: none;
+  accent-color: var(--accent);
+}
+.who-chip.on {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.who-chip:hover,
+.who-chip.spotted {
+  background: var(--accent-soft);
+}
+.who-chip.off {
+  cursor: default;
+  color: var(--muted);
+  border-style: dashed;
+}
+.who-chip.off:hover {
+  background: transparent;
+}
+.who-chip .who-name {
+  max-width: 16ch;
+}
+@media (pointer: coarse) {
+  .who-chip {
+    min-height: 44px;
   }
-  .board-grid > .windows-card {
-    position: sticky;
-    top: 16px;
+}
+
+.board-pair {
+  display: grid;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+.board-pair > .card {
+  margin-bottom: 0;
+  min-width: 0;
+}
+@media (min-width: 900px) and (max-width: 1023px), (min-width: 1180px) {
+  .board-pair {
+    grid-template-columns: 1fr 1fr;
+  }
+  .board-pair.single {
+    grid-template-columns: 1fr;
   }
 }

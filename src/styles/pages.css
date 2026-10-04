@@ -169,6 +169,32 @@ table.week.demo-week td.timecol.period {
   display: grid;
   gap: 10px;
 }
+/* «Твоя неделя» на главной у вошедшего: группы со встречами и ответами. */
+.your-week-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+}
+.your-week-list li + li {
+  border-top: 1px solid var(--border);
+}
+.your-week-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  min-height: 48px;
+  padding: 10px 14px;
+  color: var(--text);
+}
+.your-week-row:hover {
+  background: color-mix(in srgb, var(--hover) 60%, transparent);
+}
+.your-week-row .badge {
+  margin-left: auto;
+}
 .tg-only-list {
   list-style: none;
   padding: 0;
@@ -321,4 +347,38 @@ html[data-tg] .tg-hide {
 }
 .home-screen {
   margin: 16px 0 0;
+}
+
+/* --- /admin/stats: плитки счётчиков --- */
+.stats-grid {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  align-items: start;
+}
+.stats-tile {
+  margin-bottom: 0;
+}
+.stats-tile dl {
+  display: grid;
+  gap: 8px;
+  margin: 8px 0 0;
+}
+.stats-tile dl > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.stats-tile dl > div:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+.stats-tile dd {
+  margin: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }

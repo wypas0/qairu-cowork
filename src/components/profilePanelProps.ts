@@ -143,6 +143,7 @@ export async function userGroups(userId: number, lang: string): Promise<ProfileG
               .length,
             invited: invitees.length,
             awaiting: invitees.includes(userId) && !replies.some((reply) => reply.userId === userId),
+            today: utcToZonedWall(start, tzOf(chat.chatId)).day === todayIn(tzOf(chat.chatId), now),
           };
         }),
       };

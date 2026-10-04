@@ -39,6 +39,8 @@ export type BoardLabels = {
   busyNames: string;
   /** «неудобно: {names}» — литеральный {names}. */
   softNames: string;
+  /** Склейка одинаковых пар на телефоне: «Пары {from}–{to}, {time}: {count}. Раскрыть». */
+  agendaRun: string;
   nobody: string;
   windowsTitle: string;
   windowsEmpty: string;

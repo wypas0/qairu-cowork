@@ -50,6 +50,15 @@ export type DateRangeSlot = {
   end: number;
 };
 
+/** Недельная пара, которая идёт только в период [from, to] и не в даты except. */
+export type BoundedSlot = {
+  weekday: number;
+  interval: Interval;
+  from: DateStr;
+  to: DateStr;
+  except: Set<string>;
+};
+
 /** Занятость одного человека. */
 export class PersonSchedule {
   userId: number;
@@ -67,6 +76,8 @@ export class PersonSchedule {
    * свободен и в окна попадает, но такие окна предлагаются в последнюю очередь.
    */
   softWeekly: Map<number, Interval[]>;
+  /** Недельные пары с периодом действия и датами-исключениями (триместр из кампуса). */
+  bounded: BoundedSlot[];
   hasData: boolean;
 
   constructor(init: {
@@ -77,6 +88,7 @@ export class PersonSchedule {
     dated?: Map<DateStr, Interval[]>;
     ranges?: DateRangeSlot[];
     softWeekly?: Map<number, Interval[]>;
+    bounded?: BoundedSlot[];
     hasData?: boolean;
   }) {
     this.userId = init.userId;
@@ -86,6 +98,7 @@ export class PersonSchedule {
     this.dated = init.dated ?? new Map();
     this.ranges = init.ranges ?? [];
     this.softWeekly = init.softWeekly ?? new Map();
+    this.bounded = init.bounded ?? [];
     this.hasData = init.hasData ?? true;
   }
 
@@ -101,6 +114,16 @@ export class PersonSchedule {
       busy = busy.concat(this.weeklyParity.get(parity)?.get(weekday) ?? []);
     }
     busy = busy.concat(this.dated.get(day) ?? []);
+    for (const slot of this.bounded) {
+      if (
+        slot.weekday === weekday &&
+        compareDates(slot.from, day) <= 0 &&
+        compareDates(day, slot.to) <= 0 &&
+        !slot.except.has(day)
+      ) {
+        busy.push(slot.interval);
+      }
+    }
     for (const range of this.ranges) {
       if (compareDates(range.dateFrom, day) <= 0 && compareDates(day, range.dateTo) <= 0) {
         busy.push([range.start, range.end]);

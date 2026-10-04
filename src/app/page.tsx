@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import Link from "next/link";
 
 import { CreateGroupDialog } from "@/components/CreateGroupDialog";
 import { IconBell, IconPhone, IconPlus, IconUser } from "@/components/icons";
@@ -11,6 +12,8 @@ import { OpenLastGroup } from "@/components/TelegramHome";
 import { profilePanelProps } from "@/components/profilePanelProps";
 import { TelegramSignIn } from "@/components/TelegramSignIn";
 import { Topbar } from "@/components/Topbar";
+import { formatDM, utcToZonedWall, chatTz } from "@/core/timeutils";
+import * as repo from "@/db/repo";
 import { LANG_NAMES, normalizeLang, tn, translator } from "@/i18n";
 import { pageUser } from "@/lib/gate";
 import { createGroup, joinByCodeAction } from "./actions";
@@ -52,6 +55,8 @@ export default async function LandingPage({
   // Группы для страницы — те же, что в панели профиля: собираем их один раз.
   const panel = await profilePanelProps(lang);
   const groups = panel.groups;
+  // Для вошедшего вместо «Вход только через Telegram» (он уже вошёл) — его неделя.
+  const updatedAt = user ? (await repo.scheduleUpdatedAt([user.userId])).get(user.userId) : undefined;
   const joinError =
     query.join === "bad" ? "w_join_err_bad" : query.join === "notfound" ? "w_join_err_notfound" : null;
 
@@ -93,6 +98,46 @@ export default async function LandingPage({
         ))}
       </ol>
 
+      {user ? (
+        <section className="card your-week" aria-labelledby="your-week-title">
+          <div className="card-head">
+            <h2 id="your-week-title">{t("w_week_you_title")}</h2>
+            {groups[0] && (
+              <Link className="btn btn-sm" href={`/g/${groups[0].slug}/me`}>
+                {updatedAt ? t("w_week_you_update") : t("w_week_you_fill")}
+              </Link>
+            )}
+          </div>
+          <p className="small muted">
+            {updatedAt
+              ? t("w_week_you_schedule", { date: formatDM(utcToZonedWall(updatedAt, chatTz(null)).day) })
+              : t("w_week_you_schedule_empty")}
+          </p>
+          {groups.length === 0 ? (
+            <p className="small">{t("w_week_you_no_groups")}</p>
+          ) : (
+            <ul className="your-week-list">
+              {groups.map((group) => {
+                const meetings = group.meetings ?? [];
+                const awaiting = meetings.filter((meeting) => meeting.awaiting).length;
+                return (
+                  <li key={group.chatId}>
+                    <Link href={`/g/${group.slug}`} className="your-week-row">
+                      <b>{group.title}</b>
+                      <span className="small muted">
+                        {meetings.length > 0
+                          ? `${tn(lang, "w_meetings_count", meetings.length)} · ${meetings[0].when}`
+                          : t("w_week_you_no_meetings")}
+                      </span>
+                      {awaiting > 0 && <span className="badge">{t("w_week_you_awaiting", { n: awaiting })}</span>}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      ) : (
       <section className="card tg-only" aria-labelledby="tg-only-title">
         <h2 id="tg-only-title">{t("w_tg_only_title")}</h2>
         <ul className="tg-only-list">
@@ -110,6 +155,7 @@ export default async function LandingPage({
           </li>
         </ul>
       </section>
+      )}
     </>
   );
 
