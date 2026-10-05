@@ -14,21 +14,10 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 const SAMPLES = {
-  ru: { h: "Когда у всех есть общее окно?", a: "общее окно", p: "Съешь же ещё этих мягких французских булок." },
-  kk: { h: "Бәрі қашан бос?", a: "бос", p: "Әкімші топқа қосылды: ғ қ ң ө ұ ү һ і — барлығы бір шрифтпен." },
-  en: { h: "When is everyone free?", a: "free", p: "The quick brown fox jumps over the lazy dog." },
+  ru: { h: "Когда у всех есть общее окно?", p: "Съешь же ещё этих мягких французских булок." },
+  kk: { h: "Бәрі қашан бос?", p: "Әкімші топқа қосылды: ғ қ ң ө ұ ү һ і — барлығы бір шрифтпен." },
+  en: { h: "When is everyone free?", p: "The quick brown fox jumps over the lazy dog." },
 };
-
-function accent(title: string, word: string) {
-  const at = title.indexOf(word);
-  return (
-    <>
-      {title.slice(0, at)}
-      <i className="script-word">{word}</i>
-      {title.slice(at + word.length)}
-    </>
-  );
-}
 
 export default function Specimen() {
   if (process.env.NODE_ENV === "production" && process.env.DESIGN_SPECIMEN !== "1") notFound();
@@ -36,7 +25,7 @@ export default function Specimen() {
     <main className="wrap" style={{ paddingTop: 24, paddingBottom: 48 }}>
       <p className="eyebrow">QairuCowork × qairuhub</p>
       <h1>Образец дизайн-системы</h1>
-      <p className="lead">Токены, типографика и компоненты новой темы. Контраст считается в браузере по текущей теме.</p>
+      <p className="lead">Токены, типографика и компоненты светлой темы. Контраст считается в браузере.</p>
 
       <section className="card">
         <h2>Палитра и контраст</h2>
@@ -49,7 +38,7 @@ export default function Specimen() {
           <div key={lang} lang={lang} style={{ marginBottom: 24 }}>
             <p className="eyebrow">{lang}</p>
             <p className="type-display" style={{ margin: "0 0 8px" }}>
-              {accent(s.h, s.a)}
+              {s.h}
             </p>
             <h1 style={{ margin: 0 }}>{s.h}</h1>
             <h2>{s.h}</h2>
@@ -57,12 +46,6 @@ export default function Specimen() {
             <p className="small muted">{s.p}</p>
           </div>
         ))}
-        <p className="display-caps" style={{ fontSize: 72, margin: "8px 0" }} lang="kk">
-          Бір апта · Бүкіл топ
-        </p>
-        <p className="display-caps" style={{ fontSize: 72, margin: 0 }}>
-          Одна неделя · One week
-        </p>
       </section>
 
       <section className="card">

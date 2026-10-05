@@ -322,7 +322,7 @@ test.describe("состояния", () => {
     await expect(card).toHaveAttribute("aria-busy", "false");
   });
 
-  test("мини-апп: «Готово» — цветом главной кнопки сайта, контраст AA", async ({ page }) => {
+  test("мини-апп: «Готово» — цветом главной кнопки сайта, и в тёмном Telegram сайт светлый", async ({ page }) => {
     await page.route("https://telegram.org/**", (route) => route.abort());
     await page.addInitScript(() => {
       const params: Record<string, unknown>[] = [];
@@ -368,11 +368,13 @@ test.describe("состояния", () => {
     await page.goto(`${group()}/me`);
     await expect
       .poll(() => page.evaluate(() => (window as unknown as { __mainParams: { color?: string }[] }).__mainParams.at(-1)?.color))
-      .toBe("#ffffff");
+      .toBe("#1d1a16");
     const last = await page.evaluate(
       () => (window as unknown as { __mainParams: { text_color?: string }[] }).__mainParams.at(-1)?.text_color,
     );
-    expect(last).toBe("#1b1b1b");
+    // Чернила и светлый текст — 17:1; colorScheme "dark" у Telegram тему сайта не меняет.
+    expect(last).toBe("#fffdf9");
+    await expect(page.locator("html")).not.toHaveAttribute("data-theme", /.+/);
   });
 });
 
@@ -395,15 +397,20 @@ test.describe("без скачков", () => {
 });
 
 test.describe("витрина лендинга", () => {
-  test("шрифты витрины включаются после загрузки, небо грузится заранее", async ({ page }) => {
+  test("витрина светлая: Geologica в заголовках, Onest в тексте, карта находит общее окно", async ({ page }) => {
     // Гость: витрина и формы «по коду» и «создать» под ней.
     await page.context().clearCookies();
     await page.goto("/");
-    await expect(page.locator("html")).toHaveClass(/deco-fonts/);
-    const family = await page.locator(".hero .script-word").evaluate((element) => getComputedStyle(element).fontFamily);
-    expect(family).toMatch(/Caveat/);
-    await expect(page.locator('head link[rel="preload"][href="/hero-sky.jpg"]')).toHaveCount(1);
-    await expect(page.locator(".manifest")).toBeVisible();
+    const heading = await page.locator(".hero h1").evaluate((element) => getComputedStyle(element).fontFamily);
+    expect(heading).toMatch(/Geologica/);
+    const text = await page.locator("body").evaluate((element) => getComputedStyle(element).fontFamily);
+    expect(text).toMatch(/Onest/);
+    // Тема одна — светлая: ни атрибута темы, ни тёмной схемы.
+    await expect(page.locator("html")).not.toHaveAttribute("data-theme", /.+/);
+    expect(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme)).toBe("light");
+    await expect(page.locator('.hero-actions a[href="#create"]')).toBeVisible();
+    await expect(page.locator(".demo .demo-best-cell")).toHaveCount(1);
+    await expect(page.locator(".steps .step-art svg")).toHaveCount(3);
   });
 
   test("вошедший видит витрину, группы — в сайдбаре, который раскрывается с полосы", async ({ page }) => {

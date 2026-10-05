@@ -10,7 +10,7 @@
 .profile-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(10, 22, 40, 0.4);
+  background: var(--scrim);
   z-index: 60;
   display: flex;
   align-items: flex-end;

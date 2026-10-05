@@ -41,7 +41,7 @@ table.week td.cell {
   background: var(--heat-5);
   cursor: pointer;
   position: relative;
-  transition: background-color 150ms var(--ease);
+  transition: background-color 150ms var(--ease), box-shadow 120ms var(--ease), scale 280ms var(--ease-spring);
 }
 .h0 {
   background: var(--heat-0) !important;
@@ -73,16 +73,22 @@ td.cell.busy {
   background: var(--slot-busy) !important;
 }
 /* Штриховка «тут занят ты» должна читаться на любой ступени шкалы:
-   на тёмных клетках — светлая, на светлых — тёмная. */
+   на тёмных клетках (h0–h2) — светлая, на светлых (h3–h5) — чернильная. */
 .h0,
-.h1 {
-  --mine-stripe: rgba(3, 20, 40, 0.4);
+.h1,
+.h2 {
+  --mine-stripe: var(--stripe-on-dark);
 }
-.h2,
 .h3,
 .h4,
 .h5 {
-  --mine-stripe: rgba(255, 255, 255, 0.4);
+  --mine-stripe: var(--stripe-on-light);
+}
+/* Клетка под курсором — чернильная рамка: видно, о какой паре подсказка. */
+@media (hover: hover) {
+  table.week.periods:not(.demo-week) td.cell:not(.past):not(.inrange):hover {
+    box-shadow: inset 0 0 0 2px var(--ink), inset 0 0 0 4px var(--card);
+  }
 }
 
 /* --- сетка по парам, как на портале университета --- */
@@ -121,6 +127,7 @@ table.week td.cell.past {
   margin-top: -1px;
   background: var(--danger);
   border-radius: var(--r-full);
+  box-shadow: 0 0 0 1.5px var(--card);
   pointer-events: none;
   z-index: 1;
 }
@@ -133,6 +140,7 @@ table.week td.cell.past {
   height: 8px;
   border-radius: var(--r-full);
   background: var(--danger);
+  box-shadow: 0 0 0 1.5px var(--card);
 }
 /* Протяжка мышью: выбранные клетки обведены цветом действия. */
 table.week.dragging {
@@ -141,7 +149,7 @@ table.week.dragging {
 }
 table.week td.cell.inrange {
   opacity: 1;
-  box-shadow: inset 0 0 0 3px var(--accent), inset 0 0 0 5px var(--accent-text);
+  box-shadow: inset 0 0 0 3px var(--ink), inset 0 0 0 5px var(--card);
 }
 /* Подсветка одного человека: где он занят — клетки уходят в тень. */
 table.week.spotting td.cell.spot-off {
@@ -199,7 +207,7 @@ table.week tr.break-row td {
   text-align: left;
 }
 /* Длинный перерыв на карте группы — тонкая сплошная полоса через всю неделю.
-   Встреча на нём выделяет в своём дне отдельную розовую клетку. */
+   Встреча на нём выделяет в своём дне отдельную клетку цвета встречи. */
 table.week.periods tr.pause-row td {
   height: 14px;
   padding: 0;
@@ -299,6 +307,11 @@ table.week.editor td.cell {
   background: var(--slot-free);
   box-shadow: inset 0 0 0 1px var(--slot-free-border);
 }
+/* Закраска: клетка проседает под пальцем и пружинит обратно (Kinetics, Squish). */
+table.week.editor td.cell:active {
+  scale: 0.92;
+  transition-duration: 150ms, 120ms, 60ms;
+}
 /* Тач-экран шире телефона (планшет): клетка недели не ниже 44px. */
 @media (pointer: coarse) {
   table.week.editor td.cell {
@@ -370,6 +383,7 @@ table.week.editor td.cell.soft {
 
 /* Кисть редактора: переключатель «Занят / Неудобно». */
 .brush {
+  position: relative;
   display: inline-flex;
   gap: 4px;
   margin: 4px 0 12px;
@@ -443,7 +457,7 @@ table.week td.cell.mine::before {
   );
 }
 
-/* --- назначенные встречи на тепловой карте: розовые, красный — за ошибками --- */
+/* --- назначенные встречи на тепловой карте: индиго, красный — за ошибками --- */
 table.week td.cell.meeting,
 .legend i.swatch-meeting {
   background: var(--meeting);
@@ -520,20 +534,21 @@ table.week td.cell.meeting {
   width: 5px;
   height: 5px;
   border-radius: var(--r-full);
-  background: var(--warning);
-  box-shadow: 0 0 0 1.5px rgba(10, 22, 40, 0.45);
+  background: var(--card);
+  box-shadow: 0 0 0 1.5px var(--ink);
 }
 
-/* «Кому-то неудобно» — точка в углу клетки: цвет клетки уже занят шкалой. */
+/* «Кому-то неудобно» — белая точка в чернильном ободке в углу клетки: цвет
+   клетки уже занят шкалой, а янтарная точка на янтарной шкале потерялась бы. */
 .soft-mark {
   position: absolute;
   top: 5px;
   right: 5px;
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   border-radius: var(--r-full);
-  background: var(--warning);
-  box-shadow: 0 0 0 2px rgba(10, 22, 40, 0.45);
+  background: var(--card);
+  box-shadow: 0 0 0 1.5px var(--ink);
   pointer-events: none;
 }
 
@@ -541,7 +556,8 @@ table.week td.cell.meeting {
 .cell-popover-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(10, 22, 40, 0.4);
+  background: var(--scrim);
+  animation: fade-in 160ms var(--ease);
   z-index: 70;
   display: flex;
   align-items: center;
@@ -555,6 +571,19 @@ table.week td.cell.meeting {
   box-shadow: var(--shadow-float);
   width: min(92vw, 340px);
   padding: 24px;
+  animation: pop-in 220ms var(--ease);
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    scale: 0.96;
+    translate: 0 6px;
+  }
 }
 .cell-popover .when {
   margin: 2px 0 4px;
@@ -579,6 +608,7 @@ table.week td.cell.meeting {
   pointer-events: none;
   font-size: 13px;
   line-height: 18px;
+  animation: fade-in 120ms var(--ease);
 }
 .cell-tooltip.below {
   transform: translate(-50%, 8px);
@@ -630,10 +660,9 @@ table.week td.cell.meeting {
 .who-pill.busy {
   background: var(--who-busy);
   color: var(--who-busy-text);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
 }
 .who-pill.soft {
-  outline: 1.5px dashed var(--warning);
+  outline: 1.5px dashed var(--amber);
   outline-offset: 1px;
 }
 .who-soft {

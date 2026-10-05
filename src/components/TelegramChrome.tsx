@@ -2,7 +2,6 @@
 
 import { useEffect } from "react";
 
-import { THEME_COOKIE, normalizeTheme } from "@/lib/theme";
 import { haptic, themeColor, whenReady } from "@/lib/telegram";
 
 /**
@@ -27,23 +26,8 @@ export function TelegramChrome() {
       // Иначе протяжка пальцем по сетке расписания сворачивает мини-апп.
       app.disableVerticalSwipes?.();
 
-      /** Тема сайта из куки: «system» означает «как у Telegram». */
-      function siteTheme() {
-        const raw = document.cookie
-          .split("; ")
-          .find((part) => part.startsWith(`${THEME_COOKIE}=`))
-          ?.slice(THEME_COOKIE.length + 1);
-        return normalizeTheme(raw ? decodeURIComponent(raw) : undefined);
-      }
-
-      function syncTheme() {
-        const wanted = siteTheme() === "system" ? app.colorScheme : null;
-        // Сравниваем перед записью: иначе наблюдатель ниже вызовет сам себя.
-        if (wanted && root.dataset.theme !== wanted) root.dataset.theme = wanted;
-      }
-
       function paintColors() {
-        // Цвета читаем после смены data-theme — это токены текущей темы.
+        // Сайт всегда светлый: шапка и фон мини-аппа — из токенов, даже в тёмном Telegram.
         const header = themeColor("--surface");
         const background = themeColor("--bg");
         try {
@@ -56,11 +40,6 @@ export function TelegramChrome() {
           // Клиенты до Bot API 6.9 не принимают произвольный цвет — тогда
           // остаётся их собственный фон шапки, остальное работает.
         }
-      }
-
-      function paint() {
-        syncTheme();
-        paintColors();
       }
 
       function insets() {
@@ -84,19 +63,16 @@ export function TelegramChrome() {
       }
       document.addEventListener("pointerdown", onPress, { passive: true });
 
-      paint();
+      paintColors();
       insets();
-      // Тему можно сменить руками в панели профиля — шапка должна догнать.
-      const watchTheme = new MutationObserver(paintColors);
-      watchTheme.observe(root, { attributeFilter: ["data-theme"] });
-      app.onEvent?.("themeChanged", paint);
+      // Telegram сменил тему — свои цвета он перекрашивает, наши возвращаем.
+      app.onEvent?.("themeChanged", paintColors);
       app.onEvent?.("safeAreaChanged", insets);
       app.onEvent?.("contentSafeAreaChanged", insets);
 
       return () => {
-        watchTheme.disconnect();
         document.removeEventListener("pointerdown", onPress);
-        app.offEvent?.("themeChanged", paint);
+        app.offEvent?.("themeChanged", paintColors);
         app.offEvent?.("safeAreaChanged", insets);
         app.offEvent?.("contentSafeAreaChanged", insets);
       };

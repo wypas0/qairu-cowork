@@ -10,7 +10,15 @@ import { translator, weekdayShort } from "@/i18n";
  *
  * Данные выдуманные, но фиксированные: никакой случайности, иначе сервер и
  * клиент нарисуют разное.
+ *
+ * Анимация (pages.css → «демо»): клетки начинают с «никого» и волной теплеют
+ * до своих значений — так выглядит неделя, пока группа отмечает пары, — а в
+ * конце загорается лучшее окно и над картой появляется его время. Только CSS;
+ * без анимации (reduced motion) карта сразу в итоговом виде.
  */
+
+/** Лучшее окно: среда, пятая пара (12:10) — в ней свободны все восемь. */
+const BEST = { row: 4, day: 2 };
 
 /** Сколько человек свободно в каждой клетке: 6 пар × 5 дней, всего восемь человек. */
 const FREE: number[][] = [
@@ -48,7 +56,7 @@ export function ProductDemo({ lang }: { lang: string }) {
   const days = [0, 1, 2, 3, 4].map((weekday) => weekdayShort(lang, weekday));
 
   return (
-    <div className="demo" aria-hidden="true">
+    <div className="demo" aria-hidden="true" data-loop="">
       <div className="demo-best">
         <span className="type-title-3">12:10–13:00</span>
         <span className="small muted">
@@ -75,7 +83,11 @@ export function ProductDemo({ lang }: { lang: string }) {
                 </span>
               </td>
               {row.map((count, day) => (
-                <td className={`cell ${heatClass(count)}`} key={day} />
+                <td
+                  className={`cell ${heatClass(count)}${index === BEST.row && day === BEST.day ? " demo-best-cell" : ""}`}
+                  key={day}
+                  style={{ "--d": `${(index * 5 + day) * 40 + 200}ms` } as React.CSSProperties}
+                />
               ))}
             </tr>
           ))}

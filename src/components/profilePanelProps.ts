@@ -5,7 +5,6 @@ import * as repo from "@/db/repo";
 import { translator } from "@/i18n";
 import { currentUser } from "@/lib/auth";
 import { hasBot } from "@/lib/config";
-import { THEME_COOKIE, normalizeTheme } from "@/lib/theme";
 import type { ProfileGroup, ProfilePanelProps, ProfileUser } from "./ProfilePanel";
 import { RECENT_COOKIE, parseRecent } from "@/lib/cookies";
 import { upcomingByChat } from "@/core/recurrence";
@@ -41,12 +40,9 @@ export async function profilePanelProps(langOverride?: string): Promise<ProfileP
     groups = userGroupList;
   }
 
-  const theme = normalizeTheme((await cookies()).get(THEME_COOKIE)?.value);
-
   return {
     user: profile,
     groups,
-    theme,
     botEnabled: hasBot(),
     labels: {
     profile: t("w_profile"),
@@ -83,10 +79,6 @@ export async function profilePanelProps(langOverride?: string): Promise<ProfileP
     connectTelegramHint: t("w_pp_tg_connect_hint"),
     telegramConnected: t("w_pp_tg_connected", { username: "{username}" }),
     telegramConnectedNoUsername: t("w_pp_tg_connected_plain"),
-    theme: t("w_pp_theme"),
-    themeSystem: t("w_pp_theme_system"),
-    themeLight: t("w_pp_theme_light"),
-    themeDark: t("w_pp_theme_dark"),
     },
   };
 }

@@ -20,62 +20,95 @@
   padding-right: 12px;
 }
 
-/* --- главная: витрина «ночное небо» ---
-   Витрина всегда тёмная, в обеих темах: внутри — токены тёмной темы.
-   Космос, звёзды и горизонт планеты — одной картинкой (public/hero-sky.jpg,
-   11 КБ, рисует scripts/dev/hero-sky.mjs из цветов qairuhub), а не слоями
-   CSS-градиентов: их растеризация на телефоне стоила ~100–150 мс первой
-   отрисовки (Lighthouse 90 против 96–97). */
+/* --- главная: витрина ---
+   Светлая, как весь сайт. Слева — вопрос и два действия, справа — сам
+   продукт: карта недели заполняется на глазах и находит общее окно. За
+   картой — тёплый свет горизонта, по рамке бежит луч (Kinetics, Border
+   Beam) — тот же знак, что у лендинга QairuHub. */
+@property --beam {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
 .hero {
   position: relative;
   isolation: isolate;
-  margin: 8px 0 32px;
-  padding: 40px 24px;
-  border-radius: var(--r-3xl);
-  background: #05051d url("/hero-sky.jpg") center bottom / cover no-repeat;
-  color: #ffffff;
-  overflow: hidden;
-  --text: #ffffff;
-  --muted: rgba(255, 255, 255, 0.78);
-  --card: rgba(255, 255, 255, 0.08);
-  --card-line: rgba(255, 255, 255, 0.18);
-  --surface: rgba(255, 255, 255, 0.08);
-  --border: rgba(255, 255, 255, 0.18);
-  --text-glow: 0 2px 24px rgba(6, 18, 58, 0.45), 0 0 2px rgba(6, 18, 58, 0.25);
+  display: grid;
+  gap: 32px;
+  margin: 8px 0 48px;
+}
+.hero-text {
+  min-width: 0;
 }
 .hero h1 {
-  max-width: 18ch;
-  color: #ffffff;
+  max-width: 14ch;
+  margin: 0;
 }
 .hero p.lead {
-  max-width: 62ch;
-  margin-top: 12px;
+  max-width: 46ch;
+  margin: 16px 0 0;
 }
-.hero .demo {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.18);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 28px;
 }
-
-/* Манифест сжатым капсом между витриной и шагами. */
-.manifest {
-  margin: 8px 0 32px;
-  font-size: clamp(44px, 9.5vw, 128px);
-  text-align: center;
-  color: var(--text);
-  text-shadow: var(--text-glow);
+.hero-actions .btn-quiet {
+  text-decoration: underline;
+  text-decoration-color: var(--hairline);
+  text-underline-offset: 4px;
 }
-.manifest span {
-  display: block;
+.hero-actions .btn-quiet:hover {
+  text-decoration-color: currentColor;
+}
+@media (min-width: 960px) {
+  .hero {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+    align-items: center;
+    gap: 56px;
+    padding: 24px 0 8px;
+  }
 }
 
 /* --- окно продукта на лендинге --- */
 .demo {
-  border: 1px solid var(--border);
-  border-radius: var(--r-xl);
-  background: var(--surface);
-  padding: 16px;
+  position: relative;
+  border: 1px solid var(--card-line);
+  border-radius: var(--r-3xl);
+  background: var(--card);
+  padding: 20px;
+  box-shadow: var(--shadow-float);
+}
+/* Свет горизонта за картой: тёплое пятно ниже рамки, не на тексте. */
+.demo::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 30% -12% -22%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, var(--glow), var(--glow-soft) 55%, transparent);
+  filter: blur(8px);
+  pointer-events: none;
+}
+.demo::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  padding: 1.5px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: conic-gradient(from var(--beam), transparent 0deg 290deg, var(--amber) 330deg, var(--accent) 350deg, transparent 360deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  animation: beam 6s linear infinite;
+}
+@keyframes beam {
+  to {
+    --beam: 360deg;
+  }
 }
 .demo-best {
   display: flex;
@@ -83,6 +116,7 @@
   gap: 10px;
   flex-wrap: wrap;
   margin-bottom: 12px;
+  animation: demo-rise 500ms var(--ease) 1.75s backwards;
 }
 .demo-best .type-title-3 {
   font-variant-numeric: tabular-nums;
@@ -91,76 +125,356 @@ table.week.demo-week {
   min-width: 0;
 }
 table.week.demo-week td.cell {
-  height: 28px;
+  height: 30px;
   cursor: default;
 }
 table.week.demo-week td.timecol.period {
   width: 52px;
   min-width: 52px;
 }
-/* Липкая строка дней на телефоне (week-grid.css) — для длинной карты. Демо
-   короткое и стоит на тёмной витрине: светлый фон прилипания прятал белые
-   названия дней. */
+/* Неделя заполняется волной: поверх клетки лежит «никого» и тает с её
+   задержкой. В покое слой прозрачен — без анимации карта сразу в итоге. */
+table.week.demo-week td.cell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--heat-5);
+  opacity: 0;
+  animation: demo-fill 420ms var(--ease) var(--d) backwards;
+}
+@keyframes demo-fill {
+  from {
+    opacity: 1;
+  }
+}
+/* Лучшее окно: чернильная рамка встаёт на место, потом дышит светом. */
+table.week.demo-week td.demo-best-cell::before {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 12px;
+  border: 2px solid var(--ink);
+  animation:
+    best-in 520ms var(--ease) 1.6s backwards,
+    best-breathe 2.6s ease-in-out 2.2s infinite alternate;
+}
+@keyframes best-in {
+  from {
+    opacity: 0;
+    scale: 1.35;
+  }
+}
+@keyframes best-breathe {
+  to {
+    box-shadow: 0 0 0 6px var(--glow-soft);
+  }
+}
+@keyframes demo-rise {
+  from {
+    opacity: 0;
+    translate: 0 6px;
+  }
+}
+[data-loop][data-offscreen],
+[data-loop][data-offscreen] *,
+[data-loop][data-offscreen]::before,
+[data-loop][data-offscreen] *::before {
+  animation-play-state: paused;
+}
 @media (max-width: 560px) {
   table.week.demo-week thead th {
     position: static;
     background: transparent;
   }
-}
-.hero-text {
-  min-width: 0;
-}
-@media (min-width: 900px) {
-  .hero {
-    display: grid;
-    grid-template-columns: 1.1fr 1fr;
-    gap: 40px;
-    align-items: center;
-    padding: 64px 56px 72px;
+  .demo {
+    padding: 14px;
+  }
+  .demo::after {
+    inset: 30% -4% -18%;
   }
 }
 
-/* «Как это работает» — три шага по порядку, стеклянные карточки с номером. */
+/* «Как это работает» — три шага по порядку: номер несёт смысл. Над текстом
+   каждого шага — его маленький рисунок (StepArt.tsx). */
 .steps {
   display: grid;
   gap: 12px;
   list-style: none;
-  margin: 28px 0 20px;
+  margin: 0 0 20px;
   padding: 0;
 }
 .step {
-  padding: 24px;
+  display: grid;
+  overflow: hidden;
   border: 1px solid var(--card-line);
   border-radius: var(--r-xl);
   background: var(--card);
-  transition: background-color 600ms var(--ease);
+  transition: border-color 200ms var(--ease);
 }
 .step:hover {
-  background: var(--card-hover);
+  border-color: var(--hairline);
+}
+.step-art {
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+.step-body {
+  display: flex;
+  gap: 14px;
+  padding: 18px 20px 20px;
 }
 .step-n {
-  display: block;
-  margin-bottom: 12px;
-  font-size: 44px;
-  color: var(--muted);
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-full);
+  border: 1.5px solid var(--ink);
+  font-family: var(--display);
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
-.step h3 {
-  margin: 0 0 4px;
+.step h2 {
+  margin: 2px 0 4px;
+  font-family: var(--display);
   font-size: 17px;
   line-height: 22px;
+  letter-spacing: -0.01em;
 }
 .step p {
   margin: 0;
-  max-width: 62ch;
+  max-width: 52ch;
 }
 @media (min-width: 760px) {
   .steps {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  .step {
-    transition: none;
+
+/* --- рисунки шагов (StepArt.tsx) ---
+   У каждого рисунка один цикл; части отличаются только задержкой --d. */
+.art {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 8 / 5;
+}
+.art * {
+  transform-box: fill-box;
+}
+.art-paper {
+  fill: var(--card);
+  stroke: var(--border);
+  stroke-width: 1.5;
+}
+
+/* 1. Приглашение: модули QR встают по одному, снизу выезжает ссылка. 4,2 с. */
+.art-qr {
+  fill: var(--ink);
+  transform-origin: center;
+  animation: qr-pop 4.2s var(--ease) var(--d) infinite;
+}
+@keyframes qr-pop {
+  0% {
+    scale: 0;
+  }
+  10%,
+  88% {
+    scale: 1;
+  }
+  100% {
+    scale: 0;
+  }
+}
+.art-link {
+  animation: link-in 4.2s var(--ease) infinite;
+}
+.art-pill {
+  fill: var(--surface-2);
+}
+.art-pill-text {
+  fill: var(--hairline);
+}
+.art-pill-dot {
+  fill: var(--accent);
+}
+@keyframes link-in {
+  0%,
+  34% {
+    opacity: 0;
+    translate: 0 10px;
+  }
+  46%,
+  88% {
+    opacity: 1;
+    translate: none;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* 2. Отметить пары: палец ведёт по столбцу, клетки закрашиваются. 3,6 с. */
+.art-slot {
+  fill: var(--slot-free);
+  stroke: var(--slot-free-border);
+  stroke-width: 1.5;
+}
+.art-slot-paint {
+  fill: var(--slot-busy);
+  transform-origin: center;
+  animation: slot-paint 3.6s var(--ease) var(--d) infinite;
+}
+@keyframes slot-paint {
+  0%,
+  12% {
+    fill: var(--slot-free);
+    scale: 1;
+  }
+  16% {
+    fill: var(--slot-busy);
+    scale: 0.9;
+  }
+  22%,
+  84% {
+    fill: var(--slot-busy);
+    scale: 1;
+  }
+  96%,
+  100% {
+    fill: var(--slot-free);
+  }
+}
+.art-finger {
+  /* Без анимации пальца нет: рисунок показывает итог — закрашенный столбец. */
+  opacity: 0;
+  translate: 123px 89px;
+  animation: finger 3.6s var(--ease) infinite;
+}
+.art-finger-ring {
+  fill: var(--glow-soft);
+  stroke: var(--accent);
+  stroke-width: 1.5;
+}
+.art-finger-dot {
+  fill: var(--accent);
+}
+@keyframes finger {
+  0% {
+    translate: 123px 14px;
+    opacity: 0;
+  }
+  8% {
+    translate: 123px 33px;
+    opacity: 1;
+  }
+  48% {
+    translate: 123px 89px;
+    opacity: 1;
+  }
+  62%,
+  100% {
+    translate: 123px 96px;
+    opacity: 0;
+  }
+}
+
+/* 3. Окна: клетки теплеют до своих значений, лучшее обводится, бот зовёт. 4,8 с. */
+.art-heat {
+  fill: var(--to);
+  animation: heat-warm 4.8s var(--ease) var(--d) infinite;
+}
+.art-heat-5 {
+  --to: var(--heat-0);
+}
+.art-heat-4 {
+  --to: var(--heat-2);
+}
+.art-heat-3 {
+  --to: var(--heat-3);
+}
+.art-heat-2 {
+  --to: var(--heat-4);
+}
+@keyframes heat-warm {
+  0%,
+  6% {
+    fill: var(--heat-5);
+  }
+  26%,
+  90% {
+    fill: var(--to);
+  }
+  100% {
+    fill: var(--heat-5);
+  }
+}
+.art-best-ring {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2;
+  transform-origin: center;
+  animation: art-ring 4.8s var(--ease) infinite;
+}
+@keyframes art-ring {
+  0%,
+  30% {
+    opacity: 0;
+    scale: 1.3;
+  }
+  38%,
+  90% {
+    opacity: 1;
+    scale: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.art-bubble {
+  animation: bubble-in 4.8s var(--ease) infinite;
+}
+.art-line {
+  fill: var(--hairline);
+}
+.art-line-soft {
+  fill: var(--border);
+}
+.art-yes {
+  fill: color-mix(in srgb, var(--success) 14%, var(--card));
+}
+.art-no {
+  fill: var(--surface-2);
+}
+.art-yes-mark,
+.art-no-mark {
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.art-yes-mark {
+  stroke: var(--success);
+}
+.art-no-mark {
+  stroke: var(--muted);
+}
+@keyframes bubble-in {
+  0%,
+  42% {
+    opacity: 0;
+    translate: 0 12px;
+  }
+  52%,
+  90% {
+    opacity: 1;
+    translate: none;
+  }
+  100% {
+    opacity: 0;
   }
 }
 
@@ -198,13 +512,14 @@ table.week.demo-week td.timecol.period {
 
 /* --- вход через Telegram --- */
 .tg-btn {
-  background: #2aabee;
-  border-color: #2aabee;
-  color: #ffffff;
+  background: var(--telegram);
+  border-color: var(--telegram);
+  color: var(--accent-text);
 }
 .tg-btn:hover {
-  background: #229ed9;
-  border-color: #229ed9;
+  background: var(--telegram-deep);
+  border-color: var(--telegram-deep);
+  color: var(--accent-text);
 }
 .divider {
   display: flex;
@@ -250,7 +565,7 @@ table.week.demo-week td.timecol.period {
   }
 }
 
-/* --- настоящее имя и тема в панели профиля --- */
+/* --- настоящее имя в панели профиля --- */
 .pp-name-form {
   display: flex;
   gap: 8px;
@@ -265,31 +580,6 @@ table.week.demo-week td.timecol.period {
 .pp-name-form .btn {
   flex: none;
 }
-.pp-theme {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 4px;
-  padding: 4px;
-  border-radius: var(--r-full);
-  background: var(--surface-2);
-}
-.pp-theme button {
-  height: 32px;
-  border: 0;
-  border-radius: var(--r-full);
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 150ms var(--ease), color 150ms var(--ease);
-}
-.pp-theme button[aria-checked="true"] {
-  background: var(--ink);
-  color: var(--ink-text);
-}
-
 /* --- Telegram в экране аккаунта --- */
 .pp-static {
   cursor: default;

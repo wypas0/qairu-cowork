@@ -22,5 +22,7 @@ export default defineConfig([
     "playwright-report/**",
     "test-results/**",
     "next-env.d.ts",
+    // Скиллы и хуки Claude Code (Impeccable) — инструменты, не код сайта.
+    ".claude/**",
   ]),
 ]);

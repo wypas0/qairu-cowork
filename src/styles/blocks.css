@@ -123,6 +123,25 @@
   flex-wrap: wrap;
   margin: 4px 0 12px;
 }
+/* На телефоне три шаблона переносились в три ряда разной ширины. Теперь —
+   одна строка, которая листается вбок и уходит под край карточки. */
+@media (max-width: 560px) {
+  .templates {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin-right: -20px;
+    padding-right: 20px;
+    -webkit-mask-image: linear-gradient(90deg, #000 85%, transparent);
+    mask-image: linear-gradient(90deg, #000 85%, transparent);
+  }
+  .templates::-webkit-scrollbar {
+    display: none;
+  }
+  .templates > * {
+    flex: none;
+  }
+}
 
 /* --- проверка импорта над сеткой --- */
 .review-bar {
@@ -163,12 +182,33 @@
   margin: 0;
 }
 
-/* Пустое состояние: что здесь будет и что для этого сделать. */
+/* Пустое состояние: что здесь будет и что для этого сделать. Сверху —
+   нарисованная неделя с одним свободным окном: тема продукта, а не стоковая
+   иконка. Рисунок — маска, поэтому цвет приходит из токена. */
 .empty {
   border: 1px dashed var(--hairline);
   border-radius: var(--r-xl);
   padding: 32px 24px;
   text-align: center;
+}
+.empty::before {
+  content: "";
+  display: block;
+  width: 72px;
+  height: 56px;
+  margin: 0 auto 16px;
+  background: var(--hairline);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2072%2056%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%222.5%22%3E%3Crect%20x%3D%222%22%20y%3D%226%22%20width%3D%2268%22%20height%3D%2248%22%20rx%3D%229%22/%3E%3Cpath%20d%3D%22M2%2018h68M20%202v8M52%202v8%22/%3E%3Cg%20stroke%3D%22none%22%20fill%3D%22black%22%3E%3Crect%20x%3D%2210%22%20y%3D%2225%22%20width%3D%2210%22%20height%3D%229%22%20rx%3D%222.5%22/%3E%3Crect%20x%3D%2224%22%20y%3D%2225%22%20width%3D%2210%22%20height%3D%229%22%20rx%3D%222.5%22/%3E%3Crect%20x%3D%2238%22%20y%3D%2225%22%20width%3D%2210%22%20height%3D%229%22%20rx%3D%222.5%22/%3E%3Crect%20x%3D%2210%22%20y%3D%2238%22%20width%3D%2210%22%20height%3D%229%22%20rx%3D%222.5%22/%3E%3Crect%20x%3D%2224%22%20y%3D%2238%22%20width%3D%2210%22%20height%3D%229%22%20rx%3D%222.5%22/%3E%3C/g%3E%3Crect%20x%3D%2237%22%20y%3D%2237%22%20width%3D%2212%22%20height%3D%2211%22%20rx%3D%223%22/%3E%3Crect%20x%3D%2252%22%20y%3D%2225%22%20width%3D%2210%22%20height%3D%229%22%20rx%3D%222.5%22%20stroke-dasharray%3D%223%203%22/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2072%2056%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%222.5%22%3E%3Crect%20x%3D%222%22%20y%3D%226%22%20width%3D%2268%22%20height%3D%2248%22%20rx%3D%229%22/%3E%3Cpath%20d%3D%22M2%2018h68M20%202v8M52%202v8%22/%3E%3Cg%20stroke%3D%22none%22%20fill%3D%22black%22%3E%3Crect%20x%3D%2210%22%20y%3D%2225%22%20width%3D%2210%22%20height%3D%229%22%20rx%3D%222.5%22/%3E%3Crect%20x%3D%2224%22%20y%3D%2225%22%20width%3D%2210%22%20height%3D%229%22%20rx%3D%222.5%22/%3E%3Crect%20x%3D%2238%22%20y%3D%2225%22%20width%3D%2210%22%20height%3D%229%22%20rx%3D%222.5%22/%3E%3Crect%20x%3D%2210%22%20y%3D%2238%22%20width%3D%2210%22%20height%3D%229%22%20rx%3D%222.5%22/%3E%3Crect%20x%3D%2224%22%20y%3D%2238%22%20width%3D%2210%22%20height%3D%229%22%20rx%3D%222.5%22/%3E%3C/g%3E%3Crect%20x%3D%2237%22%20y%3D%2237%22%20width%3D%2212%22%20height%3D%2211%22%20rx%3D%223%22/%3E%3Crect%20x%3D%2252%22%20y%3D%2225%22%20width%3D%2210%22%20height%3D%229%22%20rx%3D%222.5%22%20stroke-dasharray%3D%223%203%22/%3E%3C/svg%3E") center / contain no-repeat;
+  animation: empty-float 4.8s var(--ease) infinite alternate;
+}
+@keyframes empty-float {
+  from {
+    translate: 0 2px;
+  }
+  to {
+    translate: 0 -3px;
+  }
 }
 .empty h3 {
   margin: 0;
@@ -186,11 +226,20 @@
   margin-top: 20px;
 }
 
-/* Скелетон на месте данных, пока они грузятся. */
+/* Скелетон на месте данных, пока они грузятся: по заглушке бежит блик
+   (Kinetics, Shimmer Skeleton) — видно, что работа идёт, а не зависла. */
 .skeleton {
   border-radius: var(--r-md);
-  background: var(--surface-2);
-  animation: skeleton-pulse 1.6s ease-in-out infinite;
+  background: linear-gradient(100deg, var(--surface-2) 30%, var(--card-hover) 50%, var(--surface-2) 70%) 0 0 / 300% 100%;
+  animation: skeleton-shimmer 1.4s linear infinite;
+}
+@keyframes skeleton-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
 }
 /* Пересчёт данных карточки (aria-busy): бегущая полоса по верху и
    приглушённое содержимое. Раньше на экране не менялось ничего. */
@@ -209,7 +258,7 @@
   left: 0;
   height: 2px;
   width: 40%;
-  background: var(--ink);
+  background: linear-gradient(90deg, transparent, var(--amber), transparent);
   animation: busy-run 1.1s var(--ease) infinite;
 }
 @keyframes busy-run {
@@ -228,12 +277,20 @@
   }
 }
 
-@keyframes skeleton-pulse {
-  0%,
-  100% {
-    opacity: 1;
+/* --- раскрывающиеся блоки ---
+   Любой <details> открывается плавно, без скачка высоты (Kinetics,
+   Accordion Spring). Где ::details-content не поддерживается — открывается
+   как раньше, сразу. */
+:root {
+  interpolate-size: allow-keywords;
+}
+@supports selector(::details-content) {
+  details::details-content {
+    block-size: 0;
+    overflow-y: clip;
+    transition: block-size 280ms var(--ease), content-visibility 280ms allow-discrete;
   }
-  50% {
-    opacity: 0.55;
+  details[open]::details-content {
+    block-size: auto;
   }
 }

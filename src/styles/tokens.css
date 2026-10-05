@@ -1,116 +1,125 @@
-/* Токены цвета и формы, тёмная тема, базовые стили элементов. */
+/* Токены цвета и формы, базовые стили элементов.
 
-/* Палитра задана токенами на :root; тёмная тема переопределяет только их,
-   поэтому ни одному компоненту не нужен вариант `dark:`.
-
-   Язык — дизайн-система qairuhub.com (site-clone/reverse/DESIGN.md):
-   - тёмная тема — «ночное небо»: #03040C, градиент космоса и свечение
-     горизонта; поверхности — «стекло» из шкалы белого, линия 16–18%;
-   - светлая тема — белые панели qairuhub: ink #1B1B1B на #F5F5F5;
-   - главное действие — белая кнопка (ink в светлой теме), вторичное —
-     обводка; синий — только данные и статусы, не кнопки;
-   - радиусы по ролям: поля 4, сегменты 6, кнопки 8, панель вкладок 10,
-     карточки 12, витрина 20, пилюли 9999; теней у карточек нет.
-   Отступления ради доступности: цели нажатия 44px на тач-экранах (у
-   qairuhub 38), обводка полей и кнопок 50% вместо 30% (иначе ниже 3:1). */
+   Сайт светлый всегда (решение 2026-10-02): одна тема, без переключателя и
+   без варианта для тёмного режима телефона. Язык — QairuHub при дневном свете:
+   - холст — почти белый (едва тёплый, не кремовый), поверхности — белые
+     панели с волосяной линией;
+   - текст и главное действие — тёплые чернила, синего в интерфейсе нет;
+   - янтарь — свет бренда: шкала карты недели, ссылки и статусы его тёмным
+     шагом (не ниже 4,5:1), свечение — только как свет, никогда как текст;
+   - встреча — индиго: второй оттенок нужен, чтобы её не путали со шкалой;
+   - радиусы по ролям: клетка 6, контрол 10, панель вкладок и строка 12,
+     карточка 16, окно и витрина 24, пилюли 9999; тени только у всплывающих.
+   Контраст всех пар проверяет tests/contrast.test.ts; шкала карты проверена
+   валидатором dataviz (одна гамма, монотонная светлота, шаг ≥ 0,06). */
 
 :root {
+  color-scheme: light;
+
   /* --- холст и поверхности --- */
-  --bg: #f5f5f5;
+  --bg: #f7f7f5;
   --surface: #ffffff; /* непрозрачная поверхность: шапка, липкие строки */
   --popover: #ffffff; /* всплывающие слои: шторка, окно, подсказка */
-  --surface-2: #ececec; /* secondary: тихая заливка контрола */
-  --border: #e2e2e2;
-  --hairline: #cfcfcf; /* обводка на hover, разделители посильнее */
-  --text: #1b1b1b;
-  --muted: #5e6066;
-  --hover: rgba(27, 27, 27, 0.05); /* заливка строки под курсором */
+  --surface-2: #efeeeb; /* тихая заливка контрола */
+  --border: #e6e5e1;
+  --hairline: #cfcdc7; /* обводка на hover, разделители посильнее */
+  --text: #1d1a16;
+  --muted: #5c574f;
+  --hover: rgba(29, 26, 22, 0.05); /* заливка строки под курсором */
 
-  /* Карточка — «стекло»: в светлой теме белая панель, в тёмной — 6% белого. */
   --card: #ffffff;
-  --card-line: rgba(0, 0, 0, 0.09);
-  --card-hover: #fbfbfb;
-  --seg-fill: rgba(27, 27, 27, 0.06); /* панель вкладок, пилюли выбора */
+  --card-line: rgba(29, 26, 22, 0.09);
+  --card-hover: #fbfbfa;
+  --seg-fill: rgba(29, 26, 22, 0.06); /* панель вкладок, пилюли выбора */
   --sticky: #ffffff; /* липкая строка дней поверх карточки */
   --field: #ffffff;
-  --field-line: rgba(27, 27, 27, 0.52);
-  --field-line-focus: #1b1b1b;
-  --btn-line: rgba(27, 27, 27, 0.52);
+  --field-line: rgba(29, 26, 22, 0.5);
+  --field-line-focus: #1d1a16;
+  --btn-line: rgba(29, 26, 22, 0.5);
 
-  /* --- синий: данные и статусы (бейджи, «через 2 ч», ссылки) --- */
-  --accent: #1c5fd0;
-  --accent-deep: #164ba6;
-  --accent-soft: #e8f0ff;
+  /* --- янтарь: данные и статусы («через 2 ч», счётчики, ссылки) --- */
+  --accent: #9c4a00;
+  --accent-deep: #823900;
+  --accent-soft: #fbeedd;
   --accent-text: #ffffff;
-  --ring: #1b1b1b;
+  --ring: #1d1a16;
+  /* Свет бренда — только фоном, никогда текстом. */
+  --amber: #f2a93b;
+  --glow: rgba(242, 169, 59, 0.34);
+  --glow-soft: rgba(242, 169, 59, 0.13);
 
-  /* --- инверсия: главное действие, выбранная вкладка --- */
-  --ink: #1b1b1b;
-  --ink-text: #ffffff;
+  /* --- чернила: главное действие, выбранная вкладка --- */
+  --ink: #1d1a16;
+  --ink-text: #fffdf9;
+
+  /* Кнопка входа через Telegram — его голубой, но на шаг глубже: белый
+     текст на фирменном #2aabee даёт 2,6:1, здесь — не ниже 4,5:1. */
+  --telegram: #1676b2;
+  --telegram-deep: #0f679e;
 
   /* --- семантика --- */
-  --success: #1e7f36;
-  --warning: #a87200;
-  --danger: #c8102e;
+  --success: #1d7a3e;
+  --warning: #9a6200;
+  --danger: #c4162a;
 
-  /* Встреча на карте — розовая «сфера» qairuhub: красный остаётся за ошибками. */
-  --meeting: #b8237f;
+  /* Встреча на карте — индиго: красный остаётся за ошибками, янтарь — за шкалой. */
+  --meeting: #3b3576;
   --meeting-text: #ffffff;
 
-  /* Редактор «Моё расписание»: пустая клетка — тихая поверхность,
-     занятая — залита синим (это отметка человека, а не украшение). */
-  --slot-free: #efefef;
-  --slot-free-border: #dcdcdc;
-  --slot-busy: #1c5fd0;
-  --slot-busy-text: #ffffff; /* подпись «занят» в крупной клетке дневного вида */
-  /* Штриховка «тут занят ты» поверх общей карты. */
-  --mine-stripe: rgba(10, 22, 40, 0.3);
-  /* Кто свободен и кто занят в клетке: ярко-голубой и тёмно-синий, как края шкалы карты. */
-  --who-free: #45d6ff;
-  --who-free-text: #03263a;
-  --who-busy: #0b2059;
-  --who-busy-text: #e6efff;
+  /* Редактор «Моё расписание»: пустая клетка — тихая бумага, занятая —
+     залита чернилами (это отметка человека, а не украшение). */
+  --slot-free: #f1f0ed;
+  --slot-free-border: #dcdad4;
+  --slot-busy: #2e2a25;
+  --slot-busy-text: #fffdf9;
+  /* Штриховка «тут занят ты» поверх общей карты: светлая на тёмных
+     ступенях шкалы (h0–h2), чернильная на светлых (h3–h5). */
+  --mine-stripe: rgba(29, 26, 22, 0.35);
+  --stripe-on-dark: rgba(255, 253, 249, 0.5);
+  --stripe-on-light: rgba(29, 26, 22, 0.38);
+  /* Кто свободен и кто занят в клетке: края шкалы карты. */
+  --who-free: #8e2b00;
+  --who-free-text: #ffffff;
+  --who-busy: #e9e2d6;
+  --who-busy-text: #1d1a16;
   /* «Неудобно» в своём расписании. */
-  --soft-fill: #fff3d1;
-  /* QR-код всегда тёмный на белом — в любой теме, иначе камеры его не читают. */
+  --soft-fill: #fdedc6;
+  /* QR-код всегда тёмный на белом, иначе камеры его не читают. */
   --qr-bg: #ffffff;
-  --qr-ink: #0a1628;
+  --qr-ink: #1d1a16;
 
-  /* Тепловая карта группы: от очень яркого голубого «свободны все» (h0)
-     к тёмно-синему «никого» (h5). Светлота убывает монотонно, поэтому шкала
-     читается и без различения оттенков. У каждой клетки тонкая обводка
-     --heat-edge: соседние клетки одной ступени не сливаются в пятно. */
-  --heat-0: #45d6ff;
-  --heat-1: #33abf5;
-  --heat-2: #2582e0;
-  --heat-3: #1a5cbf;
-  --heat-4: #133c8f;
-  --heat-5: #0b2059;
-  --heat-edge: rgba(10, 22, 40, 0.22);
+  /* Тепловая карта группы: сколько людей свободно — одна гамма от бежевого
+     к ржавому янтарю (OKLCH: L 0,78→0,435, оттенок 77°→47°, разброс 40°).
+     h0 «свободны все» — самая тёмная и насыщенная ступень: глаз первым
+     находит лучшее время. h5 «никого» — тихий бежевый, но не ниже 2:1 к
+     белому, чтобы и пустая клетка читалась как данные. Цифры поверх: белые
+     на h0–h2, чернильные на h3–h5 (≥ 4,5:1). */
+  --heat-0: #8e2b00;
+  --heat-1: #a83c00;
+  --heat-2: #bc5300;
+  --heat-3: #cb7909;
+  --heat-4: #cb985a;
+  --heat-5: #c6b59b;
+  --heat-edge: rgba(60, 35, 5, 0.16);
 
-  /* --- радиусы по ролям qairuhub --- */
-  --r-sm: 6px; /* сегмент внутри панели, клетка карты */
-  --r-md: 8px; /* кнопка */
-  --r-input: 4px; /* поле ввода */
-  --r-lg: 10px; /* панель вкладок, строка списка */
-  --r-xl: 12px; /* карточка, рамка списка */
-  --r-2xl: 12px; /* одиночная панель объекта */
-  --r-3xl: 20px; /* витрина, диалог */
+  /* --- радиусы по ролям --- */
+  --r-sm: 6px; /* клетка карты, сегмент */
+  --r-md: 10px; /* кнопка и поле */
+  --r-input: 10px; /* поле ввода — та же форма, что у кнопки рядом */
+  --r-lg: 12px; /* панель вкладок, строка списка */
+  --r-xl: 16px; /* карточка, рамка списка */
+  --r-2xl: 16px; /* одиночная панель объекта */
+  --r-3xl: 24px; /* витрина, диалог */
   --r-full: 9999px; /* пилюли выбора, бейджи, аватары */
 
   /* Тень бывает только у всплывающего слоя. У карточек её нет. */
-  --shadow-float: 0 12px 32px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.06);
-  /* Свечение текста поверх неба — только в тёмной теме. */
-  --text-glow: none;
+  --shadow-float: 0 18px 40px -16px rgba(60, 40, 15, 0.24), 0 0 0 1px rgba(29, 26, 22, 0.06);
+  --scrim: rgba(29, 26, 22, 0.36);
 
-  /* Сцена «ночное небо»: фон всей тёмной темы. Витрина лендинга рисует
-     то же небо картинкой (pages.css). */
-  --sky:
-    radial-gradient(90% 60% at 50% 120%, rgba(38, 86, 206, 0.38) 0%, rgba(17, 36, 93, 0.3) 40%, transparent 72%),
-    radial-gradient(55% 45% at 8% 0%, rgba(17, 36, 93, 0.5), transparent 70%),
-    linear-gradient(180deg, #05051d 0%, #0a0f2a 55%, #0f163a 100%);
-  /* Светлая тема — лишь намёк на дневное небо вверху страницы. */
-  --page-backdrop: linear-gradient(180deg, #e9eef6 0, #f5f5f5 360px);
+  /* Утро над страницей: тёплый свет горизонта вверху, дальше — бумага. */
+  --page-backdrop:
+    radial-gradient(80% 420px at 50% -160px, var(--glow-soft), transparent 75%),
+    linear-gradient(180deg, #fbfbfa 0, var(--bg) 420px);
 
   /* Безопасные зоны. В браузере их даёт env(), внутри Telegram —
      TelegramChrome из значений мини-аппа: env() там всегда ноль. */
@@ -119,139 +128,15 @@
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
 
-  --ease: cubic-bezier(0.22, 1, 0.36, 1); /* ease-air qairuhub */
-  --sans: var(--font-inter), system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-}
+  /* Движение: замедление для всего; «скольжение» для плашки выбора
+     (Kinetics, Tab Pill Glide); пружина — только для отпускания нажатия. */
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-glide: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #03040c;
-    --surface: #0b0e20;
-    --popover: #0f1330;
-    --surface-2: rgba(255, 255, 255, 0.1);
-    --border: rgba(255, 255, 255, 0.14);
-    --hairline: rgba(255, 255, 255, 0.3);
-    --text: #ffffff;
-    --muted: rgba(255, 255, 255, 0.72);
-    --hover: rgba(255, 255, 255, 0.08);
-
-    --card: rgba(255, 255, 255, 0.06);
-    --card-line: rgba(255, 255, 255, 0.16);
-    --card-hover: rgba(255, 255, 255, 0.09);
-    --seg-fill: rgba(255, 255, 255, 0.1);
-    --sticky: #161a33;
-    --field: rgba(255, 255, 255, 0.06);
-    --field-line: rgba(255, 255, 255, 0.5);
-    --field-line-focus: rgba(255, 255, 255, 0.85);
-    --btn-line: rgba(255, 255, 255, 0.5);
-
-    --accent: #6fa8ff;
-    --accent-deep: #93beff;
-    --accent-soft: rgba(111, 168, 255, 0.16);
-    --accent-text: #03040c;
-    --ring: rgba(255, 255, 255, 0.85);
-
-    --ink: #ffffff;
-    --ink-text: #1b1b1b;
-
-    --success: #5bd27a;
-    --warning: #ffc63d;
-    --danger: #ff8a99;
-
-    --meeting: #ff78d2;
-    --meeting-text: #1b1b1b;
-
-    --slot-free: rgba(255, 255, 255, 0.06);
-    --slot-free-border: rgba(255, 255, 255, 0.18);
-    --slot-busy: #4c93ff;
-    --slot-busy-text: #03040c;
-    --mine-stripe: rgba(7, 14, 28, 0.42);
-    --who-free: #45d6ff;
-    --who-free-text: #03263a;
-    --who-busy: #12307a;
-    --who-busy-text: #e6efff;
-    --soft-fill: rgba(255, 198, 61, 0.16);
-
-    --heat-0: #45d6ff;
-    --heat-1: #33abf5;
-    --heat-2: #2582e0;
-    --heat-3: #1d62c9;
-    --heat-4: #1a4aa8;
-    --heat-5: #12307a;
-    --heat-edge: rgba(255, 255, 255, 0.2);
-
-    --shadow-float: 0 16px 40px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.12);
-    --text-glow: 0 2px 24px rgba(6, 18, 58, 0.45), 0 0 2px rgba(6, 18, 58, 0.25);
-    --page-backdrop: var(--sky);
-  }
-}
-
-/* Тёмная тема, выбранная вручную в панели профиля, — те же токены. */
-:root[data-theme="dark"] {
-  --bg: #03040c;
-  --surface: #0b0e20;
-  --popover: #0f1330;
-  --surface-2: rgba(255, 255, 255, 0.1);
-  --border: rgba(255, 255, 255, 0.14);
-  --hairline: rgba(255, 255, 255, 0.3);
-  --text: #ffffff;
-  --muted: rgba(255, 255, 255, 0.72);
-  --hover: rgba(255, 255, 255, 0.08);
-
-  --card: rgba(255, 255, 255, 0.06);
-  --card-line: rgba(255, 255, 255, 0.16);
-  --card-hover: rgba(255, 255, 255, 0.09);
-  --seg-fill: rgba(255, 255, 255, 0.1);
-  --sticky: #161a33;
-  --field: rgba(255, 255, 255, 0.06);
-  --field-line: rgba(255, 255, 255, 0.5);
-  --field-line-focus: rgba(255, 255, 255, 0.85);
-  --btn-line: rgba(255, 255, 255, 0.5);
-
-  --accent: #6fa8ff;
-  --accent-deep: #93beff;
-  --accent-soft: rgba(111, 168, 255, 0.16);
-  --accent-text: #03040c;
-  --ring: rgba(255, 255, 255, 0.85);
-
-  --ink: #ffffff;
-  --ink-text: #1b1b1b;
-
-  --success: #5bd27a;
-  --warning: #ffc63d;
-  --danger: #ff8a99;
-
-  --meeting: #ff78d2;
-  --meeting-text: #1b1b1b;
-
-  --slot-free: rgba(255, 255, 255, 0.06);
-  --slot-free-border: rgba(255, 255, 255, 0.18);
-  --slot-busy: #4c93ff;
-  --slot-busy-text: #03040c;
-  --mine-stripe: rgba(7, 14, 28, 0.42);
-  --who-free: #45d6ff;
-  --who-free-text: #03263a;
-  --who-busy: #12307a;
-  --who-busy-text: #e6efff;
-  --soft-fill: rgba(255, 198, 61, 0.16);
-
-  --heat-0: #45d6ff;
-  --heat-1: #33abf5;
-  --heat-2: #2582e0;
-  --heat-3: #1d62c9;
-  --heat-4: #1a4aa8;
-  --heat-5: #12307a;
-  --heat-edge: rgba(255, 255, 255, 0.2);
-
-  --shadow-float: 0 16px 40px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.12);
-  --text-glow: 0 2px 24px rgba(6, 18, 58, 0.45), 0 0 2px rgba(6, 18, 58, 0.25);
-  --page-backdrop: var(--sky);
-}
-:root[data-theme="dark"] {
-  color-scheme: dark;
-}
-:root[data-theme="light"] {
-  color-scheme: light;
+  /* Два шрифта, две роли: Geologica — заголовки, Onest — всё остальное. */
+  --sans: var(--font-body), "Onest", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --display: var(--font-display), "Geologica", var(--sans);
 }
 
 * {
@@ -259,7 +144,14 @@
 }
 
 html {
-  color-scheme: light dark;
+  color-scheme: light;
+  scrollbar-color: var(--hairline) transparent;
+}
+/* Свет и лучи витрины выходят за край намеренно — страница от этого не
+   должна ездить вбок. clip, а не hidden: липкие шапки продолжают работать. */
+html,
+body {
+  overflow-x: clip;
 }
 
 body {
@@ -268,34 +160,41 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  /* 500, а не 400: у qairuhub текст должен читаться поверх неба. */
-  font: 500 15px/22px var(--sans);
+  font: 400 15px/22px var(--sans);
+  caret-color: var(--accent);
   -webkit-text-size-adjust: 100%;
   -webkit-font-smoothing: antialiased;
 }
-/* Небо — слоем под всей страницей: сверху космос, внизу, у подвала, —
-   свечение горизонта. background-attachment: fixed на телефонах дёргается. */
+/* Свет горизонта — слоем под всей страницей. background-attachment: fixed
+   на телефонах дёргается, поэтому слой абсолютный. */
 body::before {
   content: "";
   position: absolute;
   inset: 0;
   z-index: -1;
   background: var(--page-backdrop);
+  background-repeat: no-repeat;
   pointer-events: none;
 }
 
-/* Ссылка в тексте — цветом текста с подчёркиванием: синий у qairuhub не
-   для действий. Ссылки-кнопки и строки списков задают цвет сами. */
+::selection {
+  background: var(--amber);
+  color: var(--ink);
+}
+
+/* Ссылка в тексте — цветом текста с подчёркиванием. Ссылки-кнопки и строки
+   списков задают цвет сами. */
 a {
   color: inherit;
   text-decoration-color: var(--hairline);
   text-underline-offset: 3px;
+  transition: text-decoration-color 150ms var(--ease);
 }
 a:hover {
   text-decoration-color: currentColor;
 }
 
-/* Одно кольцо фокуса на весь сайт: белое в тёмной теме, ink в светлой. */
+/* Одно кольцо фокуса на весь сайт: чернила, появляется сразу. */
 :focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;

@@ -68,6 +68,18 @@
   padding: 16px;
   margin-bottom: 12px;
 }
+/* Внутри карточки раздела встречи — строки с волосяной линией, а не
+   карточки в карточке. */
+.card .meeting {
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  padding: 18px 0;
+  margin: 0;
+}
+.card .meeting:last-of-type {
+  padding-bottom: 4px;
+}
 .meeting.cancelled {
   opacity: 0.55;
 }
@@ -318,8 +330,11 @@
   color: var(--success);
 }
 
-/* --- разделы страницы группы: сегментированная панель qairuhub --- */
+/* --- разделы страницы группы: сегментированная панель ---
+   Выбранный раздел подсвечивает плашка, которая скользит к нему
+   (Kinetics, Tab Pill Glide): место считает Motion.tsx, рисует CSS ниже. */
 .tabs {
+  position: relative;
   display: flex;
   width: fit-content;
   max-width: 100%;
@@ -366,6 +381,29 @@
 }
 .tab .count-badge {
   margin-left: 0;
+}
+/* Плашка выбора: одна на панель, едет к выбранному пункту. Слой во всю
+   ширину панели, видимую часть вырезает clip-path — анимируется вырез,
+   а не ширина, поэтому макет не пересчитывается. */
+.glides::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: var(--glide-y);
+  height: var(--glide-h);
+  background: var(--ink);
+  clip-path: inset(0 calc(100% - var(--glide-x) - var(--glide-w)) 0 var(--glide-x) round var(--r-md));
+  transition: clip-path 340ms var(--ease-glide);
+}
+.glide-still::before {
+  transition: none;
+}
+.glides > * {
+  position: relative;
+}
+.glides > .active {
+  background: transparent;
 }
 /* На телефоне четыре вкладки помещаются целиком, делят ширину поровну. */
 @media (max-width: 560px) {

@@ -756,15 +756,6 @@ describe("настоящее имя и тема", () => {
     expect(await repo.mergeWebUserIntoTelegram(web.userId, tg.userId)).toBe(true);
     expect(await repo.getUser(tg.userId)).toMatchObject({ fullName: "asel", realName: "Асель Нурланова" });
   });
-
-  it("тема из куки: только light и dark, всё остальное — как в системе", async () => {
-    const { normalizeTheme } = await import("@/lib/theme");
-    expect(normalizeTheme("light")).toBe("light");
-    expect(normalizeTheme("dark")).toBe("dark");
-    expect(normalizeTheme("system")).toBe("system");
-    expect(normalizeTheme("<script>")).toBe("system");
-    expect(normalizeTheme(undefined)).toBe("system");
-  });
 });
 
 describe("итоги встречи", () => {

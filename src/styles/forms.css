@@ -26,7 +26,7 @@ textarea {
   border: 1px solid var(--field-line);
   border-radius: var(--r-input);
   font: inherit;
-  transition: border-color 150ms var(--ease);
+  transition: border-color 150ms var(--ease), box-shadow 150ms var(--ease);
 }
 textarea {
   min-height: 96px;
@@ -52,6 +52,7 @@ input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
   border-color: var(--field-line-focus);
+  box-shadow: 0 0 0 4px var(--glow-soft);
 }
 ::placeholder {
   color: var(--muted);
@@ -98,7 +99,9 @@ input[type="range"] {
   min-height: 0;
 }
 
-/* --- кнопки: радиус 8, обводка; пилюли — только у выбора (дни, ответы) --- */
+/* --- кнопки: радиус 10, как у полей; пилюли — только у выбора (дни, ответы) ---
+   Нажатие сжимает кнопку, отпускание возвращает пружиной (Kinetics, Squish
+   Button): это физический отклик, а не смена состояния. */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -115,28 +118,28 @@ input[type="range"] {
   cursor: pointer;
   text-decoration: none;
   white-space: nowrap;
-  transition: background-color 400ms var(--ease), border-color 400ms var(--ease),
-    color 400ms var(--ease), transform 150ms var(--ease);
+  transition: background-color 200ms var(--ease), border-color 200ms var(--ease),
+    color 200ms var(--ease), scale 320ms var(--ease-spring);
 }
 .btn:hover {
   background: var(--hover);
   border-color: var(--ink);
 }
 .btn:active {
-  transform: scale(0.97);
-  transition-duration: 75ms;
+  scale: 0.97;
+  transition-duration: 200ms, 200ms, 200ms, 60ms;
 }
-/* Главное действие — белое (ink в светлой теме); при наведении заливка
-   уходит и остаётся обводка — как у qairuhub. */
+/* Главное действие — чернилами. При наведении чернила чуть светлеют, а не
+   исчезают: прежняя инверсия в пустую обводку мигала под курсором. */
 .btn-primary {
   background: var(--ink);
   border-color: var(--ink);
   color: var(--ink-text);
 }
 .btn-primary:hover {
-  background: transparent;
-  border-color: var(--ink);
-  color: var(--text);
+  background: color-mix(in srgb, var(--ink) 86%, var(--ink-text));
+  border-color: color-mix(in srgb, var(--ink) 86%, var(--ink-text));
+  color: var(--ink-text);
 }
 .btn-quiet {
   background: transparent;
@@ -175,7 +178,48 @@ input[type="range"] {
   cursor: default;
 }
 .btn[disabled]:active {
-  transform: none;
+  scale: 1;
+}
+
+/* Кнопка «скопировать»: подпись и «готово» лежат в одной ячейке — ширина
+   не прыгает; при копировании подпись уступает галочке (Kinetics, Copy Button). */
+.copy-btn {
+  display: inline-grid;
+  grid-template-areas: "label";
+  place-items: center;
+}
+.copy-label,
+.copy-done {
+  grid-area: label;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: opacity 180ms var(--ease), translate 260ms var(--ease), filter 180ms var(--ease);
+}
+.copy-done {
+  opacity: 0;
+  translate: 0 6px;
+  filter: blur(2px);
+}
+.copy-btn.copied .copy-label {
+  opacity: 0;
+  translate: 0 -6px;
+  filter: blur(2px);
+}
+.copy-btn.copied .copy-done {
+  opacity: 1;
+  translate: none;
+  filter: none;
+  color: var(--success);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 @media (prefers-reduced-motion: reduce) {
   .btn {

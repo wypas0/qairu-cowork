@@ -2,9 +2,8 @@
  * Контраст токенов темы по WCAG AA — прямо из src/styles/tokens.css.
  *
  * Текст — не ниже 4,5:1, обводки и значимые элементы — не ниже 3:1.
- * Полупрозрачные токены (стекло карточки, обводки) накладываются на фон
- * страницы; в тёмной теме фон — небо, поэтому проверяем и самое светлое его
- * место — свечение горизонта у подвала.
+ * Полупрозрачные токены (обводки, заливки) накладываются на фон страницы.
+ * Тема одна — светлая (решение 2026-10-02).
  */
 
 import { readFileSync } from "node:fs";
@@ -26,8 +25,6 @@ function block(selector: string): Record<string, string> {
 }
 
 const LIGHT = block(":root {");
-const DARK_SYSTEM = block(':root:not([data-theme="light"]) {');
-const DARK = { ...LIGHT, ...block(':root[data-theme="dark"] {') };
 
 type Rgba = [number, number, number, number];
 
@@ -98,14 +95,30 @@ describe("контраст темы (WCAG AA)", () => {
     expect(check(LIGHT, [[255, 255, 255, 1]])).toEqual([]);
   });
 
-  it("тёмная тема — и над тёмным небом, и над свечением горизонта", () => {
-    // #0F163A под 38% #2656CE — самое светлое место неба (tokens.css, --sky).
-    const horizon = over([38, 86, 206, 0.38], [15, 22, 58, 1]);
-    expect(check(DARK, [parse(DARK.bg), horizon])).toEqual([]);
+  it("тёмной темы больше нет", () => {
+    expect(CSS).not.toMatch(/data-theme|prefers-color-scheme:\s*dark/);
+  });
+});
+
+describe("шкала карты недели", () => {
+  const steps = [0, 1, 2, 3, 4, 5].map((n) => parse(LIGHT[`heat-${n}`]));
+
+  it("светлеет монотонно от «свободны все» к «никого»", () => {
+    const lum = steps.map(luminance);
+    for (let n = 1; n < lum.length; n++) expect(lum[n]).toBeGreaterThan(lum[n - 1]);
   });
 
-  it("тёмная тема по системной настройке и выбранная вручную — одни и те же токены", () => {
-    const manual = block(':root[data-theme="dark"] {');
-    expect(DARK_SYSTEM).toEqual(manual);
+  it("«никого» видно на белой карточке (не ниже 2:1)", () => {
+    expect(ratio(steps[5], parse(LIGHT.card))).toBeGreaterThanOrEqual(2);
+  });
+
+  it("цифры в клетке читаются: белые на h0–h2, чернильные на h3–h5", () => {
+    const white = parse("#ffffff");
+    const ink = parse(LIGHT.text);
+    const failures = steps
+      .map((step, n) => [n, ratio(n <= 2 ? white : ink, step)] as const)
+      .filter(([, value]) => value < 4.5)
+      .map(([n, value]) => `h${n}: ${value.toFixed(2)}`);
+    expect(failures).toEqual([]);
   });
 });

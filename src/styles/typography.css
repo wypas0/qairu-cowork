@@ -1,41 +1,53 @@
 /* Типографика: роли из дизайн-кода. */
 
-/* --- типографика: роли из дизайн-кода --- */
-/* Крупные заголовки — вес 500 и свечение поверх неба (в светлой теме его нет). */
+/* --- типографика: роли ---
+   Заголовки — Geologica, плотный трекинг, без свечения; текст — Onest.
+   Шкала короткая: 40/32 · 28 · 20 · 18 · 15 · 13 · 12. */
+.type-display,
+.type-title-1,
+h1,
+.type-title-2,
+.type-title-3,
+.type-headline,
+h2 {
+  font-family: var(--display);
+  text-wrap: balance;
+  /* Длинное казахское или английское слово переносится, а не вылезает. */
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
 .type-display {
   font-size: 40px;
   line-height: 44px;
-  font-weight: 500;
-  letter-spacing: -0.03em;
-  text-shadow: var(--text-glow);
+  font-weight: 600;
+  letter-spacing: -0.035em;
 }
 .type-title-1,
 h1 {
-  font-size: 32px;
-  line-height: 36px;
-  font-weight: 500;
-  letter-spacing: -0.025em;
+  font-size: 30px;
+  line-height: 34px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
   margin: 0 0 8px;
-  text-shadow: var(--text-glow);
 }
 .type-title-2 {
   font-size: 28px;
   line-height: 34px;
   font-weight: 600;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.025em;
 }
 .type-title-3 {
   font-size: 20px;
   line-height: 26px;
   font-weight: 600;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
 }
 .type-headline,
 h2 {
   font-size: 18px;
   line-height: 24px;
-  font-weight: 500;
-  letter-spacing: -0.01em;
+  font-weight: 600;
+  letter-spacing: -0.015em;
   margin: 0 0 12px;
 }
 h3 {
@@ -48,9 +60,9 @@ h3 {
 .lead {
   font-size: 17px;
   line-height: 26px;
-  font-weight: 500;
-  letter-spacing: -0.005em;
+  font-weight: 400;
   color: var(--muted);
+  text-wrap: pretty;
 }
 .type-body {
   font-size: 15px;
@@ -70,11 +82,11 @@ h3 {
   line-height: 16px;
   font-weight: 500;
 }
+/* Подпись контекста: группа над заголовком раздела, раздел в сайдбаре. */
 .eyebrow {
   font-size: 13px;
   line-height: 18px;
   font-weight: 500;
-  letter-spacing: -0.005em;
   color: var(--muted);
 }
 p {
@@ -83,37 +95,7 @@ p {
 .muted {
   color: var(--muted);
 }
-/* Акцентное слово рукописным шрифтом — одно на заголовок, как у qairuhub.
-   Сам Caveat включает класс deco-fonts после load (DecoFonts.tsx), и он не
-   стоит на пути первой отрисовки. До того — «Caveat Fallback»: его next/font
-   подгоняет под метрики Caveat, поэтому подмена почти не сдвигает строку
-   (CLS 0,021 → 0,004 против системного рукописного). */
-.script-word {
-  font-family: "Caveat Fallback", cursive;
-  font-style: normal;
-  font-weight: 600;
-  font-size: 1.18em;
-  line-height: 0.9;
-  letter-spacing: -0.01em;
-  margin-right: 0.04em;
-}
-/* Сжатый капс (Oswald 600 — кириллическая пара Anton) — только крупно. */
-.display-caps {
-  font-family: "Oswald Fallback", Impact, sans-serif;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: -0.005em;
-  line-height: 0.92;
-}
-html.deco-fonts .script-word {
-  font-family: var(--font-script), cursive;
-}
-html.deco-fonts .display-caps {
-  font-family: var(--font-display), Impact, sans-serif;
-}
-
-/* Цифры в колонках не должны прыгать по ширине. Моноширинного шрифта
-   в интерфейсе нет — есть табличные цифры Inter. */
+/* Цифры в колонках не должны прыгать по ширине: табличные цифры Onest. */
 .mono,
 .tnum {
   font-variant-numeric: tabular-nums;
@@ -122,12 +104,12 @@ html.deco-fonts .display-caps {
 @media (min-width: 640px) {
   .type-display {
     font-size: 56px;
-    line-height: 60px;
+    line-height: 58px;
   }
   .type-title-1,
   h1 {
-    font-size: 40px;
-    line-height: 44px;
+    font-size: 36px;
+    line-height: 40px;
   }
   .type-lead,
   .lead {

@@ -11,9 +11,7 @@ import {
   leaveGroupAction,
   saveRealNameAction,
 } from "@/app/profile/actions";
-import type { Theme } from "@/lib/theme";
 import { BrandMark, IconCheck, IconChevronLeft, IconChevronRight, IconClose } from "./icons";
-import { ThemeSwitch } from "./ThemeSwitch";
 
 export type ProfileGroup = {
   chatId: number;
@@ -89,10 +87,6 @@ export type ProfileLabels = {
   connectTelegramHint: string;
   telegramConnected: string;
   telegramConnectedNoUsername: string;
-  theme: string;
-  themeSystem: string;
-  themeLight: string;
-  themeDark: string;
 };
 
 /** Сторона квадрата, до которого браузер ужимает фото перед загрузкой. */
@@ -160,13 +154,12 @@ function Avatar({ name, url, className }: { name: string; url: string | null; cl
 export type ProfilePanelProps = {
   user: ProfileUser | null;
   groups: ProfileGroup[];
-  theme: Theme;
   /** Бот настроен — подключить Telegram можно. */
   botEnabled: boolean;
   labels: ProfileLabels;
 };
 
-export function ProfilePanel({ user, groups, theme, botEnabled, labels }: ProfilePanelProps) {
+export function ProfilePanel({ user, groups, botEnabled, labels }: ProfilePanelProps) {
   const pathname = usePathname();
   const [nameState, saveName, savingName] = useActionState<RealNameState, FormData>(
     saveRealNameAction,
@@ -175,8 +168,6 @@ export function ProfilePanel({ user, groups, theme, botEnabled, labels }: Profil
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<"main" | "account">("main");
-  // Тема живёт здесь, а не в самом переключателе: он есть на обоих экранах панели.
-  const [currentTheme, setCurrentTheme] = useState<Theme>(theme);
   const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl ?? null);
   const [busy, setBusy] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
@@ -266,22 +257,6 @@ export function ProfilePanel({ user, groups, theme, botEnabled, labels }: Profil
         .filter(Boolean)
         .join(" · ")
     : "";
-
-  const themeSwitch = (
-    <section className="pp-section">
-      <h3 className="pp-title">{labels.theme}</h3>
-      <ThemeSwitch
-        value={currentTheme}
-        onChange={setCurrentTheme}
-        labels={{
-          title: labels.theme,
-          system: labels.themeSystem,
-          light: labels.themeLight,
-          dark: labels.themeDark,
-        }}
-      />
-    </section>
-  );
 
   return (
     <>
@@ -408,7 +383,6 @@ export function ProfilePanel({ user, groups, theme, botEnabled, labels }: Profil
                   </p>
                 </section>
 
-                {themeSwitch}
 
                 <nav className="pp-menu" aria-label={labels.account}>
                   {user.telegramLinked ? (
@@ -548,7 +522,6 @@ export function ProfilePanel({ user, groups, theme, botEnabled, labels }: Profil
                   </section>
                 )}
 
-                {themeSwitch}
 
                 <section className="pp-section">
                   <form action={joinByLinkAction} className="pp-join">

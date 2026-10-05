@@ -319,7 +319,7 @@
 }
 .agenda-row.current {
   border-color: var(--danger);
-  box-shadow: inset 3px 0 0 var(--danger);
+  box-shadow: 0 0 0 1px var(--danger);
 }
 .agenda-time {
   display: grid;
@@ -377,16 +377,17 @@
   font-variant-numeric: tabular-nums;
   overflow: hidden;
 }
-/* Счётчик на светлых ступенях — тёмный, на тёмных — белый. */
+/* Счётчик на тёмных ступенях (h0–h2) — белый, на светлых (h3–h5) —
+   чернильный: так каждая пара не ниже 4,5:1 (tests/contrast.test.ts). */
 .agenda-count.h0,
 .agenda-count.h1,
 .agenda-count.h2 {
-  color: #03263a;
+  color: var(--accent-text);
 }
 .agenda-count.h3,
 .agenda-count.h4,
 .agenda-count.h5 {
-  color: #ffffff;
+  color: var(--text);
 }
 .agenda-count.meeting {
   background: var(--meeting);

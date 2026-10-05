@@ -1,9 +1,9 @@
 import type { Metadata, Viewport } from "next";
-import { Caveat, Inter, Oswald } from "next/font/google";
-import { cookies, headers } from "next/headers";
+import { Geologica, Onest } from "next/font/google";
+import { headers } from "next/headers";
 import { Suspense } from "react";
 
-import { DecoFonts } from "@/components/DecoFonts";
+import { Motion } from "@/components/Motion";
 import { NavProgress } from "@/components/NavProgress";
 import { SiteFooter } from "@/components/SiteFooter";
 import { TelegramAuth } from "@/components/TelegramAuth";
@@ -11,35 +11,22 @@ import { TelegramChrome } from "@/components/TelegramChrome";
 import { normalizeLang } from "@/i18n";
 import { BRAND_COLOR, brandMarkSvg } from "@/lib/brand";
 import { siteUrl } from "@/lib/config";
-import { THEME_COOKIE, normalizeTheme } from "@/lib/theme";
 import "./globals.css";
 
-/* Единственный шрифт сайта. Кириллица подключена явно: без неё Inter
-   отдаёт русские буквы системному шрифту, и заголовки едут по ширине. */
-const inter = Inter({
-  subsets: ["latin", "cyrillic"],
+/* Два шрифта, две роли — как у лендинга QairuHub. Onest — текст и
+   интерфейс: русский гротеск с полной кириллицей и казахскими буквами,
+   читается на мелких размерах. Geologica — заголовки. Inter, сжатый капс
+   Oswald и рукописный Caveat убраны (2026-10-02): три голоса на одной
+   витрине спорили друг с другом. */
+const body = Onest({
+  subsets: ["latin", "cyrillic", "cyrillic-ext"],
   display: "swap",
-  variable: "--font-inter",
+  variable: "--font-body",
 });
-
-/* Шрифты витрины: сжатый капс (Oswald 600 — кириллическая пара Anton у
-   qairuhub) и Caveat для одного акцентного слова. Объявлены здесь, а не на
-   странице: так их @font-face едут в общем CSS, без второго блокирующего
-   файла. Без предзагрузки, а применяются после load (DecoFonts): файлы
-   качаются только там, где шрифт виден, и не мешают первой отрисовке. */
-const display = Oswald({
-  weight: "600",
-  subsets: ["latin", "cyrillic"],
+const display = Geologica({
+  subsets: ["latin", "cyrillic", "cyrillic-ext"],
   display: "swap",
-  preload: false,
   variable: "--font-display",
-});
-const script = Caveat({
-  weight: "600",
-  subsets: ["latin", "cyrillic"],
-  display: "swap",
-  preload: false,
-  variable: "--font-script",
 });
 
 /* Знак продукта — тот же, что в шапке (BrandMark), кобальтом. */
@@ -68,17 +55,14 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  colorScheme: "light dark",
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f5f5f5" },
-    { media: "(prefers-color-scheme: dark)", color: "#03040c" },
-  ],
+  // Сайт светлый всегда (решение 2026-10-02): одна тема, без переключателя.
+  colorScheme: "light",
+  themeColor: "#f7f7f5",
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const requestHeaders = await headers();
   const lang = normalizeLang((requestHeaders.get("accept-language") ?? "").split(",")[0]);
-  const theme = normalizeTheme((await cookies()).get(THEME_COOKIE)?.value);
 
   return (
     // suppressHydrationWarning: скрипт Telegram Mini App подставляет свои
@@ -87,14 +71,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     // баг гидратации.
     <html
       lang={lang}
-      data-theme={theme === "system" ? undefined : theme}
-      className={`${inter.variable} ${display.variable} ${script.variable}`}
+      className={`${body.variable} ${display.variable}`}
       suppressHydrationWarning
     >
       <body>
         <TelegramAuth />
         <TelegramChrome />
-        <DecoFonts />
+        <Motion />
         {/* useSearchParams требует своей границы — она охватывает только полоску, не страницу. */}
         <Suspense fallback={null}>
           <NavProgress />

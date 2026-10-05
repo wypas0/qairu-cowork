@@ -110,8 +110,6 @@ export const EN: Dict = {
   w_hero_title: "When is everyone free?",
   w_hero_lead:
     "Everyone marks their classes once. The site then shows when the whole group is free — and when almost all of it is.",
-  w_hero_accent: "free",
-  w_manifest: "One week|Whole group|One window",
   w_step1_t: "Create a group",
   w_step1_d: "Sign in with Telegram and get an invite link — share it with your groupmates.",
   w_step2_t: "Everyone marks classes",
@@ -533,10 +531,6 @@ export const EN: Dict = {
   // --- панель профиля ---
   w_pp_name_cleared: "Real name removed",
   w_pp_name_ph: "e.g. Amir Kovalchuk",
-  w_pp_theme: "Theme",
-  w_pp_theme_system: "System",
-  w_pp_theme_light: "Light",
-  w_pp_theme_dark: "Dark",
   w_pp_name: "Real name",
   w_pp_name_saved: "Saved",
   w_pp_name_hint: "This is how you are named in all your groups instead of your Telegram name.",

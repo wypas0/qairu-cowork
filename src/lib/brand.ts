@@ -21,5 +21,5 @@ export function brandMarkSvg(color: string): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">${brandMarkInner(color)}</svg>`;
 }
 
-/** Кобальт бренда — фон иконок и аватара бота. */
-export const BRAND_COLOR = "#0064e0";
+/** Глубокий янтарь QairuHub (= --accent) — фон иконок, превью ссылок и аватара бота. */
+export const BRAND_COLOR = "#9c4a00";

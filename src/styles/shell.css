@@ -388,7 +388,7 @@
   position: fixed;
   inset: 0;
   z-index: 55;
-  background: rgba(10, 22, 40, 0.4); /* тот же фон, что под панелью профиля */
+  background: var(--scrim); /* тот же фон, что под панелью профиля */
 }
 .landing-open > .sidebar {
   position: fixed;
@@ -479,7 +479,7 @@
   box-shadow: var(--shadow-float);
 }
 .create-dialog::backdrop {
-  background: rgba(10, 22, 40, 0.4);
+  background: var(--scrim);
 }
 .create-head {
   display: flex;

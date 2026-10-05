@@ -43,11 +43,16 @@
   gap: 10px;
   flex-wrap: wrap;
 }
+/* Ответ — пилюля статуса с иконкой (Kinetics, Status Pill): цвет не
+   единственный признак, рядом всегда иконка и слово. */
 .answer-label {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-width: 132px;
+  min-height: 26px;
+  padding: 0 10px 0 8px;
+  border-radius: var(--r-full);
+  background: var(--surface-2);
   font-size: 13px;
   line-height: 18px;
   font-weight: 600;
@@ -55,14 +60,22 @@
 }
 .answer-label.answer-yes {
   color: var(--success);
+  background: color-mix(in srgb, var(--success) 11%, transparent);
 }
 .answer-label.answer-no {
   color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 9%, transparent);
 }
+/* Кружки стопкой, с ободком цвета карточки (Kinetics, Presence Stack). */
 .marks {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  row-gap: 4px;
+  padding-left: 6px;
+}
+.marks .mark {
+  margin-left: -6px;
+  box-shadow: 0 0 0 2px var(--card);
 }
 /* Кружок с инициалом вместо фото: фотографии есть не у всех, а имя есть всегда. */
 .mark {
