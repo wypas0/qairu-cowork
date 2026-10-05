@@ -44,3 +44,10 @@ graphify-out/
 playwright-report/
 test-results/
 e2e/.state.json
+
+# Impeccable: движок (бинарник) скачивается лаунчером сам при первом запуске.
+.claude/skills/impeccable/scripts/bin/
+
+# Локальная разработка с ботом (npm run dev:tg): cloudflared и данные PGlite.
+.tools/
+.pglite/

@@ -5,6 +5,7 @@
   "description": "Finds shared free windows for a student group. Website + Telegram bot on Next.js.",
   "scripts": {
     "dev": "next dev",
+    "dev:tg": "node --env-file-if-exists=.env.local scripts/dev/telegram-local.mjs",
     "build": "node scripts/check-schema.mjs && next build && node scripts/set-webhook.mjs",
     "start": "next start",
     "lint": "eslint . --max-warnings=0",

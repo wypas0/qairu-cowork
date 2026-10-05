@@ -132,6 +132,24 @@ node scripts/dev/e2e-server.mjs 3200
 и запускает сайт на <http://localhost:3200>. Войти: в консоли браузера выполнить
 `document.cookie = "qairu_token=<токен из терминала>; path=/"` и открыть `/g/smoke001`.
 
+### С настоящим Telegram
+
+```bash
+npm run dev:tg
+```
+
+Поднимает сайт на <http://localhost:3100> со своей базой в `.pglite/` (переживает перезапуск),
+открывает бесплатный туннель Cloudflare и регистрирует на его адрес вебхук, команды и кнопку мини-аппа.
+По Ctrl+C снимает вебхук. Нужны две вещи:
+
+- **тестовый бот**, не боевой: `@BotFather → /newbot`, затем `/setjoingroups → Enable`; его токен —
+  в `.env.local` строкой `BOT_TOKEN=…` (файл в `.gitignore`). На бота с чужим постоянным вебхуком
+  команда не встанет — так боевой бот не отключится случайно;
+- **cloudflared**: бинарник в `.tools/cloudflared` или в `PATH`
+  ([релизы Cloudflare](https://github.com/cloudflare/cloudflared/releases), для Apple Silicon — `cloudflared-darwin-arm64.tgz`).
+
+Адрес туннеля новый при каждом запуске — заходить по нему, а не по `localhost`, если нужен вход через Telegram.
+
 Проверки — те же, что гоняет CI на каждый пуш:
 
 ```bash
