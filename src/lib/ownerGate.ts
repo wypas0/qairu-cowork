@@ -5,7 +5,9 @@
 
 import "server-only";
 
+import type { Metadata } from "next";
 import { cookies, headers } from "next/headers";
+import { notFound } from "next/navigation";
 
 import type { User } from "@/db/schema";
 import { currentTelegramUser, currentToken } from "./auth";
@@ -58,6 +60,34 @@ export async function ownerConsoleToken(): Promise<string> {
 /** Действующая сессия консоли этого владельца. */
 export async function currentOwnerSession(viewer: { user: User; webToken: string }) {
   return ownerConsoleSession(viewer.user.userId, viewer.webToken, await ownerConsoleToken());
+}
+
+export type OwnerAccess = {
+  user: User;
+  webToken: string;
+  /** null — владелец, но консоль не открыта: страница показывает только ввод кода и ничего не читает. */
+  session: { createdAt: Date; expiresAt: Date } | null;
+};
+
+/**
+ * Общий гейт каждой страницы консоли (/admin, /admin/users, /admin/users/[id]…).
+ * Не владелец, не вошёл или вошёл аккаунтом сайта — «не найдено», как будто
+ * адреса нет. Вызывать первым делом, до любого чтения данных: страницы
+ * собирает ownerPage (components/owner/OwnerPage), а не каждая сама.
+ */
+export async function ownerAccess(): Promise<OwnerAccess> {
+  const viewer = await ownerViewer();
+  if (!viewer) notFound();
+  return { ...viewer, session: await currentOwnerSession(viewer) };
+}
+
+/**
+ * noindex и no-referrer — только владельцу. Статичный `metadata` попадал бы
+ * и в ответ «не найдено» для остальных, и тот отличался бы от обычного 404.
+ */
+export async function ownerMetadata(): Promise<Metadata> {
+  if (!(await ownerViewer())) return {};
+  return { robots: { index: false, follow: false, nocache: true }, referrer: "no-referrer" };
 }
 
 export async function setOwnerCookie(token: string): Promise<void> {

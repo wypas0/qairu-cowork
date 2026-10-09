@@ -12,6 +12,7 @@ import {
   ownerViewer,
   setOwnerCookie,
 } from "@/lib/ownerGate";
+import { safeOwnerPath } from "@/lib/ownerQuery";
 import { isSameOriginPost } from "@/lib/secFetch";
 
 /**
@@ -26,15 +27,20 @@ async function owner() {
   return viewer;
 }
 
-/** Итог — параметром в адресе: страница покажет его тостом и уберёт из адреса. */
-function back(params: Record<string, string>): never {
-  redirect(`/admin?${new URLSearchParams(params).toString()}`);
+/**
+ * Итог — параметром в адресе: страница покажет его тостом и уберёт из адреса.
+ * Вернуться — на ту вкладку консоли, откуда пришла форма (поле `next`), но
+ * только на свой адрес /admin…: чужой хост или протокол не пройдут.
+ */
+function back(formData: FormData | undefined, params: Record<string, string>): never {
+  const path = safeOwnerPath(formData?.get("next"));
+  redirect(`${path}?${new URLSearchParams(params).toString()}`);
 }
 
-export async function requestOwnerCodeAction(): Promise<void> {
+export async function requestOwnerCodeAction(formData?: FormData): Promise<void> {
   const viewer = await owner();
   const result = await requestOwnerCode(viewer.user, await clientInfo());
-  back(result === "sent" ? { sent: "1" } : { err: result });
+  back(formData, result === "sent" ? { sent: "1" } : { err: result });
 }
 
 export async function verifyOwnerCodeAction(formData: FormData): Promise<void> {
@@ -47,23 +53,23 @@ export async function verifyOwnerCodeAction(formData: FormData): Promise<void> {
   );
   if (result.status === "ok") {
     await setOwnerCookie(result.token);
-    back({ in: "1" });
+    back(formData, { in: "1" });
   }
-  back(result.status === "wrong" ? { err: "wrong", left: String(result.left) } : { err: result.status });
+  back(formData, result.status === "wrong" ? { err: "wrong", left: String(result.left) } : { err: result.status });
 }
 
-export async function logoutOwnerAction(): Promise<void> {
+export async function logoutOwnerAction(formData?: FormData): Promise<void> {
   const viewer = await owner();
   await endOwnerSession(viewer.user.userId, await ownerConsoleToken(), await clientInfo());
   await clearOwnerCookie();
-  back({ out: "1" });
+  back(formData, { out: "1" });
 }
 
 /** Только из открытой консоли: иначе любой, кто сидит на сайте под владельцем, выкинул бы его. */
-export async function logoutAllOwnerAction(): Promise<void> {
+export async function logoutAllOwnerAction(formData?: FormData): Promise<void> {
   const viewer = await owner();
   if (!(await currentOwnerSession(viewer))) redirect("/admin");
   await endAllOwnerSessions(viewer.user.userId, viewer.webToken, await clientInfo());
   await clearOwnerCookie();
-  back({ out: "all" });
+  back(formData, { out: "all" });
 }

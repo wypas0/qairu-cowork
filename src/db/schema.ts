@@ -89,7 +89,12 @@ export const memberships = pgTable(
     joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
     role: varchar("role", { length: 16 }).notNull().default("member"), // member | admin
   },
-  (table) => [primaryKey({ columns: [table.chatId, table.userId] })],
+  (table) => [
+    primaryKey({ columns: [table.chatId, table.userId] }),
+    // «Мои группы» на каждой странице и карточка человека в консоли ищут по человеку,
+    // а первичный ключ начинается с группы.
+    index("ix_memberships_user_id").on(table.userId),
+  ],
 ).enableRLS();
 
 export const ROLE_ADMIN = "admin";
@@ -348,9 +353,10 @@ export const ownerSessions = pgTable(
 ).enableRLS();
 
 /**
- * Журнал входов в консоль: код выслан, вход, неверный код, выход. Адрес и
- * браузер — только ключевым хешем (сырые не хранятся), плюс грубая метка
- * «Chrome · Windows», чтобы владелец узнал своё устройство.
+ * Журнал консоли: код выслан, вход, неверный код, выход — и какие карточки
+ * людей и групп владелец открывал. Адрес и браузер — только ключевым хешем
+ * (сырые не хранятся), плюс грубая метка «Chrome · Windows», чтобы владелец
+ * узнал своё устройство.
  */
 export const ownerAudit = pgTable(
   "owner_audit",
@@ -358,7 +364,10 @@ export const ownerAudit = pgTable(
     id: serial("id").primaryKey(),
     userId: bigint("user_id", { mode: "number" }).notNull(),
     // code_sent | send_failed | login | wrong | expired | locked | throttled | logout | logout_all
+    // | user_view | group_view
     event: varchar("event", { length: 16 }).notNull(),
+    // Чью карточку открыли: id человека (user_view) или группы (group_view). У входов — NULL.
+    targetId: bigint("target_id", { mode: "number" }),
     ok: boolean("ok").notNull(),
     ipHash: varchar("ip_hash", { length: 64 }).notNull().default(""),
     uaHash: varchar("ua_hash", { length: 64 }).notNull().default(""),

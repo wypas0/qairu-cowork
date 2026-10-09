@@ -307,9 +307,12 @@ describe("статистика консоли", () => {
     expect(stats.users.mau).toBeGreaterThanOrEqual(1); // владелец заходил: сессия сайта
     expect(stats.users.signups.reduce((sum, point) => sum + point.count, 0)).toBe(stats.users.total);
     expect(stats.db.bytes).toBeGreaterThan(0);
-    const audit = stats.db.tables.find((table) => table.name === "owner_audit");
+    // Таблицы с числом строк — отдельным запросом вкладки «Система».
+    const storage = await repo.storageStats();
+    expect(storage.bytes).toBeGreaterThan(0);
+    const audit = storage.tables.find((table) => table.name === "owner_audit");
     expect(audit?.rows).toBeGreaterThan(0);
-    expect(stats.db.tables.find((table) => table.name === "users")?.rows).toBe(stats.users.total);
+    expect(storage.tables.find((table) => table.name === "users")?.rows).toBe(stats.users.total);
   });
 
   it("ряд по дням: пропуски — нулём, последний день — сегодня в поясе", async () => {

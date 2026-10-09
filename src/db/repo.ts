@@ -26,3 +26,5 @@ export * from "./queries/merge";
 export * from "./queries/attendance";
 export * from "./queries/stats";
 export * from "./queries/owner";
+export * from "./queries/ownerUsers";
+export * from "./queries/insights";

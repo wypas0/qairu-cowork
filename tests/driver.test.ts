@@ -14,7 +14,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { applyMigrations } from "./support/db";
 
-const PORT = 5546;
+// Порт можно сменить, если 5546 занят другим процессом (параллельный прогон).
+const PORT = Number((process.env.DRIVER_TEST_PORT ?? "").trim()) || 5546;
 let server: PGLiteSocketServer;
 
 beforeAll(async () => {
@@ -147,7 +148,7 @@ describe("настоящий драйвер postgres.js", () => {
     expect(stats.users.total).toBeGreaterThanOrEqual(1);
     expect(stats.users.signups[0]?.day).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(stats.db.bytes).toBeGreaterThan(0);
-    expect(stats.db.tables.find((table) => table.name === "users")?.rows).toBe(stats.users.total);
+    expect((await r.storageStats()).tables.find((table) => table.name === "users")?.rows).toBe(stats.users.total);
 
     const expiresAt = new Date(Date.now() + 60_000);
     await r.storeOwnerCode({ userId: 9001, codeHash: "a".repeat(64), salt: "b".repeat(32), expiresAt });

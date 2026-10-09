@@ -2,8 +2,8 @@
 
 import "server-only";
 
-import { and, desc, eq, gt, lt, sql } from "drizzle-orm";
-import { ownerAudit, ownerLoginCodes, ownerSessions } from "../schema";
+import { and, desc, eq, gt, inArray, isNotNull, lt, notInArray, sql } from "drizzle-orm";
+import { chats, ownerAudit, ownerLoginCodes, ownerSessions, users } from "../schema";
 import { type Exec, ex } from "./base";
 import { getBotState, setBotState } from "./botState";
 
@@ -138,7 +138,12 @@ export type OwnerEvent =
   | "locked"
   | "throttled"
   | "logout"
-  | "logout_all";
+  | "logout_all"
+  | OwnerViewEvent;
+
+/** Просмотр карточки в консоли: человека или группы. */
+export type OwnerViewEvent = "user_view" | "group_view";
+export const OWNER_VIEW_EVENTS: OwnerViewEvent[] = ["user_view", "group_view"];
 
 export type OwnerAuditRow = {
   event: OwnerEvent;
@@ -149,14 +154,23 @@ export type OwnerAuditRow = {
 };
 
 export async function logOwnerEvent(
-  args: { userId: number; event: OwnerEvent; ok: boolean; ipHash: string; uaHash: string; device: string },
+  args: {
+    userId: number;
+    event: OwnerEvent;
+    ok: boolean;
+    ipHash: string;
+    uaHash: string;
+    device: string;
+    targetId?: number | null;
+  },
   exec?: Exec,
 ): Promise<void> {
   await ex(exec)
     .insert(ownerAudit)
-    .values({ ...args, device: args.device.slice(0, 48) });
+    .values({ ...args, targetId: args.targetId ?? null, device: args.device.slice(0, 48) });
 }
 
+/** Входы и выходы — без просмотров карточек: те в своём списке. */
 export async function recentOwnerEvents(limit = 12, exec?: Exec): Promise<OwnerAuditRow[]> {
   const rows = await ex(exec)
     .select({
@@ -167,9 +181,47 @@ export async function recentOwnerEvents(limit = 12, exec?: Exec): Promise<OwnerA
       createdAt: ownerAudit.createdAt,
     })
     .from(ownerAudit)
+    .where(notInArray(ownerAudit.event, OWNER_VIEW_EVENTS))
     .orderBy(desc(ownerAudit.createdAt), desc(ownerAudit.id))
     .limit(limit);
   return rows as OwnerAuditRow[];
+}
+
+export type OwnerViewRow = {
+  event: OwnerViewEvent;
+  targetId: number;
+  /** Имя человека или название группы на сейчас; null — уже удалены. */
+  name: string | null;
+  device: string;
+  createdAt: Date;
+};
+
+/** Какие карточки открывались в консоли, свежие сверху — с именами одним запросом. */
+export async function recentOwnerViews(limit = 20, exec?: Exec): Promise<OwnerViewRow[]> {
+  const rows = await ex(exec)
+    .select({
+      event: ownerAudit.event,
+      targetId: ownerAudit.targetId,
+      device: ownerAudit.device,
+      createdAt: ownerAudit.createdAt,
+      name: sql<string | null>`case
+        when ${ownerAudit.event} = 'user_view' then
+          coalesce(nullif(${users.realName}, ''), nullif(${users.fullName}, ''), '@' || ${users.username})
+        else ${chats.title} end`,
+    })
+    .from(ownerAudit)
+    .leftJoin(users, and(eq(ownerAudit.event, "user_view"), eq(users.userId, ownerAudit.targetId)))
+    .leftJoin(chats, and(eq(ownerAudit.event, "group_view"), eq(chats.chatId, ownerAudit.targetId)))
+    .where(and(inArray(ownerAudit.event, OWNER_VIEW_EVENTS), isNotNull(ownerAudit.targetId)))
+    .orderBy(desc(ownerAudit.createdAt), desc(ownerAudit.id))
+    .limit(limit);
+  return rows.map((row) => ({
+    event: row.event as OwnerViewEvent,
+    targetId: Number(row.targetId),
+    name: row.name ?? null,
+    device: row.device,
+    createdAt: row.createdAt,
+  }));
 }
 
 /** Журнал хранится столько дней. */

@@ -9,6 +9,7 @@ import "server-only";
 
 import { sql } from "drizzle-orm";
 import { type Exec, ex } from "./base";
+import { list, num, rowsOf } from "./rows";
 
 export type SiteStats = {
   users: {
@@ -41,23 +42,12 @@ export type SiteStats = {
     asked: number;
     attended: number;
   };
-  db: { bytes: number; tables: { name: string; bytes: number; rows: number }[] };
+  db: { bytes: number };
 };
 
 const DAY = 86_400_000;
 /** На сколько дней назад строится график регистраций. */
 export const SIGNUP_DAYS = 90;
-
-type Row = Record<string, unknown>;
-
-/** postgres.js отдаёт строки массивом, PGlite (тесты) — в поле rows. */
-function rowsOf(result: unknown): Row[] {
-  if (Array.isArray(result)) return result as Row[];
-  return ((result as { rows?: Row[] }).rows ?? []) as Row[];
-}
-
-const num = (value: unknown) => Number(value ?? 0) || 0;
-const list = <T>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : []);
 
 export async function siteStats(now = new Date(), tz = "Asia/Almaty", exec?: Exec): Promise<SiteStats> {
   const at = (ms: number) => new Date(now.getTime() - ms).toISOString();
@@ -117,16 +107,7 @@ export async function siteStats(now = new Date(), tz = "Asia/Almaty", exec?: Exe
       (select count(*)::int from meeting_attendance) as asked,
       (select count(*)::int from meeting_attendance where attended) as attended,
 
-      pg_database_size(current_database())::float8 as db_bytes,
-      -- Точное число строк каждой таблицы тем же запросом: count(*) через
-      -- query_to_xml. Таблиц полтора десятка, строк — тысячи, это дёшево.
-      (select coalesce(json_agg(json_build_object('name', t.name, 'bytes', t.bytes, 'rows', t.n)
-                                order by t.bytes desc, t.name), '[]'::json)
-         from (select c.relname as name, pg_total_relation_size(c.oid)::float8 as bytes,
-                      (xpath('/row/c/text()', query_to_xml(format('select count(*) as c from %I.%I', n.nspname, c.relname),
-                        false, true, '')))[1]::text::int as n
-                 from pg_class c join pg_namespace n on n.oid = c.relnamespace
-                where n.nspname = 'public' and c.relkind = 'r') t) as tables
+      pg_database_size(current_database())::float8 as db_bytes
   `);
 
   const row = rowsOf(result)[0] ?? {};
@@ -166,14 +147,37 @@ export async function siteStats(now = new Date(), tz = "Asia/Almaty", exec?: Exe
       asked: num(row.asked),
       attended: num(row.attended),
     },
-    db: {
-      bytes: num(row.db_bytes),
-      tables: list<{ name: string; bytes: number; rows: number }>(row.tables).map((table) => ({
-        name: table.name,
-        bytes: num(table.bytes),
-        rows: num(table.rows),
-      })),
-    },
+    db: { bytes: num(row.db_bytes) },
+  };
+}
+
+export type StorageStats = { bytes: number; tables: { name: string; bytes: number; rows: number }[] };
+
+/**
+ * Хранилище для вкладки «Система»: размер базы и каждая таблица с размером и
+ * точным числом строк — одним запросом, count(*) через query_to_xml. Это
+ * полный проход по каждой таблице, поэтому только здесь, а не на «Обзоре».
+ */
+export async function storageStats(exec?: Exec): Promise<StorageStats> {
+  const result = await ex(exec).execute(sql`
+    select
+      pg_database_size(current_database())::float8 as db_bytes,
+      (select coalesce(json_agg(json_build_object('name', t.name, 'bytes', t.bytes, 'rows', t.n)
+                                order by t.bytes desc, t.name), '[]'::json)
+         from (select c.relname as name, pg_total_relation_size(c.oid)::float8 as bytes,
+                      (xpath('/row/c/text()', query_to_xml(format('select count(*) as c from %I.%I', n.nspname, c.relname),
+                        false, true, '')))[1]::text::int as n
+                 from pg_class c join pg_namespace n on n.oid = c.relnamespace
+                where n.nspname = 'public' and c.relkind = 'r') t) as tables
+  `);
+  const row = rowsOf(result)[0] ?? {};
+  return {
+    bytes: num(row.db_bytes),
+    tables: list<{ name: string; bytes: number; rows: number }>(row.tables).map((table) => ({
+      name: table.name,
+      bytes: num(table.bytes),
+      rows: num(table.rows),
+    })),
   };
 }
 

@@ -1,223 +1,53 @@
-import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import Link from "next/link";
 
-import { getWebhookInfo, type TgWebhookInfo } from "@/bot/api";
-import { ConfirmSubmit } from "@/components/ConfirmSubmit";
-import { FlashToast } from "@/components/FlashToast";
-import { IconAlert, IconCheck, IconLock } from "@/components/icons";
-import { DailyBars, Meter, ShareRow } from "@/components/OwnerCharts";
-import { Topbar } from "@/components/Topbar";
+import { IconAlert } from "@/components/icons";
+import { DailyBars, ShareRow } from "@/components/OwnerCharts";
+import { DB_LIMIT_BYTES, type Fmt, type T, bytes, originName } from "@/components/owner/format";
+import { ownerPage } from "@/components/owner/OwnerPage";
 import * as repo from "@/db/repo";
-import type { User } from "@/db/schema";
-import { translator } from "@/i18n";
-import { defaultTz, hasBot } from "@/lib/config";
-import { OWNER_CODE_MAX_ATTEMPTS, OWNER_CODE_TTL_MS, ipTag } from "@/lib/ownerConsole";
-import { currentOwnerSession, ownerViewer } from "@/lib/ownerGate";
-import { logoutAllOwnerAction, logoutOwnerAction, requestOwnerCodeAction, verifyOwnerCodeAction } from "./actions";
+import { ownerMetadata } from "@/lib/ownerGate";
 
 // Страница каждый раз своя: ни статической сборки, ни кэша. Next сам ставит
 // динамической странице Cache-Control: no-store.
 export const dynamic = "force-dynamic";
 
-/**
- * noindex и no-referrer — только владельцу. Статичный `metadata` попадал бы
- * и в ответ «не найдено» для остальных, и тот отличался бы от обычного 404.
- */
-export async function generateMetadata(): Promise<Metadata> {
-  if (!(await ownerViewer())) return {};
-  return { robots: { index: false, follow: false, nocache: true }, referrer: "no-referrer" };
+export async function generateMetadata() {
+  return ownerMetadata();
 }
-
-/** Лимит базы на бесплатном тарифе Supabase. */
-const DB_LIMIT_BYTES = 500 * 1024 * 1024;
-const MB = 1024 * 1024;
-
-const FLASH_OK: Record<string, string> = { sent: "w_owner_sent", in: "w_owner_in", out: "w_owner_out" };
-const FLASH_ERR: Record<string, string> = {
-  wrong: "w_owner_err_wrong",
-  format: "w_owner_err_format",
-  missing: "w_owner_err_missing",
-  expired: "w_owner_err_expired",
-  locked: "w_owner_err_locked",
-  throttled: "w_owner_err_throttled",
-  send_failed: "w_owner_err_send_failed",
-  no_bot: "w_owner_no_bot",
-};
-
-type Query = Record<string, string | string[] | undefined>;
-type T = ReturnType<typeof translator>;
-
-const LOCALES: Record<string, string> = { ru: "ru-RU", kk: "kk-KZ", en: "en-GB" };
 
 /**
- * Консоль владельца: агрегаты по базе, бот, хранилище, деплой, журнал входов.
- *
- * Пускает только вошедшего через Telegram владельца (lib/owner) и только после
- * кода от бота (lib/ownerConsole). Остальным — «не найдено», как будто адреса
- * нет: ни формы входа, ни «нет доступа». Без трекеров и записи на просмотр.
+ * Консоль владельца, «Обзор»: сводка, регистрации, воронка, удержание,
+ * языки, рост и активность групп, функции, охват бота. Только агрегаты; два
+ * запроса к базе параллельно (siteStats и ownerInsights), без записи на
+ * просмотр. Бот, cron, хранилище и журнал — на вкладке «Система».
  */
-export default async function OwnerConsolePage({ searchParams }: { searchParams: Promise<Query> }) {
-  const viewer = await ownerViewer();
-  if (!viewer) notFound();
+export default ownerPage("overview", async ({ t, fmt, now }) => {
+  const [stats, insights] = await Promise.all([repo.siteStats(now, fmt.timeZone), repo.ownerInsights(now, fmt.timeZone)]);
+  return <Overview t={t} fmt={fmt} now={now} stats={stats} insights={insights} />;
+});
 
-  const { user } = viewer;
-  const t = translator(user.lang);
-  const query = await searchParams;
-  const session = await currentOwnerSession(viewer);
-  const fmt = formatters(user.lang);
-
-  const okKey = query.out === "all" ? "w_owner_out_all" : FLASH_OK[Object.keys(FLASH_OK).find((key) => key in query) ?? ""];
-  const errKey = typeof query.err === "string" ? FLASH_ERR[query.err] : undefined;
-  const left = typeof query.left === "string" ? Number(query.left) || 0 : 0;
-
-  return (
-    <>
-      <Topbar lang={user.lang} />
-      <main className="wrap owner">
-        <FlashToast
-          message={errKey ? t(errKey, { left }) : okKey ? t(okKey) : null}
-          tone={errKey ? "error" : "ok"}
-          params={["sent", "in", "out", "err", "left"]}
-        />
-        <header className="page-head">
-          <div>
-            <p className="eyebrow">{t("w_owner_eyebrow")}</p>
-            <h1>{t("w_owner_title")}</h1>
-            <p className="lead">{t("w_owner_lead")}</p>
-          </div>
-          {session && (
-            <div className="owner-session">
-              <p className="small muted">{t("w_owner_session_until", { time: fmt.time(session.expiresAt) })}</p>
-              <div className="owner-session-actions">
-                <form action={logoutOwnerAction}>
-                  <button className="btn btn-sm" type="submit">
-                    {t("w_owner_logout")}
-                  </button>
-                </form>
-                <form action={logoutAllOwnerAction}>
-                  <ConfirmSubmit className="btn btn-sm btn-quiet btn-danger" confirm={t("w_owner_logout_all_confirm")}>
-                    {t("w_owner_logout_all")}
-                  </ConfirmSubmit>
-                </form>
-              </div>
-            </div>
-          )}
-        </header>
-        {session ? <Console t={t} fmt={fmt} /> : <Gate user={user} t={t} fmt={fmt} />}
-      </main>
-    </>
-  );
-}
-
-function formatters(lang: string) {
-  const locale = LOCALES[lang] ?? "ru-RU";
-  const timeZone = defaultTz();
-  const number = new Intl.NumberFormat(locale);
-  const time = new Intl.DateTimeFormat(locale, { timeZone, hour: "2-digit", minute: "2-digit" });
-  const dateTime = new Intl.DateTimeFormat(locale, {
-    timeZone,
-    day: "2-digit",
-    month: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-  const day = new Intl.DateTimeFormat(locale, { timeZone: "UTC", day: "2-digit", month: "2-digit" });
-  return {
-    timeZone,
-    n: (value: number) => number.format(value),
-    time: (value: Date) => time.format(value),
-    dateTime: (value: Date) => dateTime.format(value),
-    /** «2026-10-09» → «09.10»: календарный день, без сдвига пояса. */
-    day: (value: string) => day.format(new Date(`${value}T12:00:00Z`)),
-    percent: (part: number, whole: number) => (whole > 0 ? `${Math.round((part / whole) * 100)}%` : "—"),
-  };
-}
-type Fmt = ReturnType<typeof formatters>;
-
-function bytes(t: T, value: number): string {
-  return value >= MB ? t("w_owner_mb", { n: (value / MB).toFixed(1) }) : t("w_owner_kb", { n: Math.max(1, Math.round(value / 1024)) });
-}
-
-/** Второй фактор: «Прислать код» или поле для кода, пока он жив. */
-async function Gate({ user, t, fmt }: { user: User; t: T; fmt: Fmt }) {
-  const pending = await repo.pendingOwnerCode(user.userId);
-  const bot = hasBot();
-  return (
-    <section className="card owner-gate" aria-labelledby="owner-gate-title">
-      <h2 id="owner-gate-title">
-        <IconLock size={18} /> {t("w_owner_gate_title")}
-      </h2>
-      <p className="small muted">
-        {t("w_owner_gate_lead", { minutes: OWNER_CODE_TTL_MS / 60_000, attempts: OWNER_CODE_MAX_ATTEMPTS })}
-      </p>
-      {!bot && (
-        <div className="notice warn" role="status">
-          {t("w_owner_no_bot")}
-        </div>
-      )}
-      {pending && (
-        <form action={verifyOwnerCodeAction} className="owner-code-form">
-          <div className="field">
-            <label htmlFor="owner-code">{t("w_owner_code_label")}</label>
-            <input
-              id="owner-code"
-              name="code"
-              type="text"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              pattern="[0-9 \-]{6,8}"
-              minLength={6}
-              maxLength={8}
-              required
-              autoFocus
-              spellCheck={false}
-              className="owner-code-input tnum"
-            />
-            <p className="small muted owner-code-until">{t("w_owner_code_until", { time: fmt.time(pending.expiresAt) })}</p>
-          </div>
-          <button className="btn btn-primary" type="submit">
-            {t("w_owner_enter")}
-          </button>
-        </form>
-      )}
-      <form action={requestOwnerCodeAction}>
-        <button className={pending ? "btn btn-sm" : "btn btn-primary"} type="submit" disabled={!bot}>
-          {pending ? t("w_owner_resend") : t("w_owner_send_code")}
-        </button>
-      </form>
-    </section>
-  );
-}
-
-/** Ответ Telegram о вебхуке; молчание дольше 2,5 секунды не держит страницу. */
-async function webhookInfo(): Promise<TgWebhookInfo | null> {
-  if (!hasBot()) return null;
-  const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500));
-  return Promise.race([getWebhookInfo().catch(() => null), timeout]);
-}
-
-async function Console({ t, fmt }: { t: T; fmt: Fmt }) {
-  const now = new Date();
-  // База — одним запросом, Telegram — параллельно с ней.
-  const [stats, webhook, cron, events] = await Promise.all([
-    repo.siteStats(now, fmt.timeZone),
-    webhookInfo(),
-    repo.lastCronRun(),
-    repo.recentOwnerEvents(12),
-  ]);
+function Overview({
+  t,
+  fmt,
+  now,
+  stats,
+  insights,
+}: {
+  t: T;
+  fmt: Fmt;
+  now: Date;
+  stats: repo.SiteStats;
+  insights: repo.Insights;
+}) {
   const { users, groups, schedule, meetings, db } = stats;
-
   const series = repo.dailySeries(users.signups, repo.SIGNUP_DAYS, now, fmt.timeZone);
   const signupsTotal = series.reduce((sum, point) => sum + point.count, 0);
   const signupsMax = Math.max(0, ...series.map((point) => point.count));
+  const groupSeries = repo.dailySeries(insights.groupsByDay, repo.GROUP_DAYS, now, fmt.timeZone);
+  const groupsTotal = groupSeries.reduce((sum, point) => sum + point.count, 0);
+  const groupsMax = Math.max(0, ...groupSeries.map((point) => point.count));
   const dbShare = db.bytes / DB_LIMIT_BYTES;
   const limit = bytes(t, DB_LIMIT_BYTES);
-  const originName = (origin: string) =>
-    origin === "campus"
-      ? t("w_member_origin_campus")
-      : origin === "photo"
-        ? t("w_member_origin_photo")
-        : t("w_member_origin_manual");
 
   const kpis: { label: string; value: string; sub: string; alert?: boolean }[] = [
     { label: t("w_owner_kpi_users"), value: fmt.n(users.total), sub: t("w_owner_kpi_users_sub", { n: fmt.n(users.newWeek) }) },
@@ -240,6 +70,24 @@ async function Console({ t, fmt }: { t: T; fmt: Fmt }) {
     },
   ];
 
+  const { funnel, features, bot } = insights;
+  const steps: [string, number, number][] = [
+    ["w_owner_funnel_registered", funnel.registered, funnel.registered],
+    ["w_owner_funnel_joined", funnel.joined, funnel.registered],
+    ["w_owner_funnel_filled", funnel.filled, funnel.joined],
+    ["w_owner_funnel_engaged", funnel.engaged, funnel.filled],
+  ];
+  const featureRows: [string, number][] = [
+    ["w_owner_feat_photo", features.photo],
+    ["w_owner_feat_campus", features.campus],
+    ["w_owner_feat_calendar", features.calendar],
+    ["w_owner_feat_avatars", features.avatars],
+    ["w_owner_feat_passwords", features.passwords],
+    ["w_owner_feat_soft", features.soft],
+    ["w_owner_feat_attendance", features.attendance],
+  ];
+  const langName = (lang: string) => (["ru", "kk", "en"].includes(lang) ? t(`w_owner_lang_${lang}`) : lang);
+
   const tiles: { title: string; rows: [string, string][]; hint?: string; extra?: React.ReactNode }[] = [
     {
       title: t("w_stats_people"),
@@ -253,6 +101,27 @@ async function Console({ t, fmt }: { t: T; fmt: Fmt }) {
         [t("w_owner_mau"), fmt.n(users.mau)],
       ],
       hint: t("w_owner_active_hint"),
+    },
+    {
+      title: t("w_owner_funnel"),
+      rows: [],
+      extra: steps.map(([label, n, previous], index) => (
+        <ShareRow
+          key={label}
+          label={t(label)}
+          value={
+            index === 0
+              ? fmt.n(n)
+              : t("w_owner_funnel_value", {
+                  n: fmt.n(n),
+                  total: fmt.percent(n, funnel.registered),
+                  step: fmt.percent(n, previous),
+                })
+          }
+          share={funnel.registered > 0 ? n / funnel.registered : 0}
+        />
+      )),
+      hint: t("w_owner_funnel_hint"),
     },
     {
       title: t("w_stats_groups"),
@@ -270,7 +139,7 @@ async function Console({ t, fmt }: { t: T; fmt: Fmt }) {
       extra: schedule.origins.map(({ origin, count }) => (
         <ShareRow
           key={origin}
-          label={originName(origin)}
+          label={originName(t, origin)}
           value={`${fmt.n(count)} · ${fmt.percent(count, schedule.filled)}`}
           share={schedule.filled > 0 ? count / schedule.filled : 0}
         />
@@ -302,38 +171,56 @@ async function Console({ t, fmt }: { t: T; fmt: Fmt }) {
       ],
     },
     {
-      title: t("w_owner_bot"),
-      rows: [
-        [
-          t("w_owner_webhook"),
-          !hasBot()
-            ? t("w_owner_webhook_unset")
-            : !webhook
-              ? t("w_owner_webhook_unknown")
-              : webhook.url
-                ? t("w_owner_webhook_ok")
-                : t("w_owner_webhook_unset"),
-        ],
-        [t("w_owner_pending"), webhook ? fmt.n(webhook.pending_update_count) : "—"],
-        [
-          t("w_owner_last_error"),
-          webhook?.last_error_date ? fmt.dateTime(new Date(webhook.last_error_date * 1000)) : t("w_owner_no_errors"),
-        ],
-        [t("w_owner_cron_last"), cron ? fmt.dateTime(new Date(cron.at)) : t("w_owner_cron_never")],
-        [
-          t("w_owner_reminders"),
-          cron ? `${fmt.n(cron.week.sent)} / ${fmt.n(cron.week.due)} · ${fmt.percent(cron.week.sent, cron.week.due)}` : "—",
-        ],
-      ],
-      hint: webhook?.last_error_message ? webhook.last_error_message.slice(0, 160) : undefined,
+      title: t("w_owner_langs"),
+      rows: [],
+      extra: insights.langs.map(({ lang, count }) => (
+        <ShareRow
+          key={lang}
+          label={langName(lang)}
+          value={`${fmt.n(count)} · ${fmt.percent(count, users.total)}`}
+          share={users.total > 0 ? count / users.total : 0}
+        />
+      )),
     },
     {
-      title: t("w_owner_deploy"),
-      rows: [
-        [t("w_owner_env"), process.env.VERCEL_ENV || t("w_owner_local")],
-        [t("w_owner_commit"), (process.env.VERCEL_GIT_COMMIT_SHA ?? "").slice(0, 7) || "—"],
-        [t("w_owner_branch"), process.env.VERCEL_GIT_COMMIT_REF || "—"],
+      title: t("w_owner_features"),
+      rows: [],
+      extra: [
+        ...featureRows.map(([label, n]) => (
+          <ShareRow
+            key={label}
+            label={t(label)}
+            value={`${fmt.n(n)} · ${fmt.percent(n, features.users)}`}
+            share={features.users > 0 ? n / features.users : 0}
+          />
+        )),
+        <ShareRow
+          key="recurring"
+          label={t("w_owner_feat_recurring")}
+          value={t("w_owner_feat_meetings_value", {
+            n: fmt.n(features.recurringMeetings),
+            total: fmt.n(features.meetings),
+            authors: fmt.n(features.recurringAuthors),
+          })}
+          share={features.meetings > 0 ? features.recurringMeetings / features.meetings : 0}
+        />,
+        <ShareRow
+          key="summaries"
+          label={t("w_owner_feat_summaries")}
+          value={`${fmt.n(features.summaries)} · ${fmt.percent(features.summaries, features.meetings)}`}
+          share={features.meetings > 0 ? features.summaries / features.meetings : 0}
+        />,
       ],
+      hint: t("w_owner_features_hint"),
+    },
+    {
+      title: t("w_owner_reach"),
+      rows: [
+        [t("w_owner_reach_tg"), fmt.n(bot.telegram)],
+        [t("w_owner_reach_web"), fmt.n(bot.web)],
+        [t("w_owner_reach_unreachable"), `${fmt.n(bot.unreachable)} · ${fmt.percent(bot.unreachable, bot.telegram)}`],
+      ],
+      hint: t("w_owner_reach_hint"),
     },
   ];
 
@@ -391,78 +278,131 @@ async function Console({ t, fmt }: { t: T; fmt: Fmt }) {
         {tiles.map((tile) => (
           <section className="card stats-tile" key={tile.title}>
             <h2>{tile.title}</h2>
-            <dl>
-              {tile.rows.map(([label, value]) => (
-                <div key={label}>
-                  <dt className="small muted">{label}</dt>
-                  <dd className="tnum">{value}</dd>
-                </div>
-              ))}
-            </dl>
+            {tile.rows.length > 0 && (
+              <dl>
+                {tile.rows.map(([label, value]) => (
+                  <div key={label}>
+                    <dt className="small muted">{label}</dt>
+                    <dd className="tnum">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
             {tile.extra && <div className="owner-shares">{tile.extra}</div>}
             {tile.hint && <p className="small muted owner-hint">{tile.hint}</p>}
           </section>
         ))}
 
-        <section className="card stats-tile owner-wide" aria-labelledby="owner-storage-title">
-          <h2 id="owner-storage-title">{t("w_owner_health")}</h2>
-          <div className="owner-share-head">
-            <span className="small muted">{t("w_owner_db_size")}</span>
-            <span className="owner-value tnum">
-              {bytes(t, db.bytes)} · {fmt.percent(db.bytes, DB_LIMIT_BYTES)}
-            </span>
+        <Cohorts t={t} fmt={fmt} now={now} cohorts={insights.cohorts} />
+
+        <section className="card stats-tile owner-wide" aria-labelledby="owner-groups-growth-title">
+          <div className="card-head">
+            <h2 id="owner-groups-growth-title">{t("w_owner_groups_growth")}</h2>
+            <p className="small muted tnum">
+              {t("w_owner_groups_growth_lead", { days: repo.GROUP_DAYS, total: fmt.n(groupsTotal), max: fmt.n(groupsMax) })}
+            </p>
           </div>
-          <Meter share={dbShare} label={t("w_owner_kpi_db_sub", { percent: fmt.percent(db.bytes, DB_LIMIT_BYTES), limit })} />
-          {dbShare >= 0.8 && (
-            <div className="notice warn owner-notice" role="alert">
-              <IconAlert size={18} />
-              {t("w_owner_db_warn", { percent: fmt.percent(db.bytes, DB_LIMIT_BYTES), limit })}
-            </div>
-          )}
-          <div className="owner-table-wrap">
-            <table className="owner-table">
-              <thead>
-                <tr>
-                  <th scope="col">{t("w_owner_table")}</th>
-                  <th scope="col">{t("w_owner_size")}</th>
-                  <th scope="col">{t("w_owner_rows")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {db.tables.map((table) => (
-                  <tr key={table.name}>
-                    <td>{table.name}</td>
-                    <td className="tnum">{bytes(t, table.bytes)}</td>
-                    <td className="tnum">{fmt.n(table.rows)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DailyBars
+            points={groupSeries}
+            formatDay={fmt.day}
+            label={t("w_owner_groups_chart_aria", { days: repo.GROUP_DAYS, total: groupsTotal })}
+          />
         </section>
 
-        <section className="card stats-tile owner-wide" aria-labelledby="owner-logins-title">
-          <h2 id="owner-logins-title">{t("w_owner_logins")}</h2>
-          <p className="small muted">{t("w_owner_logins_lead")}</p>
-          {events.length === 0 ? (
-            <p className="small muted">{t("w_owner_logins_none")}</p>
+        <section className="card stats-tile owner-wide" aria-labelledby="owner-top-title">
+          <h2 id="owner-top-title">{t("w_owner_top_groups")}</h2>
+          {insights.topGroups.length === 0 ? (
+            <p className="small muted">{t("w_owner_top_none")}</p>
           ) : (
-            <ul className="owner-events">
-              {events.map((event, index) => (
-                <li key={`${event.createdAt.getTime()}-${index}`} className={event.ok ? "" : "owner-event-bad"}>
-                  <span className="owner-event-icon">{event.ok ? <IconCheck size={14} /> : <IconAlert size={14} />}</span>
-                  <span className="tnum small">{fmt.dateTime(event.createdAt)}</span>
-                  <span>{t(`w_owner_ev_${event.event}`)}</span>
-                  <span className="small muted">
-                    {event.device}
-                    {event.ipHash && ` · #${ipTag(event.ipHash)}`}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <div className="owner-table-wrap">
+              <table className="owner-table">
+                <thead>
+                  <tr>
+                    <th scope="col">{t("w_owner_col_group")}</th>
+                    <th scope="col">{t("w_owner_col_active_members")}</th>
+                    <th scope="col">{t("w_owner_col_meetings30")}</th>
+                    <th scope="col">{t("w_owner_col_responses30")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {insights.topGroups.map((group) => (
+                    <tr key={group.chatId}>
+                      <td>
+                        <Link href={`/admin/groups/${group.chatId}`} prefetch={false}>
+                          {group.title || group.slug || group.chatId}
+                        </Link>
+                      </td>
+                      <td className="tnum">
+                        {fmt.n(group.activeMembers)} / {fmt.n(group.size)}
+                      </td>
+                      <td className="tnum">{fmt.n(group.meetings)}</td>
+                      <td className="tnum">{fmt.n(group.responses)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </section>
       </div>
     </>
+  );
+}
+
+/**
+ * Удержание по недельным когортам. Клетка — доля когорты с любым действием на
+ * k-й неделе после регистрации; цвет — та же величина (одна шкала --accent),
+ * число всегда написано. Недели, до которых когорта ещё не дожила, пустые.
+ */
+function Cohorts({ t, fmt, now, cohorts }: { t: T; fmt: Fmt; now: Date; cohorts: repo.Cohort[] }) {
+  const weeks = Array.from({ length: repo.COHORT_WEEKS - 1 }, (_, index) => index + 1);
+  return (
+    <section className="card stats-tile owner-wide" aria-labelledby="owner-cohorts-title">
+      <h2 id="owner-cohorts-title">{t("w_owner_cohorts")}</h2>
+      <p className="small muted">{t("w_owner_cohorts_lead")}</p>
+      {cohorts.length === 0 ? (
+        <p className="small muted">{t("w_owner_cohorts_none")}</p>
+      ) : (
+        <div className="owner-table-wrap">
+          <table className="owner-table owner-cohorts">
+            <thead>
+              <tr>
+                <th scope="col">{t("w_owner_cohort_col")}</th>
+                <th scope="col">{t("w_owner_cohort_size")}</th>
+                {weeks.map((k) => (
+                  <th scope="col" key={k}>
+                    {t("w_owner_cohort_week", { k })}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {cohorts.map((cohort) => {
+                const elapsed = repo.cohortWeeksElapsed(cohort.week, now, fmt.timeZone);
+                return (
+                  <tr key={cohort.week}>
+                    <th scope="row" className="tnum">
+                      {fmt.day(cohort.week)}
+                    </th>
+                    <td className="tnum">{fmt.n(cohort.size)}</td>
+                    {weeks.map((k) => {
+                      if (k >= elapsed) return <td key={k} className="owner-cohort-empty" />;
+                      const share = cohort.size > 0 ? cohort.active[k] / cohort.size : 0;
+                      const level = share === 0 ? 0 : Math.min(5, Math.ceil(share * 5));
+                      return (
+                        <td key={k} className={`tnum owner-cohort owner-cohort-${level}`}>
+                          {fmt.percent(cohort.active[k], cohort.size)}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className="small muted owner-hint">{t("w_owner_cohorts_hint")}</p>
+    </section>
   );
 }

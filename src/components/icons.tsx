@@ -274,3 +274,22 @@ export function IconGrid(props: IconProps) {
     </Icon>
   );
 }
+
+/** Направление сортировки: стрелка вниз — по убыванию; вверх — тот же знак, повёрнутый классом. */
+export function IconArrowDown(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M12 5v14M6 13l6 6 6-6" />
+    </Icon>
+  );
+}
+
+/** Поиск по списку. */
+export function IconSearch(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.5-3.5" />
+    </Icon>
+  );
+}

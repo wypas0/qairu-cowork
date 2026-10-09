@@ -269,3 +269,17 @@ export async function endAllOwnerSessions(userId: number, webToken: string, clie
   await log(userId, "logout_all", true, client);
   return ended;
 }
+
+/**
+ * Владелец открыл карточку человека или группы — запись в журнал консоли
+ * (кто, чью, когда, с какого устройства). Пишется только из открытой
+ * консоли: гейт проверяет сессию раньше, чем страница читает данные.
+ */
+export async function logOwnerView(
+  ownerId: number,
+  event: repo.OwnerViewEvent,
+  targetId: number,
+  client: ClientInfo,
+): Promise<void> {
+  await repo.logOwnerEvent({ userId: ownerId, event, ok: true, targetId, ...fingerprint(client) });
+}
