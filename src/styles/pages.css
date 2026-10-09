@@ -348,37 +348,3 @@ html[data-tg] .tg-hide {
 .home-screen {
   margin: 16px 0 0;
 }
-
-/* --- /admin/stats: плитки счётчиков --- */
-.stats-grid {
-  display: grid;
-  gap: 20px;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  align-items: start;
-}
-.stats-tile {
-  margin-bottom: 0;
-}
-.stats-tile dl {
-  display: grid;
-  gap: 8px;
-  margin: 8px 0 0;
-}
-.stats-tile dl > div {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border);
-}
-.stats-tile dl > div:last-child {
-  padding-bottom: 0;
-  border-bottom: 0;
-}
-.stats-tile dd {
-  margin: 0;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}

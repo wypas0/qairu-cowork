@@ -71,6 +71,13 @@
       "when": 1791133297512,
       "tag": "0009_attendance_and_origin",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791531187701,
+      "tag": "0010_owner_console",
+      "breakpoints": true
     }
   ]
 }

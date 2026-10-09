@@ -645,7 +645,11 @@ export async function onChangeReply(message: TgMessage): Promise<boolean> {
  * процесса нет, поэтому задачу выполняет cron, а флаг `reminder_sent` не даёт
  * отправить одно и то же напоминание дважды.
  */
-export async function sendDueReminders(now = new Date()): Promise<number> {
+/**
+ * `tally` — необязательный счётчик для консоли владельца: сколько напоминаний
+ * было к отправке (`due`). Возвращается, как и раньше, сколько дошло.
+ */
+export async function sendDueReminders(now = new Date(), tally?: { due: number }): Promise<number> {
   const due: { meeting: Meeting; chat: Chat; when: string }[] = (
     await repo.meetingsDueForReminder(now)
   ).map(({ meeting, chat }) => ({ meeting, chat, when: meeting.whenText }));
@@ -665,6 +669,7 @@ export async function sendDueReminders(now = new Date()): Promise<number> {
   }
 
   let sent = 0;
+  if (tally) tally.due = due.length;
 
   for (const { meeting, chat, when } of due) {
     const responses = await repo.meetingResponsesFor(meeting.id);

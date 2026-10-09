@@ -25,3 +25,4 @@ export * from "./queries/botState";
 export * from "./queries/merge";
 export * from "./queries/attendance";
 export * from "./queries/stats";
+export * from "./queries/owner";

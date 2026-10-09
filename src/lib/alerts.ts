@@ -91,3 +91,24 @@ export async function reportExtensionProblem(report: {
     return false;
   }
 }
+
+/**
+ * Событие консоли владельца (/admin): вход, серия неверных кодов. Уходит в
+ * ALERT_CHAT_ID, а если он не задан (владелец только из OWNER_IDS) — в личку
+ * самому владельцу. Без антиповтора: каждый вход должен быть виден.
+ */
+export async function reportOwnerConsole(ownerId: number, lines: string[]): Promise<boolean> {
+  if (!hasBot()) return false;
+  const chatId = Number(alertChatId()) || ownerId;
+  try {
+    await sendMessage({
+      chat_id: chatId,
+      text: lines.join("\n"),
+      parse_mode: "HTML",
+      link_preview_options: { is_disabled: true },
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}

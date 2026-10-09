@@ -145,8 +145,9 @@ postgresql://postgres.abcdefgh:ПАРОЛЬ@aws-0-eu-central-1.pooler.supabase.c
 [`drizzle/0005_calendar_and_summary.sql`](drizzle/0005_calendar_and_summary.sql),
 [`drizzle/0006_meeting_duration.sql`](drizzle/0006_meeting_duration.sql),
 [`drizzle/0007_row_level_security.sql`](drizzle/0007_row_level_security.sql),
-[`drizzle/0008_session_token_hash.sql`](drizzle/0008_session_token_hash.sql)
-и [`drizzle/0009_attendance_and_origin.sql`](drizzle/0009_attendance_and_origin.sql).
+[`drizzle/0008_session_token_hash.sql`](drizzle/0008_session_token_hash.sql),
+[`drizzle/0009_attendance_and_origin.sql`](drizzle/0009_attendance_and_origin.sql)
+и [`drizzle/0010_owner_console.sql`](drizzle/0010_owner_console.sql).
 
 Миграции выполняются **по порядку номеров** и **каждая один раз**. Если база уже
 работает на прошлой версии (`0000` выполнен давно), при обновлении нужно выполнить
@@ -166,7 +167,11 @@ Advisor** больше не ругается на «RLS disabled in public»,
 дольше 30 дней удаляются,
 `0009_attendance_and_origin.sql` — таблица `meeting_attendance` («был ли ты на встрече»: бот
 спрашивает после встречи, на сайте — кнопки у прошедшей) и колонки `origin` и `ext_version` у
-`schedule_state` (откуда расписание: вручную, с фото, из кампуса — видно старосте и в `/admin/stats`).
+`schedule_state` (откуда расписание: вручную, с фото, из кампуса — видно старосте и в консоли `/admin`),
+`0010_owner_console.sql` — консоль владельца `/admin`: таблицы `owner_login_codes` (одноразовые
+коды от бота — только HMAC-хеш), `owner_sessions` (сессии консоли — только SHA-256 токена) и
+`owner_audit` (журнал входов, адрес и браузер — только ключевым хешем), все под RLS. Старые
+данные она не трогает; без неё падает только `/admin`.
 
 > **Миграцию выполнять до того, как новый код попадёт на Vercel.** Код с новыми
 > колонками на старой базе падает на любой странице со встречами. Теперь это
@@ -349,12 +354,32 @@ DNS-записи, которые покажет Vercel. После этого д
 
 ---
 
+## Шаг 8. По желанию: консоль владельца `/admin`
+
+Статистика, состояние бота и cron, размер базы и журнал входов — только для владельца.
+
+1. Выполнить в Supabase `drizzle/0010_owner_console.sql` (**сначала SQL, потом пуш**).
+2. **Vercel → Settings → Environment Variables**: `ALERT_CHAT_ID` = свой Telegram id
+   (бот подскажет его командой `/id` в личке) и, если хочется отдельный ключ,
+   `OWNER_CONSOLE_SECRET` = случайная строка (`openssl rand -hex 32`). Окружение —
+   Production → **Redeploy**.
+3. Войти на сайт через Telegram, открыть `/admin` → «Прислать код» → бот пришлёт 6 цифр
+   в личку → ввести. Сессия консоли живёт 12 часов; о каждом входе бот пишет в `ALERT_CHAT_ID`.
+
+Всем остальным `/admin` отвечает «не найдено». В `robots.txt` адрес намеренно не вписан:
+файл публичный и сам назвал бы его; поисковики страницу и так не видят — она отдаёт
+404 всем, кроме владельца, а ему — `noindex`.
+
+---
+
 ## Переменные окружения: полный список
 
 | Переменная | Обязательна | Зачем |
 |---|---|---|
 | `DATABASE_URL` | **да** | подключение к Supabase, обязательно пулер (порт 6543) |
-| `ALERT_CHAT_ID` | нет | куда бот шлёт алерты об ошибках сайта: свой id (напиши боту `/id` в личке) или id рабочей группы (`/id` в ней). Без переменной алертов нет |
+| `ALERT_CHAT_ID` | нет | куда бот шлёт алерты об ошибках сайта и о входах в консоль: свой id (напиши боту `/id` в личке) или id рабочей группы (`/id` в ней). Свой id здесь же делает тебя владельцем (консоль `/admin`). Без переменной алертов нет |
+| `OWNER_IDS` | нет | ещё владельцы через запятую (`123,456`) — нужно, если `ALERT_CHAT_ID` указывает на группу. Владелец открывает `/admin`, остальным там «не найдено» |
+| `OWNER_CONSOLE_SECRET` | нет | ключ HMAC консоли владельца: им хешируются коды входа и адреса в журнале. По умолчанию выводится из `BOT_TOKEN`; отдельная случайная строка (`openssl rand -hex 32`) разводит секреты. Смена ключа гасит только живые коды (они и так на 5 минут) |
 | `DATABASE_POOL_MAX` | нет | соединений с пулером на экземпляр функции, по умолчанию 5; локальной базе на PGlite — 1 |
 | `BOT_TOKEN` | для бота | токен от BotFather; без него сайт работает, бота нет |
 | `NEXT_PUBLIC_SITE_URL` | нет | только если свой домен или локальный туннель |
@@ -379,6 +404,10 @@ DNS-записи, которые покажет Vercel. После этого д
 | Страница группы или бот падают с ошибкой про `duration_min` | Не выполнена миграция `0006_meeting_duration.sql` |
 | Все разом оказались не вошедшими, в логах ошибка про `token_hash` | Не выполнена `0008_session_token_hash.sql`: код новый, а база старая. Выполнить её — куки снова пустят |
 | Падают страницы группы и сохранение расписания, в логах `meeting_attendance` или `origin` | Не выполнена `0009_attendance_and_origin.sql`. Выполнить её в SQL Editor |
+| `/admin` падает с ошибкой про `owner_login_codes`, `owner_sessions` или `owner_audit` | Не выполнена `0010_owner_console.sql`. Выполнить её в SQL Editor — остальной сайт от неё не зависит |
+| В `/admin` «не найдено», хотя вошёл | Твоего Telegram id нет ни в `ALERT_CHAT_ID`, ни в `OWNER_IDS` (id группы со знаком минус владельцем не считается), либо вход на сайт был не через Telegram. Добавить id в Vercel → Redeploy |
+| Код для консоли не приходит | Нет `BOT_TOKEN`, бот у тебя в личке не запущен (открой его, нажми Start) или исчерпан лимит: 3 кода за 15 минут, 10 неверных вводов за час закрывают вход до конца часа |
+| Вошёл в консоль, но по ссылке из Telegram она снова просит код | Кука консоли — SameSite=Strict: браузер не прикладывает её к переходу с чужого сайта. Обнови страницу |
 | Сборка падает с `[qairu:schema] Не включён RLS: …` | Не выполнена `0007_row_level_security.sql`. Выполнить её в Supabase и сделать Redeploy |
 | Сборка падает с `[qairu:schema] В базе не хватает: …` | Не выполнена миграция, которую называет сообщение (например, `0005_calendar_and_summary.sql`). Выполнить её в Supabase и сделать Redeploy |
 | Сборка падает с `You are using Node.js … For Next.js, Node.js version ">=20.9.0" is required` | Next 16 требует Node 20.9 или новее: **Vercel → Settings → Build and Deployment → Node.js Version** → 22.x или новее, затем Redeploy |
@@ -437,7 +466,7 @@ Free засыпает после 7 дней без запросов — cron н�
 
 - [ ] 0. `npm test` и `npm run build` локально — зелено
 - [ ] 1. `git init` → коммит → пуш на GitHub
-- [ ] 2. Supabase: проект → пулер-строка (6543) → выполнить `drizzle/0000_init.sql`, затем `0001_admin_login.sql`, `0002_avatars.sql`, `0003_real_name.sql`, `0004_recurring_meetings.sql`, `0005_calendar_and_summary.sql`, `0006_meeting_duration.sql`, `0007_row_level_security.sql`, `0008_session_token_hash.sql` и `0009_attendance_and_origin.sql`
+- [ ] 2. Supabase: проект → пулер-строка (6543) → выполнить `drizzle/0000_init.sql`, затем `0001_admin_login.sql`, `0002_avatars.sql`, `0003_real_name.sql`, `0004_recurring_meetings.sql`, `0005_calendar_and_summary.sql`, `0006_meeting_duration.sql`, `0007_row_level_security.sql`, `0008_session_token_hash.sql`, `0009_attendance_and_origin.sql` и `0010_owner_console.sql`
 - [ ] 3. Vercel: импорт репозитория → `DATABASE_URL` → Deploy
 - [ ] 4. Проверить `/api/healthz` и создание группы
 - [ ] 5. BotFather: `/newbot` → токен → `/setjoingroups` Enable
@@ -445,3 +474,4 @@ Free засыпает после 7 дней без запросов — cron н�
 - [ ] 7. Проверить бота: `/start`, `/schedule`, `/setup` в группе
 - [ ] 8. `CRON_SECRET` в Vercel и в секретах GitHub — напоминания каждые 10 минут (шаг 6)
 - [ ] 9. По желанию: домен, `/setmenubutton`
+- [ ] 10. По желанию: консоль владельца — `0010_owner_console.sql`, `ALERT_CHAT_ID` (и `OWNER_CONSOLE_SECRET`), вход на `/admin` кодом от бота (шаг 8)

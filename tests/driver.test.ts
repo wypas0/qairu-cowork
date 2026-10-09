@@ -140,4 +140,24 @@ describe("настоящий драйвер postgres.js", () => {
     ).rejects.toThrow("сбой");
     expect(await r.getUser(9002)).toBeNull();
   });
+
+  it("консоль владельца: статистика одним запросом и коды — на настоящем драйвере", async () => {
+    const r = await repo();
+    const stats = await r.siteStats(new Date(), "Asia/Almaty");
+    expect(stats.users.total).toBeGreaterThanOrEqual(1);
+    expect(stats.users.signups[0]?.day).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(stats.db.bytes).toBeGreaterThan(0);
+    expect(stats.db.tables.find((table) => table.name === "users")?.rows).toBe(stats.users.total);
+
+    const expiresAt = new Date(Date.now() + 60_000);
+    await r.storeOwnerCode({ userId: 9001, codeHash: "a".repeat(64), salt: "b".repeat(32), expiresAt });
+    expect((await r.pendingOwnerCode(9001))?.expiresAt.getTime()).toBe(expiresAt.getTime());
+    const bumped = await Promise.all([r.bumpOwnerCodeAttempt(9001), r.bumpOwnerCodeAttempt(9001)]);
+    expect(bumped.map((row) => row?.attempts).sort()).toEqual([1, 2]);
+    expect(await r.takeOwnerCode(9001, "a".repeat(64))).toBe(true);
+    expect(await r.takeOwnerCode(9001, "a".repeat(64))).toBe(false);
+
+    await r.recordCronRun({ at: Date.now(), ok: true, due: 1, sent: 1, attendance: 0, calendars: 0, sessions: 0 });
+    expect((await r.lastCronRun())?.week.sent).toBe(1);
+  });
 });

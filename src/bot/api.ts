@@ -189,6 +189,18 @@ export function getMe(token?: string): Promise<TgUser> {
   return call<TgUser>("getMe", {}, token ?? botToken());
 }
 
+/** Состояние вебхука — для консоли владельца: очередь апдейтов и последняя ошибка доставки. */
+export type TgWebhookInfo = {
+  url: string;
+  pending_update_count: number;
+  last_error_date?: number;
+  last_error_message?: string;
+};
+
+export function getWebhookInfo(): Promise<TgWebhookInfo> {
+  return call<TgWebhookInfo>("getWebhookInfo", {});
+}
+
 export function setMyCommands(payload: {
   commands: { command: string; description: string }[];
   scope?: { type: string };

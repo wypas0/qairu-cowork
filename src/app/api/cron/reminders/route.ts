@@ -36,9 +36,15 @@ export async function GET(request: Request) {
 
   if (!hasBot()) return Response.json({ ok: true, sent: 0, calendars, sessions, detail: "BOT_TOKEN не задан" });
 
-  const sent = await sendDueReminders();
+  const tally = { due: 0 };
+  const sent = await sendDueReminders(new Date(), tally);
   // После встречи — «был ли ты»: тем, кто собирался прийти.
   const attendance = await askAttendance();
+  // Отметка для консоли владельца: когда был прогон и сколько напоминаний дошло.
+  // Одна запись на прогон; её сбой не должен ронять рассылку, которая уже прошла.
+  await repo
+    .recordCronRun({ at: Date.now(), ok: true, due: tally.due, sent, attendance, calendars, sessions })
+    .catch(() => {});
   return Response.json({ ok: true, sent, attendance, calendars, sessions });
 }
 

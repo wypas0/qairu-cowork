@@ -59,3 +59,18 @@ export function cronSecret(): string {
 export function alertChatId(): string {
   return (process.env.ALERT_CHAT_ID ?? "").trim();
 }
+
+/**
+ * Ключ HMAC консоли владельца: им хешируются одноразовые коды и адреса в
+ * журнале входов. В базе его нет — утёкшая таблица не даёт ни перебрать
+ * 6-значный код, ни восстановить IP перебором всех адресов. Можно не задавать:
+ * тогда выводится из BOT_TOKEN (без бота консоль всё равно недоступна — код
+ * некому прислать). Пусто — консоль выключена.
+ */
+export function ownerConsoleSecret(): string {
+  const explicit = (process.env.OWNER_CONSOLE_SECRET ?? "").trim();
+  if (explicit) return explicit;
+  const token = botToken();
+  if (!token) return "";
+  return crypto.createHash("sha256").update(`qairu-owner-console:${token}`).digest("hex");
+}

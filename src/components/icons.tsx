@@ -165,6 +165,27 @@ export function IconBell(props: IconProps) {
   );
 }
 
+/** Предупреждение: треугольник с восклицательным знаком — рядом со статусом, не вместо текста. */
+export function IconAlert(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+      <path d="M12 9v4" />
+      <path d="M12 17h.01" />
+    </Icon>
+  );
+}
+
+/** Замок — вход с подтверждением кодом. */
+export function IconLock(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="4" y="11" width="16" height="10" rx="2" />
+      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+    </Icon>
+  );
+}
+
 export function IconPhone(props: IconProps) {
   return (
     <Icon {...props}>

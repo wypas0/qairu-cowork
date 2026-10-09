@@ -5,9 +5,11 @@
 // Поднимает PGlite в памяти, накатывает миграции, заводит группу «ИС-21»
 // (пять человек, разные расписания и отметки «неудобно», встреча через
 // 100 минут, прошедшая встреча с итогами) и вторую группу «Дипломники»,
-// пишет {slug, token, tokenEmpty, url} в e2e/.state.json и запускает
+// пишет {slug, token, tokenEmpty, ownerToken, ownerCode, url} в e2e/.state.json и запускает
 // `next start` на собранном проекте (`npx next build` — заранее). token —
-// вход Амиром, tokenEmpty — Болатом, у которого ещё нет расписания.
+// вход Амиром, tokenEmpty — Болатом, у которого ещё нет расписания,
+// ownerToken — кука консоли владельца (Амир — владелец, OWNER_IDS), ownerCode —
+// его живой код входа в консоль.
 // Ctrl+C гасит всё.
 
 import { spawn } from "node:child_process";
@@ -103,10 +105,37 @@ await sql`insert into meeting_responses (meeting_id, user_id, answer) values (${
 await sql`insert into meetings (chat_id, initiator_id, place, when_text, when_start, goal, invitees, status)
   values (${chat2}, ${asel}, 'Каф. ИС', 'x', ${atDay(1, 11 * 60)}, 'Предзащита', ${`${amir},${asel}`}, 'open'),
          (${chat2}, ${asel}, 'Zoom', 'x', ${atDay(4, 18 * 60)}, 'Консультация', ${`${amir},${asel}`}, 'open')`;
+// Консоль владельца: Амир — владелец (OWNER_IDS ниже), у него открытая сессия
+// консоли, привязанная к его сессии сайта. Бота нет — код не прислать, поэтому
+// сессия кладётся прямо в базу, как её выдал бы верный код. Плюс журнал и прогон cron.
+const sha = (value) => crypto.createHash("sha256").update(value).digest("hex");
+const ownerToken = crypto.randomBytes(32).toString("base64url");
+await sql`insert into owner_sessions (token_hash, user_id, web_token_hash, expires_at)
+          values (${sha(ownerToken)}, ${amir}, ${sha(token)}, ${new Date(now + 12 * 3_600_000)})`;
+await sql`insert into owner_audit (user_id, event, ok, ip_hash, ua_hash, device, created_at) values
+          (${amir}, 'code_sent', true, ${sha("ip:a")}, ${sha("ua:a")}, 'Chrome · Windows', ${new Date(now - 120_000)}),
+          (${amir}, 'wrong', false, ${sha("ip:a")}, ${sha("ua:a")}, 'Chrome · Windows', ${new Date(now - 90_000)}),
+          (${amir}, 'login', true, ${sha("ip:a")}, ${sha("ua:a")}, 'Chrome · Windows', ${new Date(now - 60_000)})`;
+// Живой код входа в консоль: бота нет, поэтому код кладётся в базу, а ключ HMAC
+// задаётся явно (OWNER_CONSOLE_SECRET ниже) — так e2e проходит ввод кода целиком.
+const ownerSecret = crypto.randomBytes(32).toString("hex");
+const ownerCode = "424242";
+const ownerSalt = crypto.randomBytes(16).toString("hex");
+// Тот же формат, что у hashOwnerCode в src/lib/ownerConsole.ts.
+const ownerCodeHash = crypto
+  .createHmac("sha256", ownerSecret)
+  .update(["code", `${amir}:${ownerSalt}:${ownerCode}`].join("\n"))
+  .digest("hex");
+await sql`insert into owner_login_codes (user_id, code_hash, salt, expires_at)
+          values (${amir}, ${ownerCodeHash}, ${ownerSalt}, ${new Date(now + 60 * 60_000)})`;
+await sql`insert into bot_state (key, data) values ('cron:reminders', ${sql.json({
+  at: now - 300_000, ok: true, due: 1, sent: 1, attendance: 0, calendars: 0, sessions: 0,
+  week: { since: now - 3 * 86_400_000, due: 9, sent: 8 },
+})})`;
 await sql.end();
 
 const url = `http://localhost:${SITE_PORT}`;
-const state = { slug: "smoke001", token, tokenEmpty, url, weekday };
+const state = { slug: "smoke001", token, tokenEmpty, ownerToken, ownerCode, url, weekday };
 await mkdir(new URL("../../e2e/", import.meta.url), { recursive: true });
 await writeFile(new URL("../../e2e/.state.json", import.meta.url), JSON.stringify(state));
 console.log(`[e2e] база на ${DB_PORT}, сайт на ${url}, вход: кука qairu_token=${token}`);
@@ -115,7 +144,7 @@ console.log(`[e2e] база на ${DB_PORT}, сайт на ${url}, вход: к�
 const next = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start", "-p", String(SITE_PORT)], {
   stdio: "inherit",
   // PGlite принимает одно соединение — пул сайта под это.
-  env: { ...process.env, DATABASE_URL, DATABASE_POOL_MAX: "1", NEXT_PUBLIC_SITE_URL: url, BOT_TOKEN: "", DESIGN_SPECIMEN: "1" },
+  env: { ...process.env, DATABASE_URL, DATABASE_POOL_MAX: "1", NEXT_PUBLIC_SITE_URL: url, BOT_TOKEN: "", DESIGN_SPECIMEN: "1", OWNER_IDS: String(amir), ALERT_CHAT_ID: "", OWNER_CONSOLE_SECRET: ownerSecret },
 });
 const stop = async () => {
   next.kill();

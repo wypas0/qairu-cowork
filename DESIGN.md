@@ -121,6 +121,9 @@ meetings(id PK, chat_id, initiator_id, place, when_text, when_start,
 meeting_responses(meeting_id, user_id, answer yes|no|change,
                   comment, responded_at)                        PK(meeting_id,user_id)
 bot_state(key PK, data jsonb, updated_at)                       -- шаги диалогов бота
+owner_login_codes(user_id PK, code_hash, salt, attempts, expires_at) -- код в консоль: только HMAC
+owner_sessions(token_hash PK, user_id, web_token_hash, expires_at)   -- сессия консоли: только SHA-256
+owner_audit(id PK, user_id, event, ok, ip_hash, ua_hash, device)     -- журнал входов в консоль
 ```
 
 Замечания:

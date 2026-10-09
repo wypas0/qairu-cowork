@@ -15,3 +15,22 @@ export function isOwnOrDirect(headers: Pick<Headers, "get">): boolean {
   if (site === "same-origin") return true;
   return site === "none" && headers.get("sec-fetch-mode") === "navigate";
 }
+
+/**
+ * Серверное действие пришло с нашей же страницы. Next сам сверяет Origin с
+ * Host, но пропускает запрос вовсе без Origin; для консоли владельца этого
+ * мало. Браузер, который не прислал ни Sec-Fetch-Site, ни Origin, — отказ.
+ */
+export function isSameOriginPost(headers: Pick<Headers, "get">): boolean {
+  const site = headers.get("sec-fetch-site");
+  if (site) return site === "same-origin";
+  const origin = headers.get("origin");
+  if (!origin) return false;
+  let host: string;
+  try {
+    host = new URL(origin).host;
+  } catch {
+    return false;
+  }
+  return [headers.get("x-forwarded-host"), headers.get("host")].some((value) => value === host);
+}

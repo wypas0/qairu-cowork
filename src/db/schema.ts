@@ -310,6 +310,64 @@ export const botState = pgTable("bot_state", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }).enableRLS();
 
+/**
+ * Консоль владельца (/admin) — второй фактор поверх входа через Telegram.
+ *
+ * Одноразовый код от бота: в базе только HMAC-SHA256 кода с солью и ключом,
+ * которого в базе нет (lib/ownerConsole). У владельца не больше одного живого
+ * кода: новый заменяет прежний. attempts — сколько раз его пытались ввести.
+ */
+export const ownerLoginCodes = pgTable("owner_login_codes", {
+  userId: bigint("user_id", { mode: "number" })
+    .primaryKey()
+    .references(() => users.userId, { onDelete: "cascade" }),
+  codeHash: varchar("code_hash", { length: 64 }).notNull(),
+  salt: varchar("salt", { length: 32 }).notNull(),
+  attempts: integer("attempts").notNull().default(0),
+  createdAt: createdAt(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+}).enableRLS();
+
+/**
+ * Сессия консоли (кука `qairu_owner`, путь /admin). Как и у web_sessions —
+ * только SHA-256 токена. Привязана к человеку и к его сессии сайта
+ * (web_token_hash): выход с сайта гасит и консоль. Срок жёсткий, без продления.
+ */
+export const ownerSessions = pgTable(
+  "owner_sessions",
+  {
+    tokenHash: varchar("token_hash", { length: 64 }).primaryKey(),
+    userId: bigint("user_id", { mode: "number" })
+      .notNull()
+      .references(() => users.userId, { onDelete: "cascade" }),
+    webTokenHash: varchar("web_token_hash", { length: 64 }).notNull(),
+    createdAt: createdAt(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [index("ix_owner_sessions_user_id").on(table.userId)],
+).enableRLS();
+
+/**
+ * Журнал входов в консоль: код выслан, вход, неверный код, выход. Адрес и
+ * браузер — только ключевым хешем (сырые не хранятся), плюс грубая метка
+ * «Chrome · Windows», чтобы владелец узнал своё устройство.
+ */
+export const ownerAudit = pgTable(
+  "owner_audit",
+  {
+    id: serial("id").primaryKey(),
+    userId: bigint("user_id", { mode: "number" }).notNull(),
+    // code_sent | send_failed | login | wrong | expired | locked | throttled | logout | logout_all
+    event: varchar("event", { length: 16 }).notNull(),
+    ok: boolean("ok").notNull(),
+    ipHash: varchar("ip_hash", { length: 64 }).notNull().default(""),
+    uaHash: varchar("ua_hash", { length: 64 }).notNull().default(""),
+    device: varchar("device", { length: 48 }).notNull().default(""),
+    createdAt: createdAt(),
+  },
+  (table) => [index("ix_owner_audit_created_at").on(table.createdAt)],
+).enableRLS();
+
 export const usersRelations = relations(users, ({ many }) => ({
   slots: many(busySlots),
 }));

@@ -1,0 +1,302 @@
+/* Консоль владельца (/admin): вход кодом, сводка, плитки счётчиков, графики.
+   Только токены — ни одного своего цвета. Графики — inline SVG, цвет данных
+   один (--accent): это величина, а не категории. */
+
+/* --- плитки счётчиков --- */
+.stats-grid {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  align-items: start;
+}
+.stats-tile {
+  margin-bottom: 0;
+  min-width: 0;
+}
+.stats-tile h2 {
+  margin-bottom: 4px;
+}
+.stats-tile dl {
+  display: grid;
+  gap: 8px;
+  margin: 8px 0 0;
+}
+.stats-tile dl > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.stats-tile dl > div:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+.stats-tile dd {
+  margin: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+/* Плитка во всю строку сетки: хранилище, журнал входов. */
+.owner-wide {
+  grid-column: 1 / -1;
+}
+.owner-hint {
+  margin: 12px 0 0;
+  overflow-wrap: anywhere;
+}
+
+/* --- шапка: срок сессии и выход --- */
+.owner-session {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+}
+.owner-session p {
+  margin: 0;
+}
+.owner-session-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+@media (max-width: 639px) {
+  .owner-session {
+    justify-items: start;
+  }
+  .owner-session-actions {
+    justify-content: flex-start;
+  }
+}
+
+/* --- вход кодом --- */
+.owner-gate {
+  max-width: 520px;
+}
+.owner-gate h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.owner-code-form {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.owner-code-form .field {
+  flex: 1 1 200px;
+  margin-bottom: 0;
+}
+/* Кнопка — вровень с полем, а не с подписью над ним. */
+.owner-code-form > .btn {
+  margin-top: 26px;
+}
+.owner-code-input {
+  font-size: 22px;
+  letter-spacing: 0.3em;
+}
+.owner-code-until {
+  margin: 6px 0 0;
+}
+
+/* --- сводка: пять главных чисел --- */
+.owner-kpis {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  margin-bottom: 20px;
+}
+.owner-kpi {
+  margin-bottom: 0;
+  padding: 16px;
+}
+.owner-kpi p {
+  margin: 0;
+}
+.owner-kpi-value {
+  font-size: 28px;
+  line-height: 34px;
+  font-weight: 600;
+  margin: 4px 0 2px !important;
+}
+.owner-kpi-sub {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.owner-warn {
+  color: var(--warning);
+}
+
+/* --- график регистраций --- */
+.owner-signups .card-head p {
+  margin: 0;
+}
+.owner-chart {
+  margin: 0;
+}
+.owner-chart-plot {
+  position: relative;
+  padding-top: 18px;
+}
+.owner-chart-max {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+.owner-chart svg {
+  display: block;
+  width: 100%;
+  height: 160px;
+}
+.owner-grid {
+  stroke: var(--border);
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+}
+.owner-axis {
+  stroke: var(--hairline);
+  stroke-width: 1;
+}
+.owner-bar-hit {
+  fill: transparent;
+}
+.owner-bar-fill {
+  fill: var(--accent);
+}
+.owner-bar:hover .owner-bar-hit {
+  fill: var(--hover);
+}
+.owner-chart-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+}
+.owner-table-toggle {
+  margin-top: 12px;
+}
+.owner-table-toggle summary {
+  cursor: pointer;
+  color: var(--muted);
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+}
+.owner-table-toggle .owner-table {
+  max-width: 320px;
+  margin-top: 8px;
+}
+
+/* --- доли: подпись, число, тонкая полоса --- */
+.owner-shares {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+.owner-share-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.owner-value {
+  font-weight: 600;
+}
+.owner-share-track,
+.owner-meter {
+  height: 6px;
+  margin-top: 6px;
+  border-radius: var(--r-full);
+  background: var(--seg-fill);
+  overflow: hidden;
+}
+.owner-share-fill,
+.owner-meter-fill {
+  height: 100%;
+  border-radius: var(--r-full);
+  background: var(--accent);
+}
+.owner-meter {
+  height: 10px;
+  margin: 8px 0 16px;
+}
+.owner-meter-warning .owner-meter-fill {
+  background: var(--warning);
+}
+.owner-meter-danger .owner-meter-fill {
+  background: var(--danger);
+}
+.owner-notice {
+  align-items: flex-start;
+}
+
+/* --- таблицы: хранилище, регистрации --- */
+.owner-table-wrap {
+  overflow-x: auto;
+}
+.owner-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  line-height: 20px;
+}
+.owner-table th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--muted);
+  font-size: 13px;
+}
+.owner-table th,
+.owner-table td {
+  padding: 6px 12px 6px 0;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.owner-table tr:last-child td {
+  border-bottom: 0;
+}
+.owner-table th:not(:first-child),
+.owner-table td:not(:first-child) {
+  text-align: right;
+  padding-right: 0;
+  padding-left: 12px;
+}
+
+/* --- журнал входов --- */
+.owner-events {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+}
+.owner-events li {
+  display: grid;
+  grid-template-columns: 18px 110px minmax(120px, 1fr) minmax(0, 1.4fr);
+  align-items: baseline;
+  gap: 4px 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.owner-events li:last-child {
+  border-bottom: 0;
+}
+.owner-event-icon {
+  color: var(--success);
+}
+.owner-event-bad .owner-event-icon {
+  color: var(--warning);
+}
+@media (max-width: 639px) {
+  .owner-events li {
+    grid-template-columns: 18px 1fr;
+  }
+  .owner-events li > :nth-child(n + 3) {
+    grid-column: 2;
+  }
+}

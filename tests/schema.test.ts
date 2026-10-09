@@ -25,6 +25,8 @@ describe("проверка схемы перед сборкой", () => {
     const expected = expectedSchema(await migrationFiles());
     expect(expected.get("busy_slots")?.get("start_min")).toBe("0000_init.sql");
     expect(expected.get("meetings")?.get("repeat_until")).toBe("0004_recurring_meetings.sql");
+    expect(expected.get("owner_sessions")?.get("web_token_hash")).toBe("0010_owner_console.sql");
+    expect(expectedRls(await migrationFiles()).get("owner_login_codes")).toBe("0010_owner_console.sql");
   });
 
   it("после всех миграций ничего не упущено", async () => {
