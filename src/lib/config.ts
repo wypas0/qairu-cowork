@@ -42,12 +42,26 @@ export function siteUrl(): string {
   return "";
 }
 
+const FALLBACK_TZ = "Asia/Almaty";
+
+/**
+ * Пояс сайта. Пустая переменная в Vercel — то же, что незаданная: `??` её
+ * пропускал, и Intl падал на «Invalid time zone specified: ». Опечатку в
+ * имени пояса тоже не пускаем дальше — её не переварят ни Intl, ни Postgres.
+ */
 export function defaultTz(): string {
-  return (process.env.DEFAULT_TZ ?? "Asia/Almaty").trim();
+  const tz = (process.env.DEFAULT_TZ ?? "").trim();
+  if (!tz) return FALLBACK_TZ;
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: tz });
+    return tz;
+  } catch {
+    return FALLBACK_TZ;
+  }
 }
 
 export function defaultLang(): string {
-  return (process.env.DEFAULT_LANG ?? "ru").trim();
+  return (process.env.DEFAULT_LANG ?? "").trim() || "ru";
 }
 
 /** Секрет для ручного вызова cron-эндпоинта. Vercel подставляет его сам. */
