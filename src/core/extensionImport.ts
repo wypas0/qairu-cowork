@@ -8,6 +8,15 @@
  *   расширение → страница  { source: EXT_SOURCE, type: "campus-slots", id, slots, meetings }
  *   страница → расширение  { source: PAGE_SOURCE, type: "campus-received", id }
  *
+ * С 0.4.0 — «Перенести из кампуса» (ExtensionHint):
+ *
+ *   страница → расширение  { source: PAGE_SOURCE, type: "campus-intent", title, lang }
+ *   расширение → страница  { source: EXT_SOURCE, type: "campus-intent-ok" }
+ *
+ * Расширение запоминает группу (по адресу страницы) на час, сайт открывает
+ * кампус, там расширение само предлагает перенос карточкой и возвращает
+ * человека сюда — с теми же campus-slots на проверку.
+ *
  * Сообщению не доверяем: оно проходит ту же проверку, что сохранение с
  * сайта, вид пары — только из списка распознавания (иначе пришедшее
  * «soft» стало бы «неудобно»), и ничего не сохраняется без кнопки «Сохранить».
@@ -101,8 +110,28 @@ export function readExtensionReport(data: unknown): ExtensionReport | null {
  * расширение само не обновляется, поэтому сайт сравнивает её с присланной
  * расширением и предлагает обновиться. Менять вместе с архивом.
  */
-export const LATEST_EXTENSION = "0.3.0";
+export const LATEST_EXTENSION = "0.4.0";
 export const EXTENSION_ZIP = "/downloads/qairu-schedule-ext.zip";
+/**
+ * Под этим именем архив сохраняется при скачивании. «Извлечь всё» в Windows
+ * и распаковка на macOS кладут файлы в папку с тем же именем — её и выбирают
+ * в «Загрузить распакованное». Без версии: папку при обновлении не меняют.
+ */
+export const EXTENSION_ZIP_NAME = "QairuCowork-extension.zip";
+export const EXTENSION_FOLDER = "QairuCowork-extension";
+/** С этой версии расширение умеет «Перенести из кампуса». */
+export const INTENT_EXTENSION = "0.4.0";
+
+/** Страница расписания кампуса на языке сайта (кампус говорит на тех же трёх). */
+export function campusScheduleUrl(lang: string): string {
+  const locale = lang === "kk" || lang === "en" ? lang : "ru";
+  return `https://campus.qairu.edu.kz/${locale}/schedule`;
+}
+
+/** Версия расширения умеет «Перенести из кампуса». */
+export function supportsIntent(version: string | null): boolean {
+  return !!version && !olderVersion(version, INTENT_EXTENSION);
+}
 
 /** Версия a старше b («0.1.0» < «0.2.0»). */
 export function olderVersion(a: string, b: string): boolean {

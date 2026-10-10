@@ -134,6 +134,7 @@ export default async function MySchedulePage({
 
         <ExtensionHint
           lang={lang}
+          title={chat.title}
           labels={{
             install: t("w_ext_hint"),
             update: t("w_ext_hint_update"),
@@ -141,6 +142,9 @@ export default async function MySchedulePage({
             later: t("w_ext_hint_later"),
             changed: t("w_ext_changed", { added: "{added}", removed: "{removed}" }),
             pull: t("w_ext_pull"),
+            transferLead: t("w_ext_transfer_lead"),
+            transfer: t("w_ext_transfer"),
+            transferSent: t("w_ext_transfer_sent"),
           }}
         />
 

@@ -11,6 +11,10 @@ import {
   olderVersion,
   readExtensionMessage,
   readExtensionReport,
+  EXTENSION_FOLDER,
+  EXTENSION_ZIP_NAME,
+  campusScheduleUrl,
+  supportsIntent,
 } from "@/core/extensionImport";
 
 const message = (patch: Record<string, unknown> = {}) => ({
@@ -136,5 +140,27 @@ describe("olderVersion", () => {
     expect(olderVersion("0.2.0", "0.2.0")).toBe(false);
     expect(olderVersion("1.0.0", "0.9.9")).toBe(false);
     expect(olderVersion(LATEST_EXTENSION, LATEST_EXTENSION)).toBe(false);
+  });
+});
+
+describe("«Перенести из кампуса»", () => {
+  it("кнопка — только у расширения, которое это умеет (с 0.4.0)", () => {
+    expect(supportsIntent(null)).toBe(false);
+    expect(supportsIntent("0.3.0")).toBe(false);
+    expect(supportsIntent("0.4.0")).toBe(true);
+    expect(supportsIntent("0.10.0")).toBe(true);
+    expect(supportsIntent(LATEST_EXTENSION)).toBe(true);
+  });
+
+  it("кампус открывается на языке сайта", () => {
+    expect(campusScheduleUrl("ru")).toBe("https://campus.qairu.edu.kz/ru/schedule");
+    expect(campusScheduleUrl("kk")).toBe("https://campus.qairu.edu.kz/kk/schedule");
+    expect(campusScheduleUrl("en")).toBe("https://campus.qairu.edu.kz/en/schedule");
+    expect(campusScheduleUrl("de")).toBe("https://campus.qairu.edu.kz/ru/schedule");
+  });
+
+  it("архив сохраняется под понятным именем, папка — без версии", () => {
+    expect(EXTENSION_ZIP_NAME).toBe(`${EXTENSION_FOLDER}.zip`);
+    expect(EXTENSION_FOLDER).not.toMatch(/\d/);
   });
 });
