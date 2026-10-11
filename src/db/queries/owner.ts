@@ -139,6 +139,7 @@ export type OwnerEvent =
   | "throttled"
   | "logout"
   | "logout_all"
+  | "group_delete"
   | OwnerViewEvent;
 
 /** Просмотр карточки в консоли: человека или группы. */
@@ -148,6 +149,8 @@ export const OWNER_VIEW_EVENTS: OwnerViewEvent[] = ["user_view", "group_view"];
 export type OwnerAuditRow = {
   event: OwnerEvent;
   ok: boolean;
+  /** У действий над данными (удаление группы) — id того, над чем. */
+  targetId: number | null;
   ipHash: string;
   device: string;
   createdAt: Date;
@@ -176,6 +179,7 @@ export async function recentOwnerEvents(limit = 12, exec?: Exec): Promise<OwnerA
     .select({
       event: ownerAudit.event,
       ok: ownerAudit.ok,
+      targetId: ownerAudit.targetId,
       ipHash: ownerAudit.ipHash,
       device: ownerAudit.device,
       createdAt: ownerAudit.createdAt,
@@ -184,7 +188,7 @@ export async function recentOwnerEvents(limit = 12, exec?: Exec): Promise<OwnerA
     .where(notInArray(ownerAudit.event, OWNER_VIEW_EVENTS))
     .orderBy(desc(ownerAudit.createdAt), desc(ownerAudit.id))
     .limit(limit);
-  return rows as OwnerAuditRow[];
+  return rows.map((row) => ({ ...row, targetId: row.targetId === null ? null : Number(row.targetId) })) as OwnerAuditRow[];
 }
 
 export type OwnerViewRow = {

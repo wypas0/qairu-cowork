@@ -26,7 +26,7 @@ import "server-only";
 
 import crypto from "node:crypto";
 
-import { sendMessage } from "@/bot/api";
+import { sendMessage, tryCall } from "@/bot/api";
 import { escapeHtml } from "@/core/textutils";
 import * as repo from "@/db/repo";
 import type { User } from "@/db/schema";
@@ -282,4 +282,47 @@ export async function logOwnerView(
   client: ClientInfo,
 ): Promise<void> {
   await repo.logOwnerEvent({ userId: ownerId, event, ok: true, targetId, ...fingerprint(client) });
+}
+
+export type DeleteGroupResult =
+  | { status: "ok"; group: repo.DeletedGroup; left: boolean }
+  | { status: "mismatch" | "missing" };
+
+/** Что ввести, чтобы подтвердить удаление: код группы, а у группы без кода — её id. */
+export function groupConfirmWord(chat: { chatId: number; slug: string | null }): string {
+  return chat.slug ?? String(chat.chatId);
+}
+
+/**
+ * Удалить группу из консоли. Подтверждение — код группы, набранный руками
+ * (регистр и пробелы по краям не важны): случайный клик или чужая форма
+ * группу не снесут. Из Telegram-группы бот по желанию сначала выходит —
+ * иначе первая же команда в чате заведёт группу заново, пустой.
+ * Итог — запись group_delete в журнал консоли и алерт владельцу.
+ */
+export async function deleteGroupFromConsole(
+  ownerId: number,
+  chatId: number,
+  confirm: string,
+  leaveTelegram: boolean,
+  client: ClientInfo,
+): Promise<DeleteGroupResult> {
+  const chat = await repo.getChat(chatId);
+  if (!chat) return { status: "missing" };
+  if (confirm.trim().toLowerCase() !== groupConfirmWord(chat).toLowerCase()) return { status: "mismatch" };
+
+  const telegram = chat.origin === "telegram";
+  const left = telegram && leaveTelegram && hasBot() ? (await tryCall<boolean>("leaveChat", { chat_id: chatId })) === true : false;
+  const group = await repo.deleteOwnerGroup(chatId);
+  if (!group) return { status: "missing" };
+
+  const print = fingerprint(client);
+  await repo.logOwnerEvent({ userId: ownerId, event: "group_delete", ok: true, targetId: chatId, ...print });
+  await reportOwnerConsole(ownerId, [
+    "🗑 <b>Консоль: группа удалена</b>",
+    `«${escapeHtml(group.title || group.slug || String(chatId))}» · участников ${group.members} · встреч ${group.meetings}`,
+    telegram ? (left ? "Бот вышел из Telegram-группы." : "Бот остался в Telegram-группе.") : "Группа с сайта.",
+    `${escapeHtml(print.device)} · адрес #${ipTag(print.ipHash)}`,
+  ]);
+  return { status: "ok", group, left };
 }

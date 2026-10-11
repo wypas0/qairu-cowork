@@ -138,7 +138,7 @@ test.describe("консоль владельца", () => {
     await expect(page.locator(".owner-rows tbody tr")).toHaveCount(5);
     await expect(page.locator(".owner-rows").getByRole("link", { name: "@amir_k" })).toBeVisible();
     await page.getByRole("link", { name: "Все группы" }).click();
-    await expect(page.locator(".owner-rows tbody tr")).toHaveCount(5);
+    await expect(page.locator(".owner-rows tbody tr")).toHaveCount(6);
     // Число на фильтре совпадает со строками (другие e2e вступают в группы, точное число не фиксируем).
     const live = page.getByRole("link", { name: /^Живые/ });
     const liveCount = Number(await live.locator(".owner-chip-count").textContent());
@@ -174,6 +174,35 @@ test.describe("консоль владельца", () => {
     await expect(cell).toHaveCSS("display", "flex");
   });
 
+  test("удаление группы: код подтверждения, бот, журнал", async ({ page, context }) => {
+    const { ownerToken, url } = tokens();
+    await context.addCookies([ownerCookie(ownerToken, url)]);
+    const chatId = String(-(10 ** 12) - 606);
+
+    await page.goto(`/admin/groups/${chatId}`);
+    const danger = page.locator(".owner-danger");
+    await expect(danger.getByRole("heading", { name: "Удаление группы" })).toBeVisible();
+    // Группа из Telegram: галочка «бот выйдет» стоит сразу.
+    await expect(danger.getByRole("checkbox")).toBeChecked();
+
+    // Не тот код — группа на месте, ошибка тостом.
+    await danger.getByLabel(/введи «smoke006»/).fill("smoke007");
+    await danger.getByRole("button", { name: "Удалить группу" }).click();
+    await expect(page.locator(".toast")).toContainText("Подтверждение не совпало");
+    await expect(page.getByRole("heading", { name: "Старый чат" })).toBeVisible();
+
+    await danger.getByLabel(/введи «smoke006»/).fill("smoke006");
+    await danger.getByRole("button", { name: "Удалить группу" }).click();
+    await expect(page).toHaveURL(/\/admin\/groups$/);
+    await expect(page.locator(".toast")).toContainText("Группа удалена");
+    await expect(page.locator(".owner-rows tbody")).not.toContainText("Старый чат");
+    expect((await page.goto(`/admin/groups/${chatId}`))?.status()).toBe(404);
+
+    await page.goto("/admin/system");
+    await expect(page.locator(".owner-events:not(.owner-views) li").first()).toContainText(`группа удалена`);
+    await expect(page.locator(".owner-events:not(.owner-views) li").first()).toContainText(`id ${chatId}`);
+  });
+
   test("с сессией консоли — метрики; «Система»; выход отзывает сессию на сервере", async ({ page, context }) => {
     const { ownerToken, url } = tokens();
     await context.addCookies([ownerCookie(ownerToken, url)]);
@@ -198,10 +227,11 @@ test.describe("консоль владельца", () => {
     await page.goto("/admin/system");
     await expect(page.getByRole("heading", { name: "Хранилище" })).toBeVisible();
     await expect(page.locator(".owner-table").getByRole("cell", { name: "owner_sessions" })).toBeVisible();
-    // Журнал входов: свежий вход сверху (засеянный или из теста с кодом), адрес — меткой хеша.
+    // Журнал входов: вход есть (засеянный или из теста с кодом), адрес — меткой хеша.
     const logins = page.locator(".owner-events:not(.owner-views) li");
-    await expect(logins.first()).toContainText("вход");
-    await expect(logins.first()).toContainText(/#[0-9a-f]{8}/);
+    const login = logins.filter({ hasText: "вход" }).first();
+    await expect(login).toBeVisible();
+    await expect(login).toContainText(/#[0-9a-f]{8}/);
     await expect(page.getByText("8 / 9 · 89%")).toBeVisible();
 
     // Выход с вкладки возвращает на неё же — уже с формой кода.

@@ -334,3 +334,85 @@ describe("статистика консоли", () => {
     expect((await repo.lastCronRun())?.week).toMatchObject({ due: 1, sent: 1 });
   });
 });
+
+describe("удаление группы", () => {
+  /** Группа со встречей, ответом, отметкой посещения, уведомлением и черновиком бота. */
+  async function seedGroup(chatId: number, origin: "telegram" | "web", slug: string | null) {
+    const { getDb } = await import("@/db/client");
+    const { sql } = await import("drizzle-orm");
+    const db = getDb();
+    await db.execute(sql`insert into chats (chat_id, slug, origin, title) values (${chatId}, ${slug}, ${origin}, 'Удаляемая')`);
+    await db.execute(sql`insert into memberships (chat_id, user_id, role) values (${chatId}, ${OWNER}, 'admin'), (${chatId}, ${OUTSIDER}, 'member')`);
+    const { rowsOf } = await import("@/db/queries/rows");
+    const [meeting] = rowsOf(await db.execute(sql`
+      insert into meetings (chat_id, initiator_id, when_text, when_start, goal, invitees, status)
+      values (${chatId}, ${OWNER}, 'x', now() + interval '1 day', 'цель', ${`${OWNER},${OUTSIDER}`}, 'open') returning id`)) as { id: number }[];
+    await db.execute(sql`insert into meeting_responses (meeting_id, user_id, answer) values (${meeting.id}, ${OUTSIDER}, 'yes')`);
+    await db.execute(sql`insert into meeting_attendance (meeting_id, occurrence, user_id, attended) values (${meeting.id}, current_date, ${OWNER}, true)`);
+    await db.execute(sql`insert into notices (chat_id, user_id, kind) values (${chatId}, ${OUTSIDER}, 'meeting')`);
+    const { repo } = await mods();
+    await repo.setBotState(`mtg:${chatId}:${OWNER}`, { draft: true });
+    await repo.setBotState(`tgadmins:${chatId}`, { ids: [OWNER] });
+    // Чужая группа с похожим id: её ключ остаться обязан.
+    await repo.setBotState(`mtg:${chatId}1:${OWNER}`, { draft: true });
+    return meeting.id;
+  }
+
+  async function count(table: string, where: string): Promise<number> {
+    const { getDb } = await import("@/db/client");
+    const { sql } = await import("drizzle-orm");
+    const { rowsOf } = await import("@/db/queries/rows");
+    const rows = rowsOf(await getDb().execute(sql.raw(`select count(*)::int as n from ${table} where ${where}`))) as { n: number }[];
+    return rows[0].n;
+  }
+
+  it("неверное подтверждение — ничего не удалено; верное — группа, встречи, ответы и черновики, люди остаются", async () => {
+    const { repo, console } = await mods();
+    const chatId = -(10 ** 15) - 7001;
+    const meetingId = await seedGroup(chatId, "web", "delme01");
+
+    expect(await console.deleteGroupFromConsole(OWNER, chatId, "delme02", false, client)).toEqual({ status: "mismatch" });
+    expect(await repo.getChat(chatId)).not.toBeNull();
+
+    stub.reset();
+    const result = await console.deleteGroupFromConsole(OWNER, chatId, "  DELME01 ", true, client);
+    expect(result).toMatchObject({ status: "ok", left: false, group: { members: 2, meetings: 1, title: "Удаляемая" } });
+    // Группа с сайта: из чата выходить не из чего.
+    expect(stub.of("leaveChat")).toHaveLength(0);
+    expect(await repo.getChat(chatId)).toBeNull();
+    expect(await count("memberships", `chat_id = ${chatId}`)).toBe(0);
+    expect(await count("meetings", `chat_id = ${chatId}`)).toBe(0);
+    expect(await count("meeting_responses", `meeting_id = ${meetingId}`)).toBe(0);
+    expect(await count("meeting_attendance", `meeting_id = ${meetingId}`)).toBe(0);
+    expect(await count("notices", `chat_id = ${chatId}`)).toBe(0);
+    expect(await repo.getBotState(`mtg:${chatId}:${OWNER}`)).toBeNull();
+    expect(await repo.getBotState(`tgadmins:${chatId}`)).toBeNull();
+    expect(await repo.getBotState(`mtg:${chatId}1:${OWNER}`)).not.toBeNull();
+    expect(await count("users", `user_id in (${OWNER}, ${OUTSIDER})`)).toBe(2);
+
+    // Журнал и алерт владельцу.
+    const [event] = await repo.recentOwnerEvents(1);
+    expect(event).toMatchObject({ event: "group_delete", ok: true, targetId: chatId });
+    expect(stub.lastText()).toContain("группа удалена");
+    // Второй раз — группы уже нет.
+    expect(await console.deleteGroupFromConsole(OWNER, chatId, "delme01", false, client)).toEqual({ status: "missing" });
+  });
+
+  it("Telegram-группа: бот выходит из чата, если отмечено; подтверждение без кода — id", async () => {
+    const { repo, console } = await mods();
+    const stays = -(10 ** 12) - 7002;
+    await seedGroup(stays, "telegram", null);
+    stub.reset();
+    expect((await console.deleteGroupFromConsole(OWNER, stays, String(stays), false, client)).status).toBe("ok");
+    expect(stub.of("leaveChat")).toHaveLength(0);
+    expect(stub.lastText()).toContain("Бот остался");
+
+    const leaves = -(10 ** 12) - 7003;
+    await seedGroup(leaves, "telegram", null);
+    stub.reset();
+    const result = await console.deleteGroupFromConsole(OWNER, leaves, String(leaves), true, client);
+    expect(result).toMatchObject({ status: "ok", left: true });
+    expect(stub.last("leaveChat")?.payload.chat_id).toBe(leaves);
+    expect(await repo.getChat(leaves)).toBeNull();
+  });
+});

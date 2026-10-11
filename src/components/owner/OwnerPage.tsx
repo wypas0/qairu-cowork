@@ -23,7 +23,7 @@ const TABS: { key: OwnerTab; href: string; label: string }[] = [
   { key: "system", href: "/admin/system", label: "w_owner_tab_system" },
 ];
 
-const FLASH_OK: Record<string, string> = { sent: "w_owner_sent", in: "w_owner_in", out: "w_owner_out" };
+const FLASH_OK: Record<string, string> = { sent: "w_owner_sent", in: "w_owner_in", out: "w_owner_out", deleted: "w_owner_deleted_ok" };
 const FLASH_ERR: Record<string, string> = {
   wrong: "w_owner_err_wrong",
   format: "w_owner_err_format",
@@ -33,6 +33,8 @@ const FLASH_ERR: Record<string, string> = {
   throttled: "w_owner_err_throttled",
   send_failed: "w_owner_err_send_failed",
   no_bot: "w_owner_no_bot",
+  confirm: "w_owner_err_confirm",
+  gone: "w_owner_err_gone",
 };
 
 /** Что получает тело страницы консоли: только когда консоль открыта. */
@@ -87,7 +89,7 @@ export function ownerPage(
           <FlashToast
             message={errKey ? t(errKey, { left }) : okKey ? t(okKey) : null}
             tone={errKey ? "error" : "ok"}
-            params={["sent", "in", "out", "err", "left"]}
+            params={["sent", "in", "out", "err", "left", "deleted"]}
           />
           <header className="page-head">
             <div>

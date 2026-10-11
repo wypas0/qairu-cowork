@@ -3,7 +3,13 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { endAllOwnerSessions, endOwnerSession, requestOwnerCode, verifyOwnerCode } from "@/lib/ownerConsole";
+import {
+  deleteGroupFromConsole,
+  endAllOwnerSessions,
+  endOwnerSession,
+  requestOwnerCode,
+  verifyOwnerCode,
+} from "@/lib/ownerConsole";
 import {
   clearOwnerCookie,
   clientInfo,
@@ -12,7 +18,7 @@ import {
   ownerViewer,
   setOwnerCookie,
 } from "@/lib/ownerGate";
-import { safeOwnerPath } from "@/lib/ownerQuery";
+import { parseEntityId, safeOwnerPath } from "@/lib/ownerQuery";
 import { isSameOriginPost } from "@/lib/secFetch";
 
 /**
@@ -72,4 +78,25 @@ export async function logoutAllOwnerAction(formData?: FormData): Promise<void> {
   await endAllOwnerSessions(viewer.user.userId, viewer.webToken, await clientInfo());
   await clearOwnerCookie();
   back(formData, { out: "all" });
+}
+
+/**
+ * Удалить группу. Только из открытой консоли (второй фактор), как и
+ * «Завершить все сессии»: одной сессии сайта владельца для этого мало.
+ * Неверное подтверждение — назад в карточку с ошибкой; удалена — в список групп.
+ */
+export async function deleteGroupAction(formData: FormData): Promise<void> {
+  const viewer = await owner();
+  if (!(await currentOwnerSession(viewer))) redirect("/admin");
+  const chatId = parseEntityId(String(formData.get("chat_id") ?? ""));
+  if (chatId === null) redirect("/admin/groups");
+  const result = await deleteGroupFromConsole(
+    viewer.user.userId,
+    chatId,
+    String(formData.get("confirm") ?? "").slice(0, 64),
+    formData.get("leave") === "on",
+    await clientInfo(),
+  );
+  if (result.status === "mismatch") redirect(`/admin/groups/${chatId}?err=confirm`);
+  redirect(result.status === "ok" ? "/admin/groups?deleted=1" : "/admin/groups?err=gone");
 }

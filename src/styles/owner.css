@@ -745,3 +745,39 @@
 .owner-views a {
   color: var(--text);
 }
+
+/* --- удаление группы: отдельная карточка, кнопка опасного действия --- */
+.owner-danger {
+  margin-top: 20px;
+  border-color: color-mix(in srgb, var(--danger) 40%, var(--border));
+}
+.owner-danger h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--danger);
+}
+.owner-danger-form {
+  display: grid;
+  gap: 12px;
+  max-width: 420px;
+  margin-top: 12px;
+}
+.owner-danger-form .field {
+  margin: 0;
+}
+.owner-danger-form > .btn {
+  justify-self: start;
+}
+.owner-danger-leave {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.owner-danger-leave input {
+  margin-top: 3px;
+}
+.owner-danger-leave > span {
+  display: grid;
+  gap: 2px;
+}

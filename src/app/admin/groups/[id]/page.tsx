@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { IconChevronLeft, IconLock } from "@/components/icons";
+import { deleteGroupAction } from "@/app/admin/actions";
+import { IconAlert, IconChevronLeft, IconLock } from "@/components/icons";
 import { type Fmt, type T, daysSince, originName } from "@/components/owner/format";
 import { Idle, OwnerAvatar, TelegramCell } from "@/components/owner/OwnerList";
 import { ownerPage } from "@/components/owner/OwnerPage";
 import * as repo from "@/db/repo";
 import { displayName } from "@/db/schema";
-import { logOwnerView } from "@/lib/ownerConsole";
+import { groupConfirmWord, logOwnerView } from "@/lib/ownerConsole";
 import { clientInfo, ownerMetadata } from "@/lib/ownerGate";
 import { parseEntityId } from "@/lib/ownerQuery";
 
@@ -181,9 +182,54 @@ function GroupCard({ t, fmt, detail, now }: { t: T; fmt: Fmt; detail: repo.Owner
         </section>
       </div>
 
+      <DeleteGroup t={t} group={group} />
+
       <p className="small muted owner-privacy">
         <IconLock size={14} /> {t("w_owner_group_privacy")}
       </p>
     </>
+  );
+}
+
+/**
+ * Удаление группы: подтверждение — её код, набранный руками (проверяет
+ * сервер, а не браузер). Обычная форма без своего JS: работает и в мини-аппе.
+ */
+function DeleteGroup({ t, group }: { t: T; group: repo.OwnerGroupDetail["group"] }) {
+  const word = groupConfirmWord(group);
+  return (
+    <section className="card owner-danger" aria-labelledby="owner-danger-title">
+      <h2 id="owner-danger-title">
+        <IconAlert size={18} /> {t("w_owner_danger")}
+      </h2>
+      <p className="small muted">{t("w_owner_danger_lead")}</p>
+      <form action={deleteGroupAction} className="owner-danger-form">
+        <input type="hidden" name="chat_id" value={group.chatId} />
+        <div className="field">
+          <label htmlFor="owner-danger-confirm">{t("w_owner_danger_confirm", { word })}</label>
+          <input
+            id="owner-danger-confirm"
+            name="confirm"
+            type="text"
+            required
+            autoComplete="off"
+            spellCheck={false}
+            maxLength={64}
+          />
+        </div>
+        {group.origin === "telegram" && (
+          <label className="owner-danger-leave">
+            <input type="checkbox" name="leave" defaultChecked />
+            <span>
+              {t("w_owner_danger_leave")}
+              <span className="small muted">{t("w_owner_danger_leave_hint")}</span>
+            </span>
+          </label>
+        )}
+        <button className="btn btn-danger" type="submit">
+          {t("w_owner_danger_btn")}
+        </button>
+      </form>
+    </section>
   );
 }

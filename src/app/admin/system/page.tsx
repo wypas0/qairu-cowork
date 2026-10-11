@@ -139,6 +139,7 @@ export default ownerPage("system", async ({ t, fmt }) => {
                 <span className="tnum small">{fmt.dateTime(event.createdAt)}</span>
                 <span>{t(`w_owner_ev_${event.event}`)}</span>
                 <span className="small muted">
+                  {event.targetId !== null && <span className="tnum">id {event.targetId} · </span>}
                   {event.device}
                   {event.ipHash && ` · #${ipTag(event.ipHash)}`}
                 </span>

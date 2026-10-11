@@ -50,6 +50,8 @@ const chat = -(10 ** 15) - 111;
 const chat2 = -(10 ** 15) - 555;
 // Группы, где Амира нет: вступление по ссылке — прямой переход и переход с чужого сайта.
 const [chat3, chat4, chat5] = [-(10 ** 15) - 777, -(10 ** 15) - 888, -(10 ** 15) - 999];
+// Группа из Telegram для теста удаления из консоли.
+const chat6 = -(10 ** 12) - 606;
 const [amir, asel, bolat, dana, erlan] = [1001, 1002, 1003, 1004, 1005];
 const token = crypto.randomBytes(32).toString("base64url");
 // Болат ещё не заполнил расписание: вход им — пустой редактор.
@@ -60,7 +62,8 @@ await sql`insert into chats (chat_id, slug, origin, title, lang, tz, created_by)
                  (${chat2}, 'smoke002', 'web', 'Дипломники', 'ru', ${TZ}, ${asel}),
                  (${chat3}, 'smoke003', 'web', 'Кружок', 'ru', ${TZ}, ${asel}),
                  (${chat4}, 'smoke004', 'web', 'Сборная', 'ru', ${TZ}, ${asel}),
-                 (${chat5}, 'smoke005', 'web', 'Хор', 'ru', ${TZ}, ${asel})`;
+                 (${chat5}, 'smoke005', 'web', 'Хор', 'ru', ${TZ}, ${asel}),
+                 (${chat6}, 'smoke006', 'telegram', 'Старый чат', 'ru', ${TZ}, ${erlan})`;
 // Ники в Telegram — у всех, кроме Болата: консоль показывает и ссылку на профиль, и «без ника».
 await sql`insert into users (user_id, username, full_name, lang, is_web) values
           (${amir}, 'amir_k', 'Амир', 'ru', false), (${asel}, 'asel_n', 'Асель', 'ru', false),
@@ -70,7 +73,8 @@ await sql`insert into memberships (chat_id, user_id, role) values
           (${chat}, ${amir}, 'admin'), (${chat}, ${asel}, 'member'), (${chat}, ${bolat}, 'member'),
           (${chat}, ${dana}, 'member'), (${chat}, ${erlan}, 'member'),
           (${chat2}, ${amir}, 'member'), (${chat2}, ${asel}, 'admin'),
-          (${chat3}, ${asel}, 'admin'), (${chat4}, ${asel}, 'admin'), (${chat5}, ${asel}, 'admin')`;
+          (${chat3}, ${asel}, 'admin'), (${chat4}, ${asel}, 'admin'), (${chat5}, ${asel}, 'admin'),
+          (${chat6}, ${erlan}, 'admin')`;
 await sql`insert into web_sessions (token_hash, user_id)
           values (${crypto.createHash("sha256").update(token).digest("hex")}, ${amir}),
                  (${crypto.createHash("sha256").update(tokenEmpty).digest("hex")}, ${bolat})`;

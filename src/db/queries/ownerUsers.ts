@@ -23,7 +23,7 @@ import {
   type UserListQuery,
   searchTerm,
 } from "@/lib/ownerQuery";
-import { type Exec, ex } from "./base";
+import { type Exec, ex, transaction } from "./base";
 import { dateOrNull, likePattern, list, num, rowsOf, type Row } from "./rows";
 
 const DAY = 86_400_000;
@@ -672,4 +672,46 @@ export async function ownerGroupDetail(
       attended: num(row.attended),
     },
   };
+}
+
+// --------------------------------------------------------------------------
+// Удаление группы
+// --------------------------------------------------------------------------
+
+export type DeletedGroup = { chatId: number; title: string; slug: string | null; origin: string; members: number; meetings: number };
+
+/**
+ * Удалить группу насовсем — одной транзакцией. Участники, уведомления на
+ * сайте — каскадом от chats; встречи ссылаются на группу без внешнего ключа,
+ * поэтому они (а с ними каскадом ответы и отметки посещения) удаляются явно,
+ * иначе cron напоминал бы о встречах исчезнувшей группы. Черновики и кэши
+ * бота этой группы — по префиксу ключа. Сами люди остаются: у них могут быть
+ * другие группы и своё расписание. null — такой группы нет.
+ */
+export async function deleteOwnerGroup(chatId: number, exec?: Exec): Promise<DeletedGroup | null> {
+  const run = async (tx: Exec): Promise<DeletedGroup | null> => {
+    const found = rowsOf(
+      await tx.execute(sql`
+        select chat_id, title, slug, origin,
+               (select count(*)::int from memberships where chat_id = ${chatId}) as members
+          from chats where chat_id = ${chatId} for update`),
+    )[0];
+    if (!found) return null;
+    const removed = rowsOf(await tx.execute(sql`delete from meetings where chat_id = ${chatId} returning id`));
+    const id = String(chatId);
+    await tx.execute(sql`
+      delete from bot_state
+       where key = ${`tgadmins:${id}`}
+          or key like ${`mtg:${id}:%`} or key like ${`mtgprompt:${id}:%`} or key like ${`chg:${id}:%`}`);
+    await tx.execute(sql`delete from chats where chat_id = ${chatId}`);
+    return {
+      chatId,
+      title: String(found.title ?? ""),
+      slug: (found.slug as string | null) ?? null,
+      origin: String(found.origin ?? ""),
+      members: num(found.members),
+      meetings: removed.length,
+    };
+  };
+  return exec ? run(exec) : transaction(run);
 }
