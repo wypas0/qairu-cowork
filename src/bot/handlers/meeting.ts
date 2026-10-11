@@ -20,6 +20,7 @@ import * as repo from "@/db/repo";
 import type { Chat, Meeting, User } from "@/db/schema";
 import { formatDay, t } from "@/i18n";
 import { isGroupAdmin, isTelegramChat } from "@/lib/admin";
+import { type Budget, UNLIMITED } from "@/lib/budget";
 import { meetingEvent, normalizeDuration } from "@/lib/group";
 import {
   FORCE_REPLY,
@@ -638,21 +639,44 @@ export async function onChangeReply(message: TgMessage): Promise<boolean> {
 // Напоминания
 // --------------------------------------------------------------------------
 
+/** Что сделал проход напоминаний — для консоли владельца и журнала прогона. */
+export type ReminderTally = {
+  /** Сколько напоминаний было к отправке. */
+  due: number;
+  /** Сколько отложено на следующий прогон: кончился бюджет времени. */
+  deferred?: number;
+};
+
 /**
  * Разослать напоминания о встречах, до которых осталось меньше reminder_min.
  *
  * У python-telegram-bot это делала JobQueue внутри живого процесса. На Vercel
- * процесса нет, поэтому задачу выполняет cron, а флаг `reminder_sent` не даёт
- * отправить одно и то же напоминание дважды.
+ * процесса нет, поэтому задачу выполняет cron. Прогоны могут идти одновременно
+ * (внешний пингер, GitHub Actions, cron Vercel), поэтому каждое напоминание
+ * сначала «забирается» атомарной отметкой (`claimReminder`,
+ * `claimRecurringReminder`), и рассылает только тот прогон, который её получил.
+ * Отметка ставится до отправки: повторное напоминание хуже пропущенного.
+ *
+ * `budget` — бюджет времени прогона: новую встречу берём, пока он не кончился,
+ * начатую рассылку доводим до конца запаса. Не взятые встречи остаются
+ * неотмеченными и достаются следующему прогону. Возвращает, сколько дошло.
  */
-/**
- * `tally` — необязательный счётчик для консоли владельца: сколько напоминаний
- * было к отправке (`due`). Возвращается, как и раньше, сколько дошло.
- */
-export async function sendDueReminders(now = new Date(), tally?: { due: number }): Promise<number> {
-  const due: { meeting: Meeting; chat: Chat; when: string }[] = (
-    await repo.meetingsDueForReminder(now)
-  ).map(({ meeting, chat }) => ({ meeting, chat, when: meeting.whenText }));
+export async function sendDueReminders(
+  now = new Date(),
+  tally?: ReminderTally,
+  budget: Budget = UNLIMITED,
+): Promise<number> {
+  // «Сейчас» в момент отметки: `now` — начало прогона, а до отметки может пройти бюджет.
+  const startedAt = Date.now();
+  const current = () => new Date(now.getTime() + (Date.now() - startedAt));
+
+  type Due = { meeting: Meeting; chat: Chat; when: string; claim: () => Promise<boolean> };
+  const due: Due[] = (await repo.meetingsDueForReminder(now)).map(({ meeting, chat }) => ({
+    meeting,
+    chat,
+    when: meeting.whenText,
+    claim: () => repo.claimReminder(meeting.id, current()),
+  }));
 
   // Серии: напоминаем перед ближайшим повтором, если до него осталось не больше
   // порога группы и о нём ещё не напоминали.
@@ -663,28 +687,37 @@ export async function sendDueReminders(now = new Date(), tally?: { due: number }
     if (!next || next.getTime() - now.getTime() > chat.reminderMin * 60_000) continue;
     if (meeting.remindedStart && meeting.remindedStart.getTime() === next.getTime()) continue;
     const wall = utcToZonedWall(next, tz);
-    due.push({ meeting, chat, when: `${formatDay(chat.lang, wall.day)} · ${fmtMinutes(wall.minutes)}` });
-    // Отмечаем именно этот повтор: следующий получит своё напоминание.
-    await repo.updateMeeting(meeting.id, { remindedStart: next });
+    due.push({
+      meeting,
+      chat,
+      when: `${formatDay(chat.lang, wall.day)} · ${fmtMinutes(wall.minutes)}`,
+      // Отмечаем именно этот повтор: следующий получит своё напоминание.
+      claim: async () => next > current() && repo.claimRecurringReminder(meeting.id, next),
+    });
   }
 
   let sent = 0;
   if (tally) tally.due = due.length;
 
-  for (const { meeting, chat, when } of due) {
+  for (const [index, { meeting, chat, when, claim }] of due.entries()) {
+    if (!budget.canStart()) {
+      if (tally) tally.deferred = due.length - index;
+      break;
+    }
+    // Другой прогон уже забрал это напоминание — он и шлёт.
+    if (!(await claim())) continue;
+
     const responses = await repo.meetingResponsesFor(meeting.id);
     const saidYes = responses.filter((row) => row.answer === "yes").map((row) => row.userId);
     const targetIds = saidYes.length ? saidYes : repo.inviteeIds(meeting);
     const byId = await repo.usersByIds(targetIds);
     const ordered = targetIds.filter((id) => byId.has(id)).map((id) => byId.get(id)!);
 
-    // Флаг ставим до отправки: повторное напоминание хуже пропущенного.
-    if (!meeting.repeatUntil) await repo.updateMeeting(meeting.id, { reminderSent: true });
-
     // Группа с сайта: общего чата нет — напоминаем каждому лично.
     if (!isTelegramChat(chat)) {
       let delivered = 0;
       for (const user of ordered) {
+        if (!budget.canContinue()) break;
         if (user.isWeb || user.userId <= 0) continue;
         const lang = user.lang || chat.lang;
         const button = chat.slug ? webAppButton(t(lang, "btn_open_group_site"), groupPath(chat)) : null;

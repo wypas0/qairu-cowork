@@ -330,6 +330,50 @@ export async function userMeetings(
 }
 
 /**
+ * Забрать напоминание о разовой встрече: отметка `reminder_sent` ставится
+ * одной инструкцией с условием, до отправки. Из нескольких одновременных
+ * прогонов cron (внешний пингер, GitHub Actions, cron Vercel) `true` получит
+ * ровно один — только он и рассылает. Повторное напоминание хуже пропущенного.
+ *
+ * Кандидатов прогон собирает в начале, а забирает до нескольких минут спустя:
+ * за это время встречу могли отменить или она уже началась — тогда не шлём.
+ */
+export async function claimReminder(meetingId: number, at: Date, exec?: Exec): Promise<boolean> {
+  const rows = await ex(exec)
+    .update(meetings)
+    .set({ reminderSent: true })
+    .where(
+      and(
+        eq(meetings.id, meetingId),
+        eq(meetings.reminderSent, false),
+        eq(meetings.status, "open"),
+        gt(meetings.whenStart, at),
+      ),
+    )
+    .returning({ id: meetings.id });
+  return rows.length > 0;
+}
+
+/**
+ * То же для повтора серии: `reminded_start` переводится на начало этого
+ * повтора, только если он ещё не на нём. Следующий повтор получит своё.
+ */
+export async function claimRecurringReminder(meetingId: number, occurrence: Date, exec?: Exec): Promise<boolean> {
+  const rows = await ex(exec)
+    .update(meetings)
+    .set({ remindedStart: occurrence })
+    .where(
+      and(
+        eq(meetings.id, meetingId),
+        eq(meetings.status, "open"),
+        or(isNull(meetings.remindedStart), ne(meetings.remindedStart, occurrence)),
+      ),
+    )
+    .returning({ id: meetings.id });
+  return rows.length > 0;
+}
+
+/**
  * Открытые встречи, которым пора отправить напоминание.
  *
  * Порог «за N минут» живёт у чата, поэтому условие считается прямо в SQL:

@@ -108,14 +108,17 @@ export default async function GroupPage({
 
   // Встреча уходит в архив, когда началась (meetingIsOver). Предстоящие — по
   // времени, ближайшая первой; без точного времени — в конце.
+  // Пояс группы и время начала каждой встречи считаются один раз, а не в
+  // компараторе сортировки: nextStart у серии перебирает недели.
+  const tz = chatTz(chat);
   const now = new Date();
-  const today = todayIn(chatTz(chat), now);
+  const today = todayIn(tz, now);
   const over = (meeting: (typeof state.meetings)[number]) => meetingIsOver(meeting, now, today);
-  const startsAt = (meeting: (typeof state.meetings)[number]) =>
-    nextStart(meeting, chatTz(chat), now)?.getTime() ?? Number.MAX_SAFE_INTEGER;
   const upcomingMeetings = state.meetings
     .filter((meeting) => !over(meeting))
-    .sort((a, b) => startsAt(a) - startsAt(b));
+    .map((meeting) => ({ meeting, at: nextStart(meeting, tz, now)?.getTime() ?? Number.MAX_SAFE_INTEGER }))
+    .sort((a, b) => a.at - b.at)
+    .map(({ meeting }) => meeting);
   const archivedMeetings = state.meetings.filter(over);
 
   // Кто был на прошедших встречах (последний закончившийся повтор), а старосте —
@@ -129,7 +132,6 @@ export default async function GroupPage({
   ]);
   const attendanceOf = (meeting: (typeof state.meetings)[number]) => {
     if (meeting.status === "cancelled") return null;
-    const tz = chatTz(chat);
     const occurrence = lastEnded(meeting, meetingDurationMin(meeting, tz), tz, now);
     if (!occurrence) return null;
     const rows = (attendanceRows.get(meeting.id) ?? []).filter((row) => row.occurrence === occurrence);
@@ -154,7 +156,7 @@ export default async function GroupPage({
   const upToDate = (id: number) => state.filledIds.has(id) && !outdated(id);
   const updatedLabel = (id: number) => {
     const at = updatedAt.get(id);
-    return at ? formatDM(utcToZonedWall(at, chatTz(chat)).day) : "";
+    return at ? formatDM(utcToZonedWall(at, tz).day) : "";
   };
 
   const filledCount = roster.filter((entry) => upToDate(entry.user.userId)).length;
@@ -405,7 +407,7 @@ export default async function GroupPage({
                       key={meeting.id}
                       slug={slug}
                       lang={lang}
-                      tz={chatTz(chat)}
+                      tz={tz}
                       meeting={meeting}
                       answers={state.responses.get(meeting.id) ?? []}
                       names={state.names}
@@ -426,7 +428,7 @@ export default async function GroupPage({
                           key={meeting.id}
                           slug={slug}
                           lang={lang}
-                          tz={chatTz(chat)}
+                          tz={tz}
                           meeting={meeting}
                           answers={state.responses.get(meeting.id) ?? []}
                           names={state.names}

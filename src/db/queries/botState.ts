@@ -34,6 +34,20 @@ export async function deleteBotState(key: string, exec?: Exec): Promise<void> {
 }
 
 /**
+ * Поставить отметку, если её ещё нет, одной инструкцией. `true` — отметку
+ * поставил этот вызов; из нескольких одновременных `true` получит ровно один.
+ * Для «сделать один раз»: вопрос «был ли ты», предупреждение о конфликте.
+ */
+export async function claimBotState(key: string, data: unknown, exec?: Exec): Promise<boolean> {
+  const rows = await ex(exec)
+    .insert(botState)
+    .values({ key, data: data as object, updatedAt: new Date() })
+    .onConflictDoNothing({ target: botState.key })
+    .returning({ key: botState.key });
+  return rows.length > 0;
+}
+
+/**
  * Забрать запись и удалить её одной инструкцией. Из нескольких одновременных
  * вызовов данные получит ровно один — остальные увидят null. Нужно для
  * одноразовых запросов входа: два параллельных опроса не должны выдать две сессии.

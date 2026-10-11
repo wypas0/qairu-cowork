@@ -82,6 +82,27 @@ export async function calendarSlotCount(userId: number, fromDay: DateStr, exec?:
 }
 
 /** Календари, которые давно не обновлялись: сначала никогда не загруженные. */
+/**
+ * Забрать календарь на обновление: отметка времени ставится, только если он
+ * всё ещё устарел. Два одновременных прогона cron не скачивают и не
+ * раскладывают один календарь дважды (замена слотов — не одна транзакция).
+ * Итог попытки потом записывает `setCalendarStatus`.
+ */
+export async function claimStaleCalendar(userId: number, before: Date, exec?: Exec): Promise<boolean> {
+  const rows = await ex(exec)
+    .update(users)
+    .set({ calendarSyncedAt: new Date() })
+    .where(
+      and(
+        eq(users.userId, userId),
+        isNotNull(users.calendarUrl),
+        or(isNull(users.calendarSyncedAt), lt(users.calendarSyncedAt, before)),
+      ),
+    )
+    .returning({ userId: users.userId });
+  return rows.length > 0;
+}
+
 export async function staleCalendars(
   before: Date,
   limit: number,

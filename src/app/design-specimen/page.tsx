@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { Contrast } from "./Contrast";
+import { env } from "@/lib/config";
 
 /*
  * Образец дизайн-системы: палитра с живым расчётом контраста, шрифты на трёх
@@ -31,7 +32,7 @@ function accent(title: string, word: string) {
 }
 
 export default function Specimen() {
-  if (process.env.NODE_ENV === "production" && process.env.DESIGN_SPECIMEN !== "1") notFound();
+  if (process.env.NODE_ENV === "production" && env("DESIGN_SPECIMEN") !== "1") notFound();
   return (
     <main className="wrap" style={{ paddingTop: 24, paddingBottom: 48 }}>
       <p className="eyebrow">QairuCowork × qairuhub</p>

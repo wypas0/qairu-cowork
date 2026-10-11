@@ -97,18 +97,48 @@ export class TelegramError extends Error {
   }
 }
 
-async function call<T>(method: string, payload: unknown, token = botToken()): Promise<T> {
-  if (!token) throw new TelegramError(method, 0, "BOT_TOKEN не задан");
+/**
+ * Пределы вызовов Bot API. Объект, а не константы, — чтобы тест мог сжать
+ * таймаут до миллисекунд; в коде сайта не меняется.
+ */
+export const telegramLimits = {
+  /** Сколько ждать ответа Telegram: зависший вызов не должен съесть бюджет cron. */
+  timeoutMs: 10_000,
+  /** На 429 ждём `retry_after`, но не дольше этого, и повторяем один раз. */
+  maxRetryAfterS: 10,
+};
 
+type TgResponse<T> =
+  | { ok: true; result: T }
+  | { ok: false; error_code: number; description: string; parameters?: { retry_after?: number } };
+
+async function request<T>(method: string, payload: unknown, token: string): Promise<TgResponse<T>> {
   const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
     cache: "no-store",
+    // Таймаут покрывает и чтение тела ответа. Ошибка таймаута — не TelegramError:
+    // вызывающий отличает «Telegram ответил» от «сеть недоступна».
+    signal: AbortSignal.timeout(telegramLimits.timeoutMs),
   });
-  const body = (await response.json()) as
-    | { ok: true; result: T }
-    | { ok: false; error_code: number; description: string };
+  return (await response.json()) as TgResponse<T>;
+}
+
+async function call<T>(method: string, payload: unknown, token = botToken()): Promise<T> {
+  if (!token) throw new TelegramError(method, 0, "BOT_TOKEN не задан");
+
+  let body = await request<T>(method, payload, token);
+  // 429 «Too Many Requests»: Telegram говорит, сколько секунд подождать. Ждём
+  // и повторяем ровно один раз; если просят ждать дольше предела — сдаёмся,
+  // чтобы один чат не держал весь прогон.
+  if (!body.ok && body.error_code === 429) {
+    const wait = body.parameters?.retry_after ?? 1;
+    if (wait <= telegramLimits.maxRetryAfterS) {
+      await new Promise((resolve) => setTimeout(resolve, Math.max(0, wait) * 1000));
+      body = await request<T>(method, payload, token);
+    }
+  }
 
   if (!body.ok) throw new TelegramError(method, body.error_code, body.description);
   return body.result;
@@ -235,6 +265,7 @@ export async function sendDocument(payload: {
     method: "POST",
     body: form,
     cache: "no-store",
+    signal: AbortSignal.timeout(telegramLimits.timeoutMs),
   });
   return response.ok;
 }

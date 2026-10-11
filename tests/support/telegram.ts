@@ -28,6 +28,12 @@ export type TelegramStub = {
   /** getMe скажет, что у бота включено главное мини-приложение. */
   hasMainWebApp: boolean;
   nextMessageId: number;
+  /** Столько следующих sendMessage получат 429 с этим `retry_after` (секунды). */
+  rateLimit: { times: number; retryAfter: number } | null;
+  /** sendMessage не отвечает, пока запрос не оборвут по сигналу. */
+  hang: boolean;
+  /** Был ли у каждого вызова сигнал отмены (таймаут). */
+  signals: boolean[];
 };
 
 export const BOT_ID = 5000001;
@@ -41,6 +47,9 @@ export function installTelegramStub(): TelegramStub {
     lastText: (method = "sendMessage") => String(stub.last(method)?.payload.text ?? ""),
     reset: () => {
       stub.calls.length = 0;
+      stub.signals.length = 0;
+      stub.rateLimit = null;
+      stub.hang = false;
     },
     memberStatus: "creator",
     adminIds: [],
@@ -48,6 +57,9 @@ export function installTelegramStub(): TelegramStub {
     adminsError: null,
     hasMainWebApp: false,
     nextMessageId: 1000,
+    rateLimit: null,
+    hang: false,
+    signals: [],
   };
 
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -67,6 +79,27 @@ export function installTelegramStub(): TelegramStub {
       );
     }
     stub.calls.push({ method, payload });
+    stub.signals.push(init?.signal instanceof AbortSignal);
+
+    if (method === "sendMessage" && stub.hang) {
+      const signal = init?.signal;
+      return new Promise<Response>((_, reject) => {
+        if (!signal) return; // без сигнала — висит вечно, как настоящий зависший сокет
+        signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+      });
+    }
+    if (method === "sendMessage" && stub.rateLimit && stub.rateLimit.times > 0) {
+      stub.rateLimit.times -= 1;
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          error_code: 429,
+          description: `Too Many Requests: retry after ${stub.rateLimit.retryAfter}`,
+          parameters: { retry_after: stub.rateLimit.retryAfter },
+        }),
+        { status: 429, headers: { "Content-Type": "application/json" } },
+      );
+    }
 
     const adminsError = stub.adminsError;
     if (method === "getChatAdministrators" && adminsError === "network") {

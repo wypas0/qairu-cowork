@@ -161,4 +161,60 @@ describe("настоящий драйвер postgres.js", () => {
     await r.recordCronRun({ at: Date.now(), ok: true, due: 1, sent: 1, attendance: 0, calendars: 0, sessions: 0 });
     expect((await r.lastCronRun())?.week.sent).toBe(1);
   });
+
+  it("атомарные отметки cron: из одновременных вызовов отметку получает ровно один", async () => {
+    const r = await repo();
+    const once = (results: boolean[]) => results.filter(Boolean).length;
+
+    const meeting = await r.createMeeting({
+      chatId: -777,
+      initiatorId: 9001,
+      place: "",
+      whenText: "",
+      goal: "",
+      invitees: [9001],
+      whenStart: new Date(Date.now() + 10 * 60_000),
+    });
+    const now = new Date();
+    expect(once(await Promise.all(Array.from({ length: 5 }, () => r.claimReminder(meeting.id, now))))).toBe(1);
+    expect(await r.claimReminder(meeting.id, now)).toBe(false);
+
+    // Пока прогон шёл, встреча началась или её отменили — напоминание не забирается.
+    const started = await r.createMeeting({
+      chatId: -777,
+      initiatorId: 9001,
+      place: "",
+      whenText: "",
+      goal: "",
+      invitees: [9001],
+      whenStart: new Date(Date.now() + 60_000),
+    });
+    expect(await r.claimReminder(started.id, new Date(Date.now() + 2 * 60_000))).toBe(false);
+    expect(await r.claimReminder(started.id, now)).toBe(true);
+    const cancelled = await r.createMeeting({
+      chatId: -777,
+      initiatorId: 9001,
+      place: "",
+      whenText: "",
+      goal: "",
+      invitees: [9001],
+      whenStart: new Date(Date.now() + 10 * 60_000),
+    });
+    await r.updateMeeting(cancelled.id, { status: "cancelled" });
+    expect(await r.claimReminder(cancelled.id, now)).toBe(false);
+    expect(await r.claimRecurringReminder(cancelled.id, new Date("2026-10-14T05:00:00.000Z"))).toBe(false);
+
+    // Повтор серии: момент — параметр Date в условии, на драйвере он не должен падать.
+    const occurrence = new Date("2026-10-14T05:00:00.000Z");
+    expect(once(await Promise.all(Array.from({ length: 5 }, () => r.claimRecurringReminder(meeting.id, occurrence))))).toBe(1);
+    expect((await r.getMeeting(meeting.id))?.remindedStart?.toISOString()).toBe(occurrence.toISOString());
+    // Следующий повтор забирается заново.
+    expect(await r.claimRecurringReminder(meeting.id, new Date("2026-10-21T05:00:00.000Z"))).toBe(true);
+
+    expect(once(await Promise.all(Array.from({ length: 5 }, () => r.claimBotState("attend:driver", { at: 1 }))))).toBe(1);
+
+    await r.setCalendarUrl(9001, "https://calendar.example/feed.ics");
+    const before = new Date(Date.now() - 3 * 3_600_000);
+    expect(once(await Promise.all(Array.from({ length: 5 }, () => r.claimStaleCalendar(9001, before))))).toBe(1);
+  });
 });

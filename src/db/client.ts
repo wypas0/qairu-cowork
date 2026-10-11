@@ -19,6 +19,7 @@
 import { drizzle, type PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "./schema";
+import { env } from "@/lib/config";
 
 type Sql = ReturnType<typeof postgres>;
 
@@ -28,7 +29,7 @@ const globalForDb = globalThis as unknown as {
 };
 
 function createSql(): Sql {
-  const url = process.env.DATABASE_URL;
+  const url = env("DATABASE_URL");
   if (!url) {
     throw new Error(
       "DATABASE_URL не задан. Возьми строку подключения в Supabase → Project Settings → " +
@@ -36,7 +37,7 @@ function createSql(): Sql {
     );
   }
   return postgres(url, {
-    max: Number(process.env.DATABASE_POOL_MAX) || 5,
+    max: Number(env("DATABASE_POOL_MAX")) || 5,
     idle_timeout: 20,
     connect_timeout: 15,
     prepare: false,

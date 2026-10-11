@@ -19,6 +19,7 @@ import { Agent, fetch } from "undici";
 import { busyFromIcs, looksLikeIcs } from "@/core/ics";
 import { type DateStr, DEFAULT_TZ, addDays, chatTz, todayIn } from "@/core/timeutils";
 import * as repo from "@/db/repo";
+import type { Budget } from "./budget";
 import { checkConflictsQuietly } from "./conflicts";
 
 export type CalendarError = "bad_url" | "blocked" | "unreachable" | "not_ics" | "too_large";
@@ -30,6 +31,8 @@ const TIMEOUT_MS = 10_000;
 const MAX_REDIRECTS = 3;
 /** Календарь обновляется не чаще, чем раз в столько часов (cron). */
 export const REFRESH_HOURS = 3;
+/** Сколько бюджета cron держать на один календарь: скачивание с переадресациями и разбор. */
+const CALENDAR_SLOT_MS = 2 * TIMEOUT_MS;
 
 /**
  * Привести ссылку к виду, который можно скачать: webcal:// — это тот же
@@ -237,8 +240,8 @@ export async function syncCalendar(
 ): Promise<{ ok: true; count: number } | { ok: false; error: CalendarError }> {
   const fetched = await fetchCalendar(url);
   if (!fetched.ok) {
-    // Время попытки тоже отмечаем: иначе cron дёргал бы битую ссылку каждые
-    // 10 минут. На странице при ошибке показывается она, а не «обновлён».
+    // Время попытки тоже отмечаем: иначе cron дёргал бы битую ссылку каждый
+    // прогон. На странице при ошибке показывается она, а не «обновлён».
     await repo.setCalendarStatus(userId, { syncedAt: new Date(), error: fetched.error });
     return fetched;
   }
@@ -250,13 +253,19 @@ export async function syncCalendar(
   return { ok: true, count: pieces.length };
 }
 
-/** Для cron: обновить несколько давно не обновлявшихся календарей, уложившись во время. */
-export async function syncStaleCalendars(limit: number, budgetMs: number): Promise<number> {
-  const started = Date.now();
+/**
+ * Для cron: обновить давно не обновлявшиеся календари на остаток бюджета.
+ * Календари идут после напоминаний и вопросов «был ли ты»: они не срочные.
+ * Новый календарь берём, только если до конца бюджета хватит времени на его
+ * скачивание (`CALENDAR_SLOT_MS`). Каждый сначала забирается атомарно
+ * (`claimStaleCalendar`): одновременный прогон его не тронет.
+ */
+export async function syncStaleCalendars(budget: Budget, limit = 50): Promise<number> {
   const before = new Date(Date.now() - REFRESH_HOURS * 3_600_000);
   let synced = 0;
   for (const { userId, calendarUrl } of await repo.staleCalendars(before, limit)) {
-    if (Date.now() - started > budgetMs) break;
+    if (budget.left() < CALENDAR_SLOT_MS) break;
+    if (!(await repo.claimStaleCalendar(userId, before))) continue;
     const result = await syncCalendar(userId, calendarUrl);
     if (!result.ok) continue;
     synced += 1;

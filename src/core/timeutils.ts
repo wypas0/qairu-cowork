@@ -11,11 +11,43 @@ export type DateStr = string; // YYYY-MM-DD
 
 export const DEFAULT_TZ = "Asia/Almaty";
 
+/**
+ * Форматтер на пояс. Конструктор Intl.DateTimeFormat стоит сотни микросекунд, а
+ * зовётся на каждую дату доски (до сотен раз за страницу) — держим по одному на пояс.
+ * Несуществующий пояс бросает RangeError, как и раньше, и в кэш не попадает;
+ * предел размера — от строк из формы в разном регистре («asia/almaty»).
+ */
+const FORMATTERS = new Map<string, Intl.DateTimeFormat>();
+
+function formatterFor(tz: string): Intl.DateTimeFormat {
+  let dtf = FORMATTERS.get(tz);
+  if (!dtf) {
+    dtf = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+    if (FORMATTERS.size >= 256) FORMATTERS.clear();
+    FORMATTERS.set(tz, dtf);
+  }
+  return dtf;
+}
+
+/** Сколько форматтеров сейчас в кэше — для теста предела. */
+export function formatterCacheSize(): number {
+  return FORMATTERS.size;
+}
+
 /** Проверить, что такой часовой пояс существует; иначе — запасной. */
 export function tzOf(name: string | null | undefined, fallback: string = DEFAULT_TZ): string {
   const candidate = name || fallback;
   try {
-    new Intl.DateTimeFormat("en-US", { timeZone: candidate });
+    formatterFor(candidate);
     return candidate;
   } catch {
     return fallback;
@@ -29,16 +61,7 @@ export function chatTz(chat: { tz?: string | null } | null | undefined, fallback
 type Parts = { year: number; month: number; day: number; hour: number; minute: number; second: number };
 
 function partsIn(date: Date, tz: string): Parts {
-  const dtf = new Intl.DateTimeFormat("en-US", {
-    timeZone: tz,
-    hourCycle: "h23",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
+  const dtf = formatterFor(tz);
   const found: Record<string, number> = {};
   for (const part of dtf.formatToParts(date)) {
     if (part.type !== "literal") found[part.type] = Number(part.value);

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { alertChatId } from "./config";
+import { alertChatId, env } from "./config";
 
 /**
  * Владелец сайта — тот, кому бот шлёт алерты: ALERT_CHAT_ID в личке — это его
@@ -18,7 +18,7 @@ export function ownerIds(): Set<number> {
   const ids = new Set<number>();
   const alert = Number(alertChatId());
   if (Number.isInteger(alert) && alert > 0) ids.add(alert);
-  for (const part of (process.env.OWNER_IDS ?? "").split(",")) {
+  for (const part of (env("OWNER_IDS") ?? "").split(",")) {
     const id = Number(part.trim());
     if (Number.isInteger(id) && id > 0) ids.add(id);
   }

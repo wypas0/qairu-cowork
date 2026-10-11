@@ -3,8 +3,9 @@
  * собирался прийти («иду» или «может»), кнопками «Был» / «Не был». Ответ
  * идёт в статистику группы: у старосты в «Участниках» видно, кто доходит.
  *
- * Спрашивает cron (раз в 10 минут), один раз на повтор встречи: ключ в
- * bot_state ставится до отправки — лишний вопрос хуже пропущенного.
+ * Спрашивает cron, один раз на повтор встречи: ключ в bot_state ставится
+ * атомарно (`claimBotState`) до отправки — из одновременных прогонов cron
+ * спрашивает только тот, кто его поставил. Лишний вопрос хуже пропущенного.
  */
 
 import "server-only";
@@ -15,24 +16,30 @@ import { escapeHtml } from "@/core/textutils";
 import { addDays, chatTz, type DateStr, todayIn, utcToZonedWall } from "@/core/timeutils";
 import * as repo from "@/db/repo";
 import { formatDay, t } from "@/i18n";
+import { type Budget, UNLIMITED } from "@/lib/budget";
 import { meetingDurationMin } from "@/lib/group";
 import { answerCallbackQuery, editMessageText, keyboard, sendMessage, type TgCallbackQuery } from "../api";
 
 const KEY = "attend:";
 
-/** Разослать вопрос о закончившихся встречах. Возвращает, скольким людям ушёл вопрос. */
-export async function askAttendance(now = new Date()): Promise<number> {
+/**
+ * Разослать вопрос о закончившихся встречах. Возвращает, скольким людям ушёл вопрос.
+ * `budget` — как у напоминаний: новую встречу берём, пока он не кончился; не
+ * взятые достанутся следующему прогону (ключ не поставлен).
+ */
+export async function askAttendance(now = new Date(), budget: Budget = UNLIMITED): Promise<number> {
   let asked = 0;
   const candidates = await repo.attendanceCandidates(now, addDays(todayIn("UTC", now), -1));
   for (const meeting of candidates) {
+    if (!budget.canStart()) break;
     const chat = await repo.getChat(meeting.chatId);
     if (!chat) continue;
     const tz = chatTz(chat);
     const ended = justEnded(meeting, meetingDurationMin(meeting, tz), tz, now);
     if (!ended) continue;
     const key = `${KEY}${meeting.id}:${ended.day}`;
-    if (await repo.getBotState(key)) continue;
-    await repo.setBotState(key, { at: now.toISOString() });
+    // Ключ уже стоит — спросил этот или другой прогон.
+    if (!(await repo.claimBotState(key, { at: now.toISOString() }))) continue;
 
     const invitees = new Set(repo.inviteeIds(meeting));
     const going = (await repo.meetingResponsesFor(meeting.id))
@@ -43,6 +50,7 @@ export async function askAttendance(now = new Date()): Promise<number> {
 
     const wall = utcToZonedWall(ended.start, tz);
     for (const user of people.values()) {
+      if (!budget.canContinue()) break;
       if (user.isWeb || user.userId <= 0) continue;
       const lang = user.lang || chat.lang;
       try {

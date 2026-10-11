@@ -1,13 +1,19 @@
-# Напоминания о встречах каждые 10 минут.
+# Дубль внешнего пингера напоминаний.
 #
-# На тарифе Vercel Hobby собственный cron срабатывает раз в сутки (vercel.json),
-# поэтому «напомнить за 30 минут» без этого почти не работало. GitHub Actions
-# бесплатно дёргает тот же адрес чаще; сам адрес не шлёт одно напоминание
-# дважды, так что лишний вызов ничего не ломает.
+# Основной вызов /api/cron/reminders — внешний пингер (cron-job.org раз в 5 минут,
+# DEPLOY.md, шаг 6): cron Vercel на Hobby срабатывает раз в сутки, а расписание
+# GitHub Actions не гарантировано — запуски опаздывают на десятки минут и
+# пропадают на часы, а через 60 дней без коммитов GitHub выключает воркфлоу.
+# Этот воркфлоу — страховка на случай, если пингер отвалится. Лишние вызовы
+# безопасны: каждое напоминание забирается атомарной отметкой и уходит один раз.
+#
+# Адрес отвечает сразу (202), а рассылку делает уже после ответа, поэтому
+# curl ждёт недолго. Итог прогона — в журнале Vercel и в консоли владельца.
 #
 # Нужно один раз: Settings → Secrets and variables → Actions → New repository
 # secret, имя CRON_SECRET, значение — то же, что в переменной CRON_SECRET на
-# Vercel. Адрес сайта можно поменять переменной SITE_URL (вкладка Variables).
+# Vercel. Без секрета запуск падает красным. Адрес сайта можно поменять
+# переменной SITE_URL (вкладка Variables).
 name: Reminders
 
 on:
@@ -18,16 +24,20 @@ on:
 jobs:
   ping:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 2
     steps:
-      - name: Разослать напоминания и обновить календари
+      - name: Запустить прогон напоминаний и календарей
         env:
           SITE_URL: ${{ vars.SITE_URL || 'https://qairu-cowork.vercel.app' }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           if [ -z "$CRON_SECRET" ]; then
-            echo "CRON_SECRET не задан в секретах репозитория — пропускаю."
-            exit 0
+            echo "::error::CRON_SECRET не задан в секретах репозитория — напоминания не запускаются (DEPLOY.md, шаг 6)."
+            exit 1
           fi
-          curl --fail-with-body --silent --show-error --max-time 60 \
+          # 202 — прогон принят. 401/503 валят шаг (--fail-with-body печатает ответ);
+          # таймауты и 5xx curl повторяет дважды — лишний прогон безопасен.
+          curl --fail-with-body --silent --show-error --max-time 30 \
+            --retry 2 --retry-delay 5 \
             -H "Authorization: Bearer $CRON_SECRET" "$SITE_URL/api/cron/reminders"
+          echo

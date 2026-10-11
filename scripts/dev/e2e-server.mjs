@@ -144,7 +144,25 @@ console.log(`[e2e] база на ${DB_PORT}, сайт на ${url}, вход: к�
 const next = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start", "-p", String(SITE_PORT)], {
   stdio: "inherit",
   // PGlite принимает одно соединение — пул сайта под это.
-  env: { ...process.env, DATABASE_URL, DATABASE_POOL_MAX: "1", NEXT_PUBLIC_SITE_URL: url, BOT_TOKEN: "", DESIGN_SPECIMEN: "1", OWNER_IDS: String(amir), ALERT_CHAT_ID: "", OWNER_CONSOLE_SECRET: ownerSecret },
+  // Необязательные переменные — пустыми строками, как их хранит Vercel: пустая
+  // должна значить «не задана» (так однажды упала консоль на DEFAULT_TZ="").
+  env: {
+    ...process.env,
+    DATABASE_URL,
+    DATABASE_POOL_MAX: "1",
+    NEXT_PUBLIC_SITE_URL: url,
+    BOT_TOKEN: "",
+    DESIGN_SPECIMEN: "1",
+    OWNER_IDS: String(amir),
+    ALERT_CHAT_ID: "",
+    OWNER_CONSOLE_SECRET: ownerSecret,
+    DEFAULT_TZ: "",
+    WEB_BASE_URL: "",
+    TELEGRAM_WEBHOOK_SECRET: "",
+    CRON_SECRET: "",
+    VISION_API_BASE_URL: "",
+    VISION_MODEL: "",
+  },
 });
 const stop = async () => {
   next.kill();

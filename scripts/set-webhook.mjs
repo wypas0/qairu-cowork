@@ -11,6 +11,8 @@
 
 import { createHash } from "node:crypto";
 
+import { env } from "./env.mjs";
+
 const FORCED = process.argv.includes("--force");
 
 function log(message) {
@@ -18,17 +20,17 @@ function log(message) {
 }
 
 function siteUrl() {
-  const explicit = (process.env.NEXT_PUBLIC_SITE_URL ?? process.env.WEB_BASE_URL ?? "").trim();
+  const explicit = env("NEXT_PUBLIC_SITE_URL") ?? env("WEB_BASE_URL");
   if (explicit) return explicit.replace(/\/+$/, "");
-  const production = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  const production = env("VERCEL_PROJECT_PRODUCTION_URL");
   if (production) return `https://${production}`;
-  const preview = process.env.VERCEL_URL;
+  const preview = env("VERCEL_URL");
   if (preview) return `https://${preview}`;
   return "";
 }
 
 function webhookSecret(token) {
-  const explicit = (process.env.TELEGRAM_WEBHOOK_SECRET ?? "").trim();
+  const explicit = env("TELEGRAM_WEBHOOK_SECRET");
   if (explicit) return explicit;
   return createHash("sha256").update(`qairu-webhook:${token}`).digest("hex").slice(0, 48);
 }
@@ -62,7 +64,7 @@ async function call(token, method, payload) {
 }
 
 async function main() {
-  const token = (process.env.BOT_TOKEN ?? "").trim();
+  const token = env("BOT_TOKEN");
   if (!token) {
     log("BOT_TOKEN не задан — сайт собран без телеграм-бота.");
     return;
@@ -71,11 +73,11 @@ async function main() {
   // Регистрируем вебхук только на продакшен-сборке Vercel. Превью-деплой
   // получает свой адрес на каждый коммит, а локальная сборка — вообще localhost;
   // и то, и другое увело бы работающего бота с рабочего домена.
-  const env = process.env.VERCEL_ENV;
-  if (env !== "production" && !FORCED) {
+  const stage = env("VERCEL_ENV");
+  if (stage !== "production" && !FORCED) {
     log(
-      env
-        ? `окружение ${env} — вебхук не трогаем (npm run bot:webhook, чтобы всё же зарегистрировать).`
+      stage
+        ? `окружение ${stage} — вебхук не трогаем (npm run bot:webhook, чтобы всё же зарегистрировать).`
         : "локальная сборка — вебхук не трогаем (npm run bot:webhook, чтобы зарегистрировать вручную).",
     );
     return;

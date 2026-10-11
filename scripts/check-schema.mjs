@@ -13,6 +13,8 @@
 import { readdir, readFile } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { env } from "./env.mjs";
+
 const DIR = fileURLToPath(new URL("../drizzle/", import.meta.url));
 
 function log(message) {
@@ -85,7 +87,7 @@ export async function migrationFiles() {
 }
 
 async function main() {
-  const url = (process.env.DATABASE_URL ?? "").trim();
+  const url = env("DATABASE_URL");
   if (!url) {
     log("DATABASE_URL не задан — проверка схемы пропущена");
     return;

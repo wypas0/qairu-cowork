@@ -12,6 +12,7 @@
 
 import "server-only";
 
+import { env } from "./config";
 import type { PreparedFile } from "./scheduleFile";
 
 const DEFAULT_BASE_URL = "https://api.openai.com/v1";
@@ -19,11 +20,23 @@ const DEFAULT_MODEL = "gpt-4o-mini";
 const TIMEOUT_MS = 50_000;
 
 export function visionApiKey(): string {
-  return (process.env.VISION_API_KEY ?? process.env.OPENAI_API_KEY ?? "").trim();
+  return env("VISION_API_KEY") ?? env("OPENAI_API_KEY") ?? "";
 }
 
 export function hasVision(): boolean {
   return visionApiKey().length > 0;
+}
+
+/**
+ * Адрес API и модель. Пустая переменная — то же, что незаданная: иначе
+ * `VISION_API_BASE_URL=""` давал fetch("/chat/completions") (Invalid URL),
+ * а `VISION_MODEL=""` — ответ 400 от провайдера.
+ */
+export function visionEndpoint(): { baseUrl: string; model: string } {
+  return {
+    baseUrl: (env("VISION_API_BASE_URL") ?? DEFAULT_BASE_URL).replace(/\/+$/, ""),
+    model: env("VISION_MODEL") ?? DEFAULT_MODEL,
+  };
 }
 
 export class VisionError extends Error {
@@ -54,8 +67,7 @@ export async function askVision(prompt: string, inputs: readonly (string | Prepa
   const key = visionApiKey();
   if (!key) throw new VisionError("not_configured", "VISION_API_KEY не задан");
 
-  const baseUrl = (process.env.VISION_API_BASE_URL ?? DEFAULT_BASE_URL).trim().replace(/\/+$/, "");
-  const model = (process.env.VISION_MODEL ?? DEFAULT_MODEL).trim();
+  const { baseUrl, model } = visionEndpoint();
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);

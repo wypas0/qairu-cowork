@@ -7,11 +7,13 @@ import {
   diffDays,
   formatDM,
   formatDMY,
+  formatterCacheSize,
   isDateStr,
   parseDateToken,
   startsSoon,
   todayIn,
   tzOf,
+  utcToZonedWall,
   weekdayOf,
   zonedWallToUtc,
 } from "@/core/timeutils";
@@ -79,6 +81,26 @@ describe("часовые пояса", () => {
     expect(zonedWallToUtc("2026-12-14", 12 * 60, "Europe/Berlin").toISOString()).toBe(
       "2026-12-14T11:00:00.000Z",
     );
+  });
+
+  it("кэш форматтеров ограничен, мусорный пояс в него не попадает", () => {
+    // Intl принимает пояс в любом регистре — из формы может прийти сколько угодно вариантов.
+    const name = "america/argentina/buenos_aires";
+    const letters = [...name].map((ch, i) => (/[a-z]/.test(ch) ? i : -1)).filter((i) => i >= 0);
+    for (let mask = 0; mask < 1000; mask += 1) {
+      const variant = [...name].map((ch, i) => (mask & (1 << letters.indexOf(i)) ? ch.toUpperCase() : ch)).join("");
+      expect(tzOf(variant)).toBe(variant);
+      expect(formatterCacheSize()).toBeLessThanOrEqual(256);
+    }
+
+    const before = formatterCacheSize();
+    expect(tzOf("Nowhere/Nothing")).toBe("Asia/Almaty");
+    expect(formatterCacheSize()).toBe(before);
+    // Несуществующий пояс в расчётах заменяется запасным, как и раньше.
+    const moment = new Date("2026-09-14T21:00:00.000Z");
+    expect(utcToZonedWall(moment, "Nowhere/Nothing")).toEqual(utcToZonedWall(moment, "Asia/Almaty"));
+    // И после сброса кэша расчёты верны.
+    expect(zonedWallToUtc("2026-09-14", 15 * 60, "Asia/Almaty").toISOString()).toBe("2026-09-14T10:00:00.000Z");
   });
 
   it("сегодняшняя дата берётся в поясе группы, а не сервера", () => {

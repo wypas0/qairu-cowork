@@ -1,26 +1,35 @@
 import crypto from "node:crypto";
 
-import { askAttendance } from "@/bot/handlers/attendance";
-import { sendDueReminders } from "@/bot/handlers/meeting";
-import * as repo from "@/db/repo";
-import { syncStaleCalendars } from "@/lib/calendarSync";
-import { cronSecret, hasBot } from "@/lib/config";
+import { after } from "next/server";
+
+import { cronSecret } from "@/lib/config";
+import { runReminderCron } from "@/lib/reminderCron";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-export const maxDuration = 60;
+// Максимум Vercel Hobby. Работа идёт в after(): Vercel держит функцию через
+// waitUntil до конца работы, но не дольше maxDuration. Прогон укладывается в
+// бюджет 250 с + 30 с запаса (src/lib/reminderCron.ts, CRON_MAX_DURATION_S).
+export const maxDuration = 300;
 
 /**
  * Напоминания о встречах, вопрос «был ли ты» после них и обновление
  * подключённых календарей.
  *
- * Вызывают по расписанию Vercel (`vercel.json`, раз в сутки) и GitHub Actions
- * (`reminders.yml`, каждые 10 минут). Оба подписывают запрос заголовком
+ * Вызывают внешний пингер (cron-job.org, раз в 5 минут — основной), GitHub
+ * Actions (`reminders.yml`, дубль, GitHub запускает его нерегулярно) и cron
+ * Vercel (`vercel.json`, раз в сутки). Все подписывают запрос заголовком
  * `Authorization: Bearer $CRON_SECRET`. Без секрета адрес не работает вовсе —
  * иначе рассылку мог бы запустить кто угодно. Секрет в адресе (`?secret=`) не
  * принимается: адреса запросов оседают в логах.
+ *
+ * Отвечает сразу — 202 «принято», а работу делает после ответа (`after()`):
+ * у пингеров таймаут 30 с, а тяжёлый прогон длится минуты. Итог прогона —
+ * в журнале Vercel (`[qairu:cron]`) и в консоли владельца. Одновременные
+ * прогоны безопасны: каждое напоминание и вопрос забираются атомарно.
  */
 export async function GET(request: Request) {
+  const startedAt = Date.now();
   const secret = cronSecret();
   if (!secret) {
     return Response.json({ ok: false, detail: "CRON_SECRET не задан" }, { status: 503 });
@@ -29,23 +38,8 @@ export async function GET(request: Request) {
     return Response.json({ ok: false, detail: "forbidden" }, { status: 401 });
   }
 
-  // Календари — до напоминаний и с запасом по времени: функция живёт 60 секунд.
-  const calendars = await syncStaleCalendars(5, 30_000);
-  // Сессии, которые уже не пускают (30 дней без заходов), в базе не нужны.
-  const sessions = await repo.deleteIdleWebSessions();
-
-  if (!hasBot()) return Response.json({ ok: true, sent: 0, calendars, sessions, detail: "BOT_TOKEN не задан" });
-
-  const tally = { due: 0 };
-  const sent = await sendDueReminders(new Date(), tally);
-  // После встречи — «был ли ты»: тем, кто собирался прийти.
-  const attendance = await askAttendance();
-  // Отметка для консоли владельца: когда был прогон и сколько напоминаний дошло.
-  // Одна запись на прогон; её сбой не должен ронять рассылку, которая уже прошла.
-  await repo
-    .recordCronRun({ at: Date.now(), ok: true, due: tally.due, sent, attendance, calendars, sessions })
-    .catch(() => {});
-  return Response.json({ ok: true, sent, attendance, calendars, sessions });
+  after(() => runReminderCron(startedAt).then(() => undefined));
+  return Response.json({ ok: true, accepted: true }, { status: 202 });
 }
 
 /** Сравнение без утечки по времени ответа: сравниваются хеши одинаковой длины. */

@@ -54,8 +54,9 @@ export async function checkConflicts(userId: number, now: Date = new Date()): Pr
 
       // Об этом повторе уже предупреждали — второй раз не пишем.
       const key = `conflict:${meeting.id}:${userId}:${start.getTime()}`;
-      if (await repo.getBotState(key)) break;
-      await repo.setBotState(key, { at: now.getTime() });
+      // Отметка атомарная: одновременные проверки (cron и сохранение с сайта) не
+      // пришлют одно предупреждение дважды.
+      if (!(await repo.claimBotState(key, { at: now.getTime() }))) break;
 
       const when = `${formatDay(chat.lang, span.date)} · ${fmtMinutes(span.start)}–${fmtMinutes(span.end)}`;
       await notifyConflict(chat, meeting, user, when);

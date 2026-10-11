@@ -6,7 +6,7 @@ import { Meter } from "@/components/OwnerCharts";
 import { DB_LIMIT_BYTES, bytes } from "@/components/owner/format";
 import { ownerPage } from "@/components/owner/OwnerPage";
 import * as repo from "@/db/repo";
-import { hasBot } from "@/lib/config";
+import { env, hasBot } from "@/lib/config";
 import { ipTag } from "@/lib/ownerConsole";
 import { ownerMetadata } from "@/lib/ownerGate";
 
@@ -68,9 +68,9 @@ export default ownerPage("system", async ({ t, fmt }) => {
     {
       title: t("w_owner_deploy"),
       rows: [
-        [t("w_owner_env"), process.env.VERCEL_ENV || t("w_owner_local")],
-        [t("w_owner_commit"), (process.env.VERCEL_GIT_COMMIT_SHA ?? "").slice(0, 7) || "—"],
-        [t("w_owner_branch"), process.env.VERCEL_GIT_COMMIT_REF || "—"],
+        [t("w_owner_env"), env("VERCEL_ENV") ?? t("w_owner_local")],
+        [t("w_owner_commit"), env("VERCEL_GIT_COMMIT_SHA")?.slice(0, 7) ?? "—"],
+        [t("w_owner_branch"), env("VERCEL_GIT_COMMIT_REF") ?? "—"],
       ],
     },
   ];
