@@ -44,7 +44,6 @@ export type Insights = {
   }[];
   features: {
     users: number;
-    photo: number;
     campus: number;
     calendar: number;
     avatars: number;
@@ -163,7 +162,6 @@ export async function ownerInsights(now = new Date(), tz = "Asia/Almaty", exec?:
                                                   'responses', t.responses)), '[]'::json)
          from top t) as top_groups,
 
-      (select count(*)::int from schedule_state where filled and origin = 'photo') as f_photo,
       (select count(*)::int from schedule_state where filled and origin = 'campus') as f_campus,
       (select count(*)::int from users where calendar_url is not null and calendar_url <> '') as f_calendar,
       (select count(*)::int from avatars) as f_avatars,
@@ -211,7 +209,6 @@ export async function ownerInsights(now = new Date(), tz = "Asia/Almaty", exec?:
     })),
     features: {
       users: registered,
-      photo: num(row.f_photo),
       campus: num(row.f_campus),
       calendar: num(row.f_calendar),
       avatars: num(row.f_avatars),

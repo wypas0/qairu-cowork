@@ -1,3 +1,7 @@
+import { readFileSync } from "node:fs";
+
+import { type BrowserContext } from "@playwright/test";
+
 import { expect, state, test } from "./fixtures";
 
 /**
@@ -16,6 +20,13 @@ function fakeExtension(version: string) {
       if (data.type === "campus-intent") window.__intents.push({ title: data.title, lang: data.lang });
     });
   `;
+}
+
+/** Войти Болатом: у него ещё нет расписания, поэтому «Моё расписание» начинается с выбора. */
+async function signInEmpty(context: BrowserContext) {
+  const { tokenEmpty, url } = JSON.parse(readFileSync("e2e/.state.json", "utf8")) as { tokenEmpty: string; url: string };
+  await context.clearCookies();
+  await context.addCookies([{ name: "qairu_token", value: tokenEmpty, url, httpOnly: true }]);
 }
 
 test.describe("расширение кампуса", () => {
@@ -60,5 +71,41 @@ test.describe("расширение кампуса", () => {
   test("/extension без расширения: «не найдено»", async ({ page }) => {
     await page.goto("/extension");
     await expect(page.getByRole("status").filter({ hasText: "В этом браузере не найдено" })).toBeVisible({ timeout: 5000 });
+  });
+
+  test("пустое расписание: «Перенести из кампуса» сразу открывает кампус, дальше — сетка", async ({ page, context }) => {
+    await signInEmpty(context);
+    await page.addInitScript(fakeExtension("0.4.0"));
+    await context.route("https://campus.qairu.edu.kz/**", (route) =>
+      route.fulfill({ status: 200, contentType: "text/html", body: "<h1>campus</h1>" }),
+    );
+    await page.goto(`/g/${state().slug}/me`);
+    await expect(page.getByRole("heading", { name: "Как внести пары?" })).toBeVisible();
+    // Загрузки файлов с расписанием больше нет.
+    await expect(page.locator('input[type="file"]')).toHaveCount(0);
+
+    const campusRow = page.locator('[data-choose="campus"]');
+    await expect(campusRow).toHaveAttribute("href", "https://campus.qairu.edu.kz/ru/schedule");
+    await expect(campusRow).toContainText("Откроется кампус");
+    const [campus] = await Promise.all([context.waitForEvent("page"), campusRow.click()]);
+    await expect(campus).toHaveURL("https://campus.qairu.edu.kz/ru/schedule");
+    expect(await page.evaluate(() => (window as unknown as { __intents: unknown[] }).__intents)).toEqual([
+      { title: "ИС-21", lang: "ru" },
+    ]);
+    // Вернулся — сетка уже открыта, а подсказка вверху говорит, что кампус ждёт.
+    await expect(page.locator(".editor-card table.week.editor:not(.day)")).toBeVisible();
+    await expect(page.locator(".editor-card .ext-transfer")).toContainText("Кампус открылся в новой вкладке");
+  });
+
+  test("пустое расписание без расширения: «из кампуса» ведёт к установке, «вручную» — к сетке", async ({ page, context }) => {
+    await signInEmpty(context);
+    await page.goto(`/g/${state().slug}/me`);
+    const campusRow = page.locator('[data-choose="campus"]');
+    await expect(campusRow).toHaveAttribute("href", "/extension");
+    await expect(page.locator(".editor-card")).toHaveCount(0);
+    await page.locator('[data-choose="manual"]').click();
+    await expect(page.locator(".editor-card table.week.editor:not(.day)")).toBeVisible();
+    await expect(page.locator(".editor-toolbar .brush")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Выбрать файлы" })).toHaveCount(0);
   });
 });

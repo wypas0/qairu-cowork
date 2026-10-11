@@ -78,7 +78,6 @@ function Overview({
     ["w_owner_funnel_engaged", funnel.engaged, funnel.filled],
   ];
   const featureRows: [string, number][] = [
-    ["w_owner_feat_photo", features.photo],
     ["w_owner_feat_campus", features.campus],
     ["w_owner_feat_calendar", features.calendar],
     ["w_owner_feat_avatars", features.avatars],

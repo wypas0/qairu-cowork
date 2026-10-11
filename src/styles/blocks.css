@@ -120,12 +120,6 @@
   margin-left: auto;
 }
 
-/* Выбрали на первом экране фото или текст — этот путь идёт первым на любой
-   ширине, а сетка ниже служит для проверки и правки результата. */
-.grid-2.import-first > :first-child {
-  order: 2;
-}
-
 /* --- первый экран «Как внести пары?» --- */
 /* Строки с волосяными линиями, иконка без кружка — по дизайн-коду. */
 .choose-list {
@@ -150,6 +144,7 @@
   color: var(--text);
   font: inherit;
   text-align: left;
+  text-decoration: none; /* «Из кампуса» — ссылка, «Вручную» — кнопка */
   cursor: pointer;
   transition: background-color 150ms var(--ease);
 }
@@ -176,18 +171,54 @@
   font-weight: 600;
 }
 
+/* Первый экран: на широком экране «Из кампуса» и «Вручную» стоят рядом —
+   строка во всю доску была бы наполовину пустой. */
+@media (min-width: 900px) {
+  .choose-card .choose-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .choose-card .choose-list li + li {
+    border-top: 0;
+    border-left: 1px solid var(--border);
+  }
+  .choose-card .choose-row {
+    height: 100%;
+    padding: 20px 22px;
+  }
+}
+
+/* --- панель редактора: кисть и шаблоны одной строкой --- */
+.editor-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+  margin: 0 0 8px;
+}
+.editor-toolbar .brush {
+  margin: 0;
+}
+.editor-hint {
+  margin: 0 0 12px;
+}
+.editor-card > .ext-hint {
+  margin: 0 0 16px;
+}
+
 /* --- быстрые шаблоны над сеткой --- */
 .templates {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  margin: 4px 0 12px;
+  min-width: 0;
 }
 /* На телефоне три кнопки шаблонов занимали три строки — теперь одна строка,
    листается пальцем, как ряд дней. */
 @media (max-width: 639px) {
   .templates {
+    flex: 1 1 100%;
     flex-wrap: nowrap;
     overflow-x: auto;
     margin-right: -16px;

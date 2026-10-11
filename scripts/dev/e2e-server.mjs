@@ -160,8 +160,6 @@ const next = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start"
     WEB_BASE_URL: "",
     TELEGRAM_WEBHOOK_SECRET: "",
     CRON_SECRET: "",
-    VISION_API_BASE_URL: "",
-    VISION_MODEL: "",
   },
 });
 const stop = async () => {

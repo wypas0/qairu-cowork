@@ -29,9 +29,10 @@ export async function POST(request: NextRequest, context: { params: Promise<{ sl
   const cleaned = cleanIncomingSlots(payload.slots);
   // Редактор присылает всю неделю целиком, включая «неудобно».
   await repo.replaceWeeklySlots(user.userId, [0, 1, 2, 3, 4, 5, 6], cleaned, "web", undefined, { withSoft: true });
-  // Первое сохранение после импорта говорит, откуда пары: кампус или фото.
-  // Ручные правки потом источник не меняют — расписание всё равно «из кампуса».
-  if (payload.origin === "campus" || payload.origin === "photo") {
+  // Первое сохранение после импорта из кампуса помечает источник. Ручные
+  // правки потом его не меняют — расписание всё равно «из кампуса». Импорт
+  // с фото убран 11.10.2026; старые записи origin = 'photo' остаются как есть.
+  if (payload.origin === "campus") {
     const ext = typeof payload.ext === "string" && /^\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(payload.ext) ? payload.ext : null;
     await repo.setScheduleOrigin(user.userId, payload.origin, ext);
   }

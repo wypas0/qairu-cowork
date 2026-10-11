@@ -15,7 +15,6 @@ import * as repo from "@/db/repo";
 import { WEEKDAY_NAMES, WEEKDAY_SHORT, isLang, translator } from "@/i18n";
 import { pageUser } from "@/lib/gate";
 import { SLOT_STEP } from "@/lib/config";
-import { hasVision } from "@/lib/vision";
 import {
   addDatedBusyAction,
   deleteDatedBusyAction,
@@ -132,21 +131,6 @@ export default async function MySchedulePage({
           </div>
         </header>
 
-        <ExtensionHint
-          lang={lang}
-          title={chat.title}
-          labels={{
-            install: t("w_ext_hint"),
-            update: t("w_ext_hint_update"),
-            how: t("w_ext_hint_how"),
-            later: t("w_ext_hint_later"),
-            changed: t("w_ext_changed", { added: "{added}", removed: "{removed}" }),
-            pull: t("w_ext_pull"),
-            transferLead: t("w_ext_transfer_lead"),
-            transfer: t("w_ext_transfer"),
-            transferSent: t("w_ext_transfer_sent"),
-          }}
-        />
 
         {validTo && (
           <p className="small muted period-note">{t("w_me_period_note", { date: formatDMY(validTo) })}</p>
@@ -159,7 +143,24 @@ export default async function MySchedulePage({
           initialSlots={weekly}
           weekdayNames={WEEKDAY_NAMES[isLang(lang) ? lang : "ru"]}
           weekdayShort={WEEKDAY_SHORT[isLang(lang) ? lang : "ru"]}
-          photoEnabled={hasVision()}
+          campus={{ title: chat.title, lang }}
+          hint={
+            <ExtensionHint
+              lang={lang}
+              title={chat.title}
+              labels={{
+                install: t("w_ext_hint"),
+                update: t("w_ext_hint_update"),
+                how: t("w_ext_hint_how"),
+                later: t("w_ext_hint_later"),
+                changed: t("w_ext_changed", { added: "{added}", removed: "{removed}" }),
+                pull: t("w_ext_pull"),
+                transferLead: t("w_ext_transfer_lead"),
+                transfer: t("w_ext_transfer"),
+                transferSent: t("w_ext_transfer_sent"),
+              }}
+            />
+          }
           todayWeekday={weekdayOf(today)}
           labels={{
             paintHint: t("w_paint_hint"),
@@ -178,13 +179,13 @@ export default async function MySchedulePage({
             tplWeekendBusy: t("w_tpl_weekend_busy"),
             chooseTitle: t("w_choose_title"),
             chooseLead: t("w_choose_lead"),
-            choosePhoto: t("w_choose_photo"),
-            choosePhotoHint: t("w_choose_photo_hint"),
+            chooseCampus: t("w_choose_campus"),
+            chooseCampusHint: t("w_choose_campus_hint"),
+            chooseCampusInstall: t("w_choose_campus_install"),
+            chooseCampusUpdate: t("w_choose_campus_update"),
+            chooseCampusDesktop: t("w_choose_campus_desktop"),
             chooseManual: t("w_choose_manual"),
             chooseManualHint: t("w_choose_manual_hint"),
-            importParsed: t("w_import_parsed", { n: "{n}" }),
-            importReview: t("w_import_review", { n: "{n}" }),
-            campusParsed: t("w_campus_parsed", { n: "{n}" }),
             campusReview: t("w_campus_review", { n: "{n}" }),
             importSave: t("w_import_save"),
             importCancel: t("w_import_cancel"),
@@ -196,24 +197,6 @@ export default async function MySchedulePage({
             brushBusy: t("w_brush_busy"),
             brushSoft: t("w_brush_soft"),
             breakRow: t("w_break_row", { m: "{m}" }),
-            photoTitle: t("w_photo_title"),
-            photoHint: t("w_photo_hint"),
-            photoBtn: t("w_photo_btn"),
-            photoWorking: t("w_photo_working"),
-            photoFailed: t("w_photo_failed"),
-            photoTooLarge: t("w_photo_too_large"),
-            photoLimit: t("w_photo_limit"),
-            photoBusy: t("w_photo_busy"),
-            photoNotConfigured: t("w_photo_not_configured"),
-            photoTooMany: t("w_photo_too_many", { n: "{n}" }),
-            photoNotTimetable: t("w_photo_not_timetable"),
-            photoNotTimetableOne: t("w_photo_not_timetable_one", { n: "{n}" }),
-            photoNoClasses: t("w_photo_no_classes"),
-            photoTooLargeOne: t("w_photo_too_large_one", { n: "{n}" }),
-            photoFormat: t("w_photo_format"),
-            photoFormatOne: t("w_photo_format_one", { n: "{n}" }),
-            photoEmpty: t("w_photo_empty"),
-            photoEmptyOne: t("w_photo_empty_one", { n: "{n}" }),
             dayPick: t("w_day_pick"),
             dayAllBusy: t("w_day_all_busy"),
             dayAllFree: t("w_day_all_free"),

@@ -6,13 +6,14 @@ import { useRouter } from "next/navigation";
 
 import type { Period, WeeklySlot } from "@/core/grid";
 import { SOFT_PREFIX, editorCells, editorSlots, periodOverlaps } from "@/core/grid";
-import { PAGE_SOURCE, readExtensionMessage } from "@/core/extensionImport";
-import { haptic, whenReady } from "@/lib/telegram";
+import { LATEST_EXTENSION, PAGE_SOURCE, campusScheduleUrl, olderVersion, readExtensionMessage, supportsIntent } from "@/core/extensionImport";
+import { haptic, webApp, whenReady } from "@/lib/telegram";
 import { moveFocusByArrow } from "./gridKeys";
-import { IconCamera, IconCheck, IconChevronRight, IconGrid } from "./icons";
+import { IconArrowDown, IconCheck, IconChevronRight, IconGrid } from "./icons";
 import { BreakRow, PeriodTime } from "./PeriodRow";
 import { TelegramMainButton } from "./TelegramButtons";
 import { toast } from "./toast";
+import { desktopChromium, startCampusTransfer, useCampusExtension } from "./useCampusExtension";
 
 export type EditorLabels = {
   paintHint: string;
@@ -31,14 +32,15 @@ export type EditorLabels = {
   tplWeekendBusy: string;
   chooseTitle: string;
   chooseLead: string;
-  choosePhoto: string;
-  choosePhotoHint: string;
+  /** Первый экран: «из кампуса» — подсказка зависит от того, стоит ли расширение. */
+  chooseCampus: string;
+  chooseCampusHint: string;
+  chooseCampusInstall: string;
+  chooseCampusUpdate: string;
+  chooseCampusDesktop: string;
   chooseManual: string;
   chooseManualHint: string;
-  importParsed: string;
-  importReview: string; // «Распознали пар: {n}…»
   /** То же для пар, пришедших из расширения кампуса. */
-  campusParsed: string;
   campusReview: string; // «Пары из кампуса: {n}…»
   importSave: string;
   importCancel: string;
@@ -51,24 +53,6 @@ export type EditorLabels = {
   brushBusy: string;
   brushSoft: string;
   breakRow: string; // «Перерыв {m} мин»
-  photoTitle: string;
-  photoHint: string;
-  photoBtn: string;
-  photoWorking: string;
-  photoFailed: string;
-  photoTooLarge: string;
-  photoLimit: string;
-  photoBusy: string;
-  photoNotConfigured: string;
-  photoTooMany: string; // «{n}»
-  photoNotTimetable: string;
-  photoNotTimetableOne: string; // «{n}» — номер файла
-  photoNoClasses: string;
-  photoTooLargeOne: string; // «{n}»
-  photoFormat: string;
-  photoFormatOne: string; // «{n}»
-  photoEmpty: string;
-  photoEmptyOne: string; // «{n}»
   /** Дневной вид на телефоне: подпись к выбору дня и кнопка на весь день. */
   dayPick: string;
   dayAllBusy: string;
@@ -102,73 +86,8 @@ function keyOf(target: EventTarget | null): string | null {
 const HOLD_MS = 320;
 const HOLD_SLOP = 8;
 
-/** Не больше 2 файлов за раз, каждый до 1 МБ — те же лимиты проверяет сервер. */
-const MAX_PHOTOS = 2;
-const FILE_MAX_BYTES = 1024 * 1024;
-/** Исходную картинку больше этого даже не открываем. */
-const SOURCE_MAX_BYTES = 20 * 1024 * 1024;
-const IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
-/** Что предлагать в окне выбора файла. Проверка всё равно на сервере. */
-const ACCEPT =
-  "image/png,image/jpeg,image/webp,application/pdf,.pdf,.html,.htm,.txt,.csv,.tsv,.ics,.md,.json,.xml,.docx,.xlsx";
-
-class FileTooLarge extends Error {
-  constructor(readonly index: number) {
-    super("too_large");
-  }
-}
-
-/**
- * Перекодировать скриншот в JPEG до 1 МБ. Сначала 1800 px и хорошее качество,
- * если не влезло — уменьшаем размер и качество.
- */
-async function shrinkImage(file: File, index: number): Promise<Blob> {
-  if (file.size > SOURCE_MAX_BYTES) throw new FileTooLarge(index);
-  const url = URL.createObjectURL(file);
-  try {
-    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const element = new Image();
-      element.onload = () => resolve(element);
-      element.onerror = () => reject(new Error("decode"));
-      element.src = url;
-    });
-    const attempts: [number, number][] = [
-      [1800, 0.88],
-      [1600, 0.8],
-      [1400, 0.72],
-      [1200, 0.65],
-    ];
-    for (const [maxSide, quality] of attempts) {
-      const scale = Math.min(1, maxSide / Math.max(image.naturalWidth, image.naturalHeight));
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
-      canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
-      const context = canvas.getContext("2d");
-      if (!context) throw new Error("canvas");
-      // Прозрачный PNG на чёрном фоне читается хуже — подкладываем белый.
-      context.fillStyle = "#ffffff";
-      context.fillRect(0, 0, canvas.width, canvas.height);
-      context.drawImage(image, 0, 0, canvas.width, canvas.height);
-      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
-      if (blob && blob.size <= FILE_MAX_BYTES) return blob;
-    }
-    throw new FileTooLarge(index);
-  } finally {
-    URL.revokeObjectURL(url);
-  }
-}
-
-/** Картинки сжимаются, остальные файлы уходят как есть, но не больше 1 МБ. */
-async function prepareUpload(file: File, index: number): Promise<{ blob: Blob; name: string }> {
-  if (IMAGE_TYPES.has(file.type)) {
-    return { blob: await shrinkImage(file, index), name: file.name.replace(/\.[^.]+$/, "") + ".jpg" };
-  }
-  if (file.size > FILE_MAX_BYTES) throw new FileTooLarge(index);
-  return { blob: file, name: file.name };
-}
-
-/** Откуда пришли пары на проверку: распознанный файл или расширение кампуса. */
-type ImportSource = "photo" | "campus";
+/** Откуда пришли пары на проверку — пока только расширение кампуса. */
+type ImportSource = "campus";
 
 type ParsedSlot = {
   weekday: number;
@@ -201,8 +120,9 @@ export function ScheduleEditor({
   backHref,
   weekdayNames,
   weekdayShort,
-  photoEnabled,
   todayWeekday,
+  campus,
+  hint,
   labels,
 }: {
   slug: string;
@@ -214,9 +134,12 @@ export function ScheduleEditor({
   backHref: string;
   weekdayNames: string[];
   weekdayShort: string[];
-  photoEnabled: boolean;
   /** Сегодня по часовому поясу группы, 0 = пн: с него открывается дневной вид. */
   todayWeekday: number;
+  /** Группа и язык — для «Перенести из кампуса» на первом экране. */
+  campus: { title: string; lang: string };
+  /** Подсказка расширения кампуса — вверху карточки редактора. */
+  hint?: React.ReactNode;
   labels: EditorLabels;
 }) {
   const router = useRouter();
@@ -237,21 +160,16 @@ export function ScheduleEditor({
   // Откуда последний импорт (и версия расширения): уходит на сервер с первым
   // сохранением после него — для сводки у старосты и статистики.
   const importOrigin = useRef<{ origin: ImportSource; ext: string | null } | null>(null);
-  // Распознанное с фото ждёт проверки: пока человек не нажал
+  // Пришедшее из кампуса ждёт проверки: пока человек не нажал
   // «Сохранить», автосохранение молчит. Снимок — чтобы «Отменить импорт»
   // вернул сетку ровно к тому, что было до него.
   const [reviewing, setReviewing] = useState(false);
   const beforeImport = useRef<{ busy: Set<string>; dirty: boolean; base: WeeklySlot[] } | null>(null);
-  const [failed, setFailed] = useState<string | null>(null);
-  const [photoWorking, setPhotoWorking] = useState(false);
-  const photoRef = useRef<HTMLInputElement>(null);
 
   // Первый раз расписание заполняют не сразу сеткой: сперва человек выбирает
-  // способ — с фото или вручную. Без распознавания выбирать не из чего.
+  // способ — перенести из кампуса или отметить вручную.
   const startedEmpty = useRef(initialBusy.length === 0);
-  const [mode, setMode] = useState<"choose" | "photo" | "manual">(() =>
-    initialBusy.length === 0 && photoEnabled ? "choose" : "manual",
-  );
+  const [mode, setMode] = useState<"choose" | "manual">(() => (initialBusy.length === 0 ? "choose" : "manual"));
   const painting = useRef(false);
   const paintTo = useRef(true);
   // Чем красим: «занят» (пары, работа) или «неудобно» (могу, но не хочу).
@@ -537,27 +455,19 @@ export function ScheduleEditor({
     }
   }, [mode]);
 
-  function choosePhoto() {
-    setMode("photo");
-    // Окно выбора файла открываем прямо в обработчике нажатия: иначе браузер
-    // на телефоне сочтёт его открытым не человеком и не покажет.
-    photoRef.current?.click();
-  }
-
   /**
-   * Раскрасить сетку по распознанным парам, ничего не сохраняя: распознавание
-   * ошибается, поэтому человек сначала видит результат, может поправить клетки
-   * и только потом жмёт «Сохранить». Клетка занята, если пара задевает её хотя
-   * бы частично.
+   * Раскрасить сетку по парам из кампуса, ничего не сохраняя: человек сначала
+   * видит результат, может поправить клетки и только потом жмёт «Сохранить».
+   * Клетка занята, если пара задевает её хотя бы частично.
    */
   function applyParsed(
     slots: ParsedSlot[],
-    source: ImportSource = "photo",
+    source: ImportSource = "campus",
     count = slots.length,
     ext: string | null = null,
   ) {
     importOrigin.current = { origin: source, ext };
-    // Отметки «неудобно» распознавание не приносит — их оставляем как были.
+    // Отметки «неудобно» кампус не приносит — их оставляем как были.
     const next = new Set<string>([...busy].filter((key) => key.startsWith(SOFT)));
     for (const slot of slots) {
       for (const period of periods) {
@@ -570,7 +480,7 @@ export function ScheduleEditor({
     // Повторный импорт поверх непроверенного сравниваем с исходной сеткой, а не с черновиком.
     if (!reviewing) beforeImport.current = { busy: new Set(busy), dirty, base: base.current };
     pushHistory();
-    // Распознанные пары становятся основой сетки вместе с подписями и
+    // Пары из кампуса становятся основой сетки вместе с подписями и
     // чётностью: сохранение возьмёт их отсюда, а не из клеток.
     base.current = [
       ...base.current.filter((slot) => slot.kind === "soft"),
@@ -625,7 +535,6 @@ export function ScheduleEditor({
       if (!incoming || handled.has(incoming.id)) return;
       handled.add(incoming.id);
       window.postMessage({ source: PAGE_SOURCE, type: "campus-received", id: incoming.id }, window.location.origin);
-      setFailed(null);
       setMode("manual");
       applyParsedRef.current(incoming.slots, "campus", incoming.count, incoming.version);
     }
@@ -633,71 +542,6 @@ export function ScheduleEditor({
     window.postMessage({ source: PAGE_SOURCE, type: "campus-ready" }, window.location.origin);
     return () => window.removeEventListener("message", onMessage);
   }, []);
-
-  async function runPhotoImport(files: File[]) {
-    if (files.length === 0) return;
-    if (files.length > MAX_PHOTOS) {
-      setFailed(labels.photoTooMany.replace("{n}", String(MAX_PHOTOS)));
-      return;
-    }
-    setPhotoWorking(true);
-    setFailed(null);
-    try {
-      const form = new FormData();
-      for (const [index, file] of files.entries()) {
-        const upload = await prepareUpload(file, index + 1);
-        form.append("files", upload.blob, upload.name);
-      }
-      const response = await fetch(`/api/g/${slug}/import-photo`, {
-        method: "POST",
-        credentials: "same-origin",
-        body: form,
-      });
-      const data = (await response.json().catch(() => ({}))) as {
-        ok?: boolean;
-        slots?: ParsedSlot[];
-        error?: string;
-        file?: number;
-        screenshots?: number[];
-        total?: number;
-      };
-      if (!response.ok || !data.ok || !data.slots) {
-        setPreview(null);
-        const many = (data.total ?? files.length) > 1;
-        const withNumber = (single: string, numbered: string, index?: number) =>
-          many && index ? numbered.replace("{n}", String(index)) : single;
-        const messages: Record<string, string> = {
-          too_large: withNumber(labels.photoTooLarge, labels.photoTooLargeOne, data.file),
-          format: withNumber(labels.photoFormat, labels.photoFormatOne, data.file),
-          empty: withNumber(labels.photoEmpty, labels.photoEmptyOne, data.file),
-          limit: labels.photoLimit,
-          busy: labels.photoBusy,
-          not_configured: labels.photoNotConfigured,
-          not_timetable:
-            data.screenshots?.length === 1
-              ? withNumber(labels.photoNotTimetable, labels.photoNotTimetableOne, data.screenshots[0])
-              : labels.photoNotTimetable,
-          no_classes: labels.photoNoClasses,
-        };
-        setFailed(messages[data.error ?? ""] ?? labels.photoFailed);
-        return;
-      }
-      applyParsed(data.slots);
-    } catch (error) {
-      if (error instanceof FileTooLarge) {
-        setFailed(
-          files.length > 1
-            ? labels.photoTooLargeOne.replace("{n}", String(error.index))
-            : labels.photoTooLarge,
-        );
-      } else {
-        setFailed(labels.photoFailed);
-      }
-    } finally {
-      setPhotoWorking(false);
-      if (photoRef.current) photoRef.current.value = "";
-    }
-  }
 
   // Часы занятости за неделю: страховка от главной ошибки — закрасить наоборот.
   const busyHours =
@@ -711,73 +555,68 @@ export function ScheduleEditor({
         10,
     ) / 10;
 
-  const fileInput = photoEnabled ? (
-    <input
-      ref={photoRef}
-      type="file"
-      accept={ACCEPT}
-      multiple
-      hidden
-      onChange={(event) => void runPhotoImport([...(event.target.files ?? [])])}
-    />
-  ) : null;
-
-  // Первый экран: три понятных пути вместо трёх равноправных карточек сразу.
+  // Первый экран: два пути вместо сетки сразу. «Из кампуса» — главный: если
+  // расширение стоит, ссылка сразу открывает кампус, иначе ведёт к установке.
+  const extension = useCampusExtension(campus.lang);
   if (mode === "choose") {
-    const options = [
-      { key: "photo" as const, Icon: IconCamera, title: labels.choosePhoto, hint: labels.choosePhotoHint },
-      { key: "manual" as const, Icon: IconGrid, title: labels.chooseManual, hint: labels.chooseManualHint },
-    ];
+    const canTransfer = extension.status === "present" && supportsIntent(extension.version);
+    // До ответа расширения (и на сервере) — «поставь»: так разметка совпадает при гидратации.
+    const campusOption = canTransfer
+      ? { href: campusScheduleUrl(campus.lang), hint: labels.chooseCampusHint, external: true }
+      : extension.status === "present" && olderVersion(extension.version ?? "0.0.0", LATEST_EXTENSION)
+        ? { href: "/extension#update", hint: labels.chooseCampusUpdate, external: false }
+        : extension.status === "absent" && (webApp() || !desktopChromium())
+          ? { href: "/extension", hint: labels.chooseCampusDesktop, external: false }
+          : { href: "/extension", hint: labels.chooseCampusInstall, external: false };
 
     return (
-      <section className="card">
-        {fileInput}
+      <section className="card choose-card">
         <h2>{labels.chooseTitle}</h2>
         <p className="small muted">{labels.chooseLead}</p>
         <ul className="choose-list">
-          {options.map((option) => (
-            <li key={option.key}>
-              <button
-                type="button"
-                className="choose-row"
-                onClick={() => (option.key === "photo" ? choosePhoto() : setMode(option.key))}
-              >
-                <option.Icon size={22} />
-                <span className="choose-text">
-                  <b>{option.title}</b>
-                  <span className="small muted">{option.hint}</span>
-                </span>
-                <IconChevronRight className="muted" />
-              </button>
-            </li>
-          ))}
+          <li>
+            <a
+              className="choose-row choose-main"
+              href={campusOption.href}
+              data-choose="campus"
+              {...(campusOption.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+              onClick={() => {
+                if (!canTransfer) return;
+                startCampusTransfer(campus.title, campus.lang);
+                setMode("manual");
+              }}
+            >
+              <IconArrowDown size={22} />
+              <span className="choose-text">
+                <b>{labels.chooseCampus}</b>
+                <span className="small muted">{campusOption.hint}</span>
+              </span>
+              <IconChevronRight className="muted" />
+            </a>
+          </li>
+          <li>
+            <button type="button" className="choose-row" data-choose="manual" onClick={() => setMode("manual")}>
+              <IconGrid size={22} />
+              <span className="choose-text">
+                <b>{labels.chooseManual}</b>
+                <span className="small muted">{labels.chooseManualHint}</span>
+              </span>
+              <IconChevronRight className="muted" />
+            </button>
+          </li>
         </ul>
       </section>
     );
   }
 
   return (
-    // Без распознавания правой колонки нет — сетка на всю ширину.
-    <div className={photoEnabled ? `grid-2${mode === "photo" ? " import-first" : ""}` : undefined}>
-      {fileInput}
-      <section className="card">
-        <p className="small muted">{labels.paintHint}</p>
+    <section className="card editor-card">
+      {hint}
 
-        <div className="templates">
-          <span className="small muted">{labels.tplTitle}</span>
-          <button type="button" className="btn btn-sm" onClick={() => applyTemplate("evenings")}>
-            {labels.tplEvenings}
-          </button>
-          <button type="button" className="btn btn-sm" onClick={() => applyTemplate("weekendFree")}>
-            {labels.tplWeekendFree}
-          </button>
-          <button type="button" className="btn btn-sm" onClick={() => applyTemplate("weekendBusy")}>
-            {labels.tplWeekendBusy}
-          </button>
-        </div>
-
-        {/* Кисть: «занят» — пары и работа, «неудобно» — могу, но лучше не надо.
-            Такие окна группа увидит, но предложит их последними. */}
+      {/* Кисть и шаблоны — одной строкой: раньше они стояли столбиком и съедали
+          полэкрана над сеткой. Кисть: «занят» — пары и работа, «неудобно» —
+          могу, но лучше не надо; такие окна группа предложит последними. */}
+      <div className="editor-toolbar">
         <div className="brush" role="radiogroup" aria-label={labels.brushLabel}>
           {(["busy", "soft"] as const).map((kind) => (
             <button
@@ -793,242 +632,205 @@ export function ScheduleEditor({
             </button>
           ))}
         </div>
+        <div className="templates">
+          <span className="small muted">{labels.tplTitle}</span>
+          <button type="button" className="btn btn-sm" onClick={() => applyTemplate("evenings")}>
+            {labels.tplEvenings}
+          </button>
+          <button type="button" className="btn btn-sm" onClick={() => applyTemplate("weekendFree")}>
+            {labels.tplWeekendFree}
+          </button>
+          <button type="button" className="btn btn-sm" onClick={() => applyTemplate("weekendBusy")}>
+            {labels.tplWeekendBusy}
+          </button>
+        </div>
+      </div>
+      <p className="small muted editor-hint">{labels.paintHint}</p>
 
-        {reviewing && preview && (
-          <div className="notice review-bar" role="status">
-            <span>
-              {(preview.source === "campus" ? labels.campusReview : labels.importReview).replace(
-                "{n}",
-                String(preview.count),
-              )}
-            </span>
-            <span className="notice-actions">
-              <button className="btn btn-sm btn-primary tg-hide" type="button" onClick={confirmImport}>
-                {labels.importSave}
-              </button>
-              <button className="btn btn-sm btn-quiet" type="button" onClick={cancelImport}>
-                {labels.importCancel}
-              </button>
-            </span>
-          </div>
-        )}
+      {reviewing && preview && (
+        <div className="notice review-bar" role="status">
+          <span>
+            {labels.campusReview.replace("{n}", String(preview.count))}
+          </span>
+          <span className="notice-actions">
+            <button className="btn btn-sm btn-primary tg-hide" type="button" onClick={confirmImport}>
+              {labels.importSave}
+            </button>
+            <button className="btn btn-sm btn-quiet" type="button" onClick={cancelImport}>
+              {labels.importCancel}
+            </button>
+          </span>
+        </div>
+      )}
 
-        <div
-          className="gridwrap"
-          ref={rootRef}
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onKeyDown={onKeyDown}
-        >
-          <table className="week editor periods">
-            <thead>
-              <tr>
-                <th className="timecol" />
-                {weekdayNames.map((name, weekday) => (
-                  <th key={name}>
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-quiet"
-                      style={{ padding: "2px 6px" }}
-                      onClick={() => toggleDay(weekday)}
-                    >
-                      {weekdayShort[weekday]}
-                    </button>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {periods.map((period) => [
-                <BreakRow
-                  key={`break-${period.start}`}
-                  period={period}
-                  columns={weekdayNames.length}
-                  template={labels.breakRow}
-                />,
-                <tr key={period.start}>
-                  <PeriodTime period={period} />
-                  {weekdayNames.map((name, weekday) => {
-                    const key = cellKey(weekday, period.start);
-                    const isBusy = busy.has(key);
-                    const isSoft = busy.has(own(key, "soft"));
-                    return (
-                      <td
-                        key={key}
-                        className={`cell${isBusy ? " busy" : ""}${isSoft ? " soft" : ""}`}
-                        tabIndex={0}
-                        role="button"
-                        aria-pressed={isBusy}
-                        aria-label={`${name} ${fmtMinutes(period.start)}–${fmtMinutes(period.end)}`}
-                        data-key={key}
-                      />
-                    );
-                  })}
-                </tr>,
-              ])}
-            </tbody>
-          </table>
-
-          {/* Телефон: один день крупными клетками. Семь колонок на 375px дают
-              клетку ~39px — меньше цели нажатия в 44px. */}
-          <div className="editor-day">
-            <div className="editor-days" role="tablist" aria-label={labels.dayPick}>
-              {weekdayShort.map((short, weekday) => {
-                const taken = periods.filter((period) => busy.has(cellKey(weekday, period.start))).length;
-                return (
+      <div
+        className="gridwrap"
+        ref={rootRef}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onKeyDown={onKeyDown}
+      >
+        <table className="week editor periods">
+          <thead>
+            <tr>
+              <th className="timecol" />
+              {weekdayNames.map((name, weekday) => (
+                <th key={name}>
                   <button
-                    key={short}
                     type="button"
-                    role="tab"
-                    aria-selected={weekday === day}
-                    aria-label={weekdayNames[weekday]}
-                    className={`daychip${weekday === day ? " active" : ""}`}
-                    onClick={() => setDay(weekday)}
+                    className="btn btn-sm btn-quiet"
+                    style={{ padding: "2px 6px" }}
+                    onClick={() => toggleDay(weekday)}
                   >
-                    <span>{short}</span>
-                    {taken > 0 && <span className="count">{taken}</span>}
+                    {weekdayShort[weekday]}
                   </button>
-                );
-              })}
-            </div>
-            <table className="week editor periods day">
-              <tbody>
-                {periods.map((period) => {
-                  const key = cellKey(day, period.start);
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {periods.map((period) => [
+              <BreakRow
+                key={`break-${period.start}`}
+                period={period}
+                columns={weekdayNames.length}
+                template={labels.breakRow}
+              />,
+              <tr key={period.start}>
+                <PeriodTime period={period} />
+                {weekdayNames.map((name, weekday) => {
+                  const key = cellKey(weekday, period.start);
                   const isBusy = busy.has(key);
                   const isSoft = busy.has(own(key, "soft"));
-                  return [
-                    <BreakRow key={`break-${period.start}`} period={period} columns={1} template={labels.breakRow} />,
-                    <tr key={period.start}>
-                      <PeriodTime period={period} />
-                      <td
-                        className={`cell${isBusy ? " busy" : ""}${isSoft ? " soft" : ""}`}
-                        tabIndex={0}
-                        role="button"
-                        aria-pressed={isBusy}
-                        aria-label={`${weekdayNames[day]} ${fmtMinutes(period.start)}–${fmtMinutes(period.end)}`}
-                        data-day-key={key}
-                      >
-                        {(isBusy || isSoft) && (
-                          <span className="cell-state">{isBusy ? labels.legendBusy : labels.legendSoft}</span>
-                        )}
-                      </td>
-                    </tr>,
-                  ];
+                  return (
+                    <td
+                      key={key}
+                      className={`cell${isBusy ? " busy" : ""}${isSoft ? " soft" : ""}`}
+                      tabIndex={0}
+                      role="button"
+                      aria-pressed={isBusy}
+                      aria-label={`${name} ${fmtMinutes(period.start)}–${fmtMinutes(period.end)}`}
+                      data-key={key}
+                    />
+                  );
                 })}
-              </tbody>
-            </table>
-            <button type="button" className="btn btn-sm" onClick={() => toggleDay(day)}>
-              {periods.every((period) => busy.has(cellKey(day, period.start))) ? labels.dayAllFree : labels.dayAllBusy}
-            </button>
-          </div>
-        </div>
+              </tr>,
+            ])}
+          </tbody>
+        </table>
 
-        <div className="legend">
-          <i className="swatch-free" />
-          <span>{labels.legendFree}</span>
-          <i className="swatch-busy" />
-          <span>{labels.legendBusy}</span>
-          <i className="swatch-soft-mine" />
-          <span>{labels.legendSoft}</span>
-        </div>
-
-        {/* Сохранять руками нечего — главная кнопка просто возвращает в группу. */}
-        <TelegramMainButton
-          text={reviewing ? labels.importSave : labels.done}
-          onClick={reviewing ? confirmImport : () => router.push(backHref)}
-          disabled={reviewing ? false : saving || dirty}
-          progress={saving}
-        />
-
-        <div className="editor-foot">
-          <span className="small muted savestate" role="status" aria-live="polite">
-            {failedSave ? (
-              <>
-                {labels.saveError}{" "}
-                <button type="button" className="btn btn-sm" onClick={() => setFailedSave(false)}>
-                  {labels.saveRetry}
+        {/* Телефон: один день крупными клетками. Семь колонок на 375px дают
+            клетку ~39px — меньше цели нажатия в 44px. */}
+        <div className="editor-day">
+          <div className="editor-days" role="tablist" aria-label={labels.dayPick}>
+            {weekdayShort.map((short, weekday) => {
+              const taken = periods.filter((period) => busy.has(cellKey(weekday, period.start))).length;
+              return (
+                <button
+                  key={short}
+                  type="button"
+                  role="tab"
+                  aria-selected={weekday === day}
+                  aria-label={weekdayNames[weekday]}
+                  className={`daychip${weekday === day ? " active" : ""}`}
+                  onClick={() => setDay(weekday)}
+                >
+                  <span>{short}</span>
+                  {taken > 0 && <span className="count">{taken}</span>}
                 </button>
-              </>
-            ) : reviewing ? (
-              <>{labels.importPending}</>
-            ) : !savedOnce && !dirty && !saving ? (
-              <>{labels.notFilledYet}</>
-            ) : saving || dirty ? (
-              <>
-                <span className="spinner" aria-hidden="true" /> {labels.saving}
-              </>
-            ) : (
-              <>
-                <IconCheck className="ok" /> {labels.saved}
-              </>
-            )}
-          </span>
-          <span className="small muted">
-            {labels.busyTotal.replace("{h}", String(busyHours))}
-          </span>
-          <span className="editor-actions">
-            <button
-              className="btn btn-sm"
-              type="button"
-              disabled={history.length === 0}
-              onClick={undo}
-            >
-              {labels.undo}
-            </button>
-            <button className="btn btn-sm btn-quiet" type="button" onClick={clearAll}>
-              {labels.clear}
-            </button>
-          </span>
-        </div>
-      </section>
-
-      {photoEnabled && (
-        <section className="card">
-          <h2>{labels.photoTitle}</h2>
-          <p className="small muted">{labels.photoHint}</p>
-          <button
-            className="btn btn-primary"
-            type="button"
-            disabled={photoWorking}
-            onClick={() => photoRef.current?.click()}
-          >
-            {photoWorking ? labels.photoWorking : labels.photoBtn}
-          </button>
-          {photoWorking && (
-            <p className="small muted waiting" role="status" aria-live="polite">
-              <span className="spinner" aria-hidden="true" /> {labels.photoWorking}
-            </p>
-          )}
-
-          <div style={{ marginTop: 10 }}>
-            {failed && (
-              <p className="small" role="alert" style={{ color: "var(--danger)" }}>
-                {failed}
-              </p>
-            )}
-            {preview && (
-              <>
-                <p className="small">
-                  {(preview.source === "campus" ? labels.campusParsed : labels.importParsed).replace(
-                    "{n}",
-                    String(preview.count),
-                  )}
-                </p>
-                <p className="small muted mono">
-                  {preview.slots.slice(0, 40).map((slot, index) => (
-                    <span key={`${slot.weekday}-${slot.start}-${index}`}>
-                      {weekdayShort[slot.weekday]} {slot.text}
-                      {slot.label ? ` · ${slot.label}` : ""}
-                      <br />
-                    </span>
-                  ))}
-                </p>
-              </>
-            )}
+              );
+            })}
           </div>
-        </section>
-      )}
-    </div>
+          <table className="week editor periods day">
+            <tbody>
+              {periods.map((period) => {
+                const key = cellKey(day, period.start);
+                const isBusy = busy.has(key);
+                const isSoft = busy.has(own(key, "soft"));
+                return [
+                  <BreakRow key={`break-${period.start}`} period={period} columns={1} template={labels.breakRow} />,
+                  <tr key={period.start}>
+                    <PeriodTime period={period} />
+                    <td
+                      className={`cell${isBusy ? " busy" : ""}${isSoft ? " soft" : ""}`}
+                      tabIndex={0}
+                      role="button"
+                      aria-pressed={isBusy}
+                      aria-label={`${weekdayNames[day]} ${fmtMinutes(period.start)}–${fmtMinutes(period.end)}`}
+                      data-day-key={key}
+                    >
+                      {(isBusy || isSoft) && (
+                        <span className="cell-state">{isBusy ? labels.legendBusy : labels.legendSoft}</span>
+                      )}
+                    </td>
+                  </tr>,
+                ];
+              })}
+            </tbody>
+          </table>
+          <button type="button" className="btn btn-sm" onClick={() => toggleDay(day)}>
+            {periods.every((period) => busy.has(cellKey(day, period.start))) ? labels.dayAllFree : labels.dayAllBusy}
+          </button>
+        </div>
+      </div>
+
+      <div className="legend">
+        <i className="swatch-free" />
+        <span>{labels.legendFree}</span>
+        <i className="swatch-busy" />
+        <span>{labels.legendBusy}</span>
+        <i className="swatch-soft-mine" />
+        <span>{labels.legendSoft}</span>
+      </div>
+
+      {/* Сохранять руками нечего — главная кнопка просто возвращает в группу. */}
+      <TelegramMainButton
+        text={reviewing ? labels.importSave : labels.done}
+        onClick={reviewing ? confirmImport : () => router.push(backHref)}
+        disabled={reviewing ? false : saving || dirty}
+        progress={saving}
+      />
+
+      <div className="editor-foot">
+        <span className="small muted savestate" role="status" aria-live="polite">
+          {failedSave ? (
+            <>
+              {labels.saveError}{" "}
+              <button type="button" className="btn btn-sm" onClick={() => setFailedSave(false)}>
+                {labels.saveRetry}
+              </button>
+            </>
+          ) : reviewing ? (
+            <>{labels.importPending}</>
+          ) : !savedOnce && !dirty && !saving ? (
+            <>{labels.notFilledYet}</>
+          ) : saving || dirty ? (
+            <>
+              <span className="spinner" aria-hidden="true" /> {labels.saving}
+            </>
+          ) : (
+            <>
+              <IconCheck className="ok" /> {labels.saved}
+            </>
+          )}
+        </span>
+        <span className="small muted">
+          {labels.busyTotal.replace("{h}", String(busyHours))}
+        </span>
+        <span className="editor-actions">
+          <button
+            className="btn btn-sm"
+            type="button"
+            disabled={history.length === 0}
+            onClick={undo}
+          >
+            {labels.undo}
+          </button>
+          <button className="btn btn-sm btn-quiet" type="button" onClick={clearAll}>
+            {labels.clear}
+          </button>
+        </span>
+      </div>
+    </section>
   );
 }

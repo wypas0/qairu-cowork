@@ -65,3 +65,21 @@ export function useCampusExtension(lang: string, waitMs = 3000): CampusExtension
   const clearChange = useCallback(() => setState((current) => ({ ...current, change: null })), []);
   return { ...state, clearChange };
 }
+
+/** Когда в этой вкладке последний раз нажали «Перенести из кампуса» (мс), 0 — не нажимали. */
+let lastTransferAt = 0;
+
+/**
+ * «Перенести из кампуса»: сообщить расширению группу и язык. Сам кампус
+ * открывает ссылка, по которой нажали (новая вкладка — без блокировки окон);
+ * карточка на кампусе дождётся записи.
+ */
+export function startCampusTransfer(title: string, lang: string): void {
+  lastTransferAt = Date.now();
+  window.postMessage({ source: PAGE_SOURCE, type: "campus-intent", title, lang }, window.location.origin);
+}
+
+/** Перенос запущен недавно — подсказка показывает «кампус открылся…», а не приглашение. */
+export function transferRecentlyStarted(): boolean {
+  return lastTransferAt > 0 && Date.now() - lastTransferAt < 10 * 60 * 1000;
+}

@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { EXT_SOURCE, LATEST_EXTENSION, PAGE_SOURCE, campusScheduleUrl, olderVersion, supportsIntent } from "@/core/extensionImport";
 import { webApp } from "@/lib/telegram";
 
-import { desktopChromium, useCampusExtension } from "./useCampusExtension";
+import { desktopChromium, startCampusTransfer, transferRecentlyStarted, useCampusExtension } from "./useCampusExtension";
 
 const DISMISSED_KEY = "qairu-ext-hint-dismissed";
 
@@ -19,7 +19,7 @@ function wasDismissed(): boolean {
 }
 
 /**
- * Подсказка про расширение кампуса над «Моим расписанием»: «поставь», если его
+ * Подсказка про расширение кампуса вверху редактора «Моего расписания»: «поставь», если его
  * нет, «обнови», если версия старая, и «Перенести из кампуса», если оно стоит.
  * По кнопке сайт сообщает расширению группу и открывает кампус; там расширение
  * само предлагает перенос и возвращает сюда пары на проверку. В Telegram и на
@@ -47,7 +47,8 @@ export function ExtensionHint({
 }) {
   const extension = useCampusExtension(lang);
   const [hidden, setHidden] = useState<{ install: boolean; update: boolean }>({ install: false, update: false });
-  const [sent, setSent] = useState(false);
+  // Перенос могли начать с экрана выбора — тогда сразу «кампус открылся…».
+  const [sent, setSent] = useState(transferRecentlyStarted);
 
   // Пары вернулись из кампуса — «кампус открылся…» больше не нужно.
   useEffect(() => {
@@ -75,9 +76,7 @@ export function ExtensionHint({
   }
 
   function transfer() {
-    // Кампус открывает сама ссылка (новая вкладка — без блокировки окон),
-    // расширение запоминает группу; карточка на кампусе дождётся записи.
-    window.postMessage({ source: PAGE_SOURCE, type: "campus-intent", title, lang }, window.location.origin);
+    startCampusTransfer(title, lang);
     setSent(true);
   }
 

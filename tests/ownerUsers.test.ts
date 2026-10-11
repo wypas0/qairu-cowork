@@ -310,7 +310,7 @@ describe("«Обзор»: воронка, когорты, функции", () =>
     const insights = await repo.ownerInsights(NOW);
     expect(insights.funnel).toEqual({ registered: 63, joined: 4, filled: 2, engaged: 2 });
     expect(insights.langs.find((item) => item.lang === "kk")?.count).toBe(31);
-    expect(insights.features).toMatchObject({ photo: 1, campus: 1, calendar: 1, avatars: 1, passwords: 1, soft: 1, recurringMeetings: 1 });
+    expect(insights.features).toMatchObject({ campus: 1, calendar: 1, avatars: 1, passwords: 1, soft: 1, recurringMeetings: 1 });
     expect(insights.bot).toMatchObject({ web: 1, unreachable: 1 });
     expect(insights.topGroups[0]).toMatchObject({ chatId: -501 });
     expect(insights.groupsByDay.reduce((sum, point) => sum + point.count, 0)).toBe(3);

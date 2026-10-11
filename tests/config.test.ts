@@ -10,7 +10,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { alertChatId, botToken, cronSecret, defaultTz, env, hasBot, ownerConsoleSecret, siteUrl, webhookSecret } from "@/lib/config";
 import { ownerIds } from "@/lib/owner";
-import { hasVision, visionApiKey, visionEndpoint } from "@/lib/vision";
 import { env as scriptEnv } from "../scripts/env.mjs";
 
 afterEach(() => vi.unstubAllEnvs());
@@ -54,7 +53,7 @@ describe("env()", () => {
 describe("все переменные пустые (как бывает в Vercel)", () => {
   for (const blank of ["", "   "]) {
     it(`${JSON.stringify(blank)}: ничего не падает, везде значения по умолчанию`, () => {
-      expect(KEYS).toEqual(expect.arrayContaining(["DATABASE_URL", "BOT_TOKEN", "VISION_API_KEY", "DEFAULT_TZ", "CRON_SECRET"]));
+      expect(KEYS).toEqual(expect.arrayContaining(["DATABASE_URL", "BOT_TOKEN", "DEFAULT_TZ", "CRON_SECRET"]));
       for (const key of KEYS) vi.stubEnv(key, blank);
 
       expect(botToken()).toBe("");
@@ -67,9 +66,6 @@ describe("все переменные пустые (как бывает в Verce
       expect(alertChatId()).toBe("");
       expect(ownerConsoleSecret()).toBe("");
       expect(ownerIds().size).toBe(0);
-      expect(visionApiKey()).toBe("");
-      expect(hasVision()).toBe(false);
-      expect(visionEndpoint()).toEqual({ baseUrl: "https://api.openai.com/v1", model: "gpt-4o-mini" });
       for (const key of KEYS) expect(scriptEnv(key)).toBeUndefined();
     });
   }
@@ -82,16 +78,6 @@ describe("все переменные пустые (как бывает в Verce
 
     vi.stubEnv("WEB_BASE_URL", " ");
     expect(siteUrl()).toBe("https://qairu-cowork.vercel.app");
-
-    // Пустой VISION_API_KEY больше не прячет кнопку при заданном OPENAI_API_KEY.
-    vi.stubEnv("VISION_API_KEY", "");
-    vi.stubEnv("OPENAI_API_KEY", "sk-test");
-    expect(visionApiKey()).toBe("sk-test");
-    expect(hasVision()).toBe(true);
-
-    vi.stubEnv("VISION_API_BASE_URL", "https://openrouter.example/api/v1/");
-    vi.stubEnv("VISION_MODEL", " some/model ");
-    expect(visionEndpoint()).toEqual({ baseUrl: "https://openrouter.example/api/v1", model: "some/model" });
   });
 });
 
