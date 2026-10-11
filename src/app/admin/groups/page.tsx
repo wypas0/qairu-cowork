@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { daysSince } from "@/components/owner/format";
-import { ListFilters, ListPager, ListSearch, ListSort } from "@/components/owner/OwnerList";
+import { Idle, ListFilters, ListPager, ListSearch, ListSort } from "@/components/owner/OwnerList";
 import { ownerPage } from "@/components/owner/OwnerPage";
 import * as repo from "@/db/repo";
 import { ownerMetadata } from "@/lib/ownerGate";
@@ -99,13 +99,7 @@ export default ownerPage("groups", async ({ t, fmt, query: params, now }) => {
                       {fmt.n(row.meetings)} / {fmt.n(row.meetingsMonth)} / {fmt.n(row.upcoming)}
                     </td>
                     <td data-label={t("w_owner_col_active")} className="tnum">
-                      {idle >= repo.INACTIVE_DAYS ? (
-                        <span className="badge stale">{t("w_owner_inactive_days", { n: fmt.n(idle) })}</span>
-                      ) : idle === 0 ? (
-                        t("w_owner_today")
-                      ) : (
-                        t("w_owner_days_ago", { n: fmt.n(idle) })
-                      )}
+                      <Idle t={t} n={fmt.n} idle={idle} />
                     </td>
                   </tr>
                 );

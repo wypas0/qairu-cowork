@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { daysSince, originName } from "@/components/owner/format";
-import { ListFilters, ListPager, ListSearch, ListSort, OwnerAvatar } from "@/components/owner/OwnerList";
+import { GroupLinks, Idle, ListFilters, ListPager, ListSearch, ListSort, OwnerAvatar, TelegramCell } from "@/components/owner/OwnerList";
 import { ownerPage } from "@/components/owner/OwnerPage";
 import * as repo from "@/db/repo";
 import { displayName } from "@/db/schema";
@@ -64,11 +64,11 @@ export default ownerPage("users", async ({ t, fmt, query: params, now }) => {
             <thead>
               <tr>
                 <th scope="col">{t("w_owner_col_person")}</th>
-                <th scope="col">{t("w_owner_col_via")}</th>
+                <th scope="col">{t("w_owner_col_tg")}</th>
+                <th scope="col">{t("w_owner_col_groups")}</th>
                 <th scope="col">{t("w_owner_col_lang")}</th>
                 <th scope="col">{t("w_owner_col_joined")}</th>
                 <th scope="col">{t("w_owner_col_active")}</th>
-                <th scope="col">{t("w_owner_col_groups")}</th>
                 <th scope="col">{t("w_owner_col_schedule")}</th>
                 <th scope="col">{t("w_owner_col_meetings")}</th>
               </tr>
@@ -86,32 +86,24 @@ export default ownerPage("users", async ({ t, fmt, query: params, now }) => {
                           <Link href={`${BASE}/${row.userId}`} prefetch={false} className="owner-person-name">
                             {name}
                           </Link>
-                          <span className="small muted">
-                            {[row.realName ? row.fullName : null, row.username ? `@${row.username}` : null, row.isWeb ? null : row.userId]
-                              .filter(Boolean)
-                              .join(" · ")}
-                          </span>
+                          {row.realName && row.fullName && row.fullName !== row.realName && (
+                            <span className="small muted">{row.fullName}</span>
+                          )}
                         </span>
                       </div>
                     </th>
-                    <td data-label={t("w_owner_col_via")}>
-                      <span className={row.isWeb ? "badge" : "badge soon"}>{t(row.isWeb ? "w_owner_via_web" : "w_owner_via_tg")}</span>
+                    <td data-label={t("w_owner_col_tg")}>
+                      <TelegramCell t={t} user={row} />
+                    </td>
+                    <td data-label={t("w_owner_col_groups")}>
+                      <GroupLinks t={t} groups={row.groupList} />
                     </td>
                     <td data-label={t("w_owner_col_lang")}>{row.lang}</td>
                     <td data-label={t("w_owner_col_joined")} className="tnum">
                       {fmt.date(row.createdAt)}
                     </td>
                     <td data-label={t("w_owner_col_active")} className="tnum">
-                      {idle >= repo.INACTIVE_DAYS ? (
-                        <span className="badge stale">{t("w_owner_inactive_days", { n: fmt.n(idle) })}</span>
-                      ) : idle === 0 ? (
-                        t("w_owner_today")
-                      ) : (
-                        t("w_owner_days_ago", { n: fmt.n(idle) })
-                      )}
-                    </td>
-                    <td data-label={t("w_owner_col_groups")} className="tnum">
-                      {fmt.n(row.groups)}
+                      <Idle t={t} n={fmt.n} idle={idle} />
                     </td>
                     <td data-label={t("w_owner_col_schedule")}>
                       {row.filled ? (

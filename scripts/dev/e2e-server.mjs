@@ -61,9 +61,11 @@ await sql`insert into chats (chat_id, slug, origin, title, lang, tz, created_by)
                  (${chat3}, 'smoke003', 'web', 'Кружок', 'ru', ${TZ}, ${asel}),
                  (${chat4}, 'smoke004', 'web', 'Сборная', 'ru', ${TZ}, ${asel}),
                  (${chat5}, 'smoke005', 'web', 'Хор', 'ru', ${TZ}, ${asel})`;
-await sql`insert into users (user_id, full_name, lang, is_web) values
-          (${amir}, 'Амир', 'ru', false), (${asel}, 'Асель', 'ru', false), (${bolat}, 'Болат', 'ru', false),
-          (${dana}, 'Дана', 'ru', false), (${erlan}, 'Ерлан', 'ru', false)`;
+// Ники в Telegram — у всех, кроме Болата: консоль показывает и ссылку на профиль, и «без ника».
+await sql`insert into users (user_id, username, full_name, lang, is_web) values
+          (${amir}, 'amir_k', 'Амир', 'ru', false), (${asel}, 'asel_n', 'Асель', 'ru', false),
+          (${bolat}, null, 'Болат', 'ru', false), (${dana}, 'dana_s', 'Дана', 'ru', false),
+          (${erlan}, 'erlan_t', 'Ерлан', 'ru', false)`;
 await sql`insert into memberships (chat_id, user_id, role) values
           (${chat}, ${amir}, 'admin'), (${chat}, ${asel}, 'member'), (${chat}, ${bolat}, 'member'),
           (${chat}, ${dana}, 'member'), (${chat}, ${erlan}, 'member'),

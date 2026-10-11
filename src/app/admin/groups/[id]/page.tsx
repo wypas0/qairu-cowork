@@ -2,8 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { IconChevronLeft, IconLock } from "@/components/icons";
-import { type Fmt, type T, originName } from "@/components/owner/format";
-import { OwnerAvatar } from "@/components/owner/OwnerList";
+import { type Fmt, type T, daysSince, originName } from "@/components/owner/format";
+import { Idle, OwnerAvatar, TelegramCell } from "@/components/owner/OwnerList";
 import { ownerPage } from "@/components/owner/OwnerPage";
 import * as repo from "@/db/repo";
 import { displayName } from "@/db/schema";
@@ -30,12 +30,12 @@ export default ownerPage(
     const detail = await repo.ownerGroupDetail(chatId, now, fmt.timeZone);
     if (!detail) notFound();
     await logOwnerView(access.user.userId, "group_view", chatId, await clientInfo());
-    return <GroupCard t={t} fmt={fmt} detail={detail} />;
+    return <GroupCard t={t} fmt={fmt} detail={detail} now={now} />;
   },
   (params) => `/admin/groups/${parseEntityId(params.id ?? "") ?? ""}`,
 );
 
-function GroupCard({ t, fmt, detail }: { t: T; fmt: Fmt; detail: repo.OwnerGroupDetail }) {
+function GroupCard({ t, fmt, detail, now }: { t: T; fmt: Fmt; detail: repo.OwnerGroupDetail; now: Date }) {
   const { group, members, meetings } = detail;
   const creator = group.createdBy !== null ? members.find((member) => member.userId === group.createdBy) : undefined;
 
@@ -43,9 +43,7 @@ function GroupCard({ t, fmt, detail }: { t: T; fmt: Fmt; detail: repo.OwnerGroup
     {
       title: t("w_owner_group_info"),
       rows: [
-        [t("w_owner_code"), group.slug ?? "—"],
-        [t("w_owner_chat_id"), <span className="tnum" key="id">{group.chatId}</span>],
-        [t("w_owner_col_origin"), t(group.origin === "web" ? "w_owner_via_web" : "w_owner_via_tg")],
+        [t("w_owner_sched_origin"), t(group.origin === "web" ? "w_owner_via_web" : "w_owner_via_tg")],
         [t("w_owner_created"), fmt.dateTime(group.createdAt)],
         [
           t("w_owner_created_by"),
@@ -74,10 +72,7 @@ function GroupCard({ t, fmt, detail }: { t: T; fmt: Fmt; detail: repo.OwnerGroup
         [t("w_owner_meet_recurring"), fmt.n(meetings.recurring)],
         [t("w_owner_with_summary"), fmt.n(meetings.withSummary)],
         [t("w_owner_responses"), fmt.n(meetings.responses)],
-        [
-          t("w_stats_attended"),
-          `${fmt.n(meetings.attended)} / ${fmt.n(meetings.asked)} · ${fmt.percent(meetings.attended, meetings.asked)}`,
-        ],
+        [t("w_stats_attended"), fmt.ratio(meetings.attended, meetings.asked)],
       ],
     },
   ];
@@ -95,6 +90,11 @@ function GroupCard({ t, fmt, detail }: { t: T; fmt: Fmt; detail: repo.OwnerGroup
           <p className="small muted tnum">
             {t("w_owner_col_size")}: {fmt.n(group.size)} · {t("w_owner_col_filled")}: {fmt.n(group.filled)} ·{" "}
             {fmt.percent(group.filled, group.size)}
+          </p>
+          <p className="small muted tnum">
+            {[group.slug ? `${t("w_owner_code")} ${group.slug}` : null, `${t("w_owner_chat_id")} ${group.chatId}`]
+              .filter(Boolean)
+              .join(" · ")}
           </p>
         </div>
       </section>
@@ -124,8 +124,10 @@ function GroupCard({ t, fmt, detail }: { t: T; fmt: Fmt; detail: repo.OwnerGroup
                 <thead>
                   <tr>
                     <th scope="col">{t("w_owner_col_person")}</th>
+                    <th scope="col">{t("w_owner_col_tg")}</th>
                     <th scope="col">{t("w_owner_col_role")}</th>
                     <th scope="col">{t("w_owner_col_schedule")}</th>
+                    <th scope="col">{t("w_owner_col_active")}</th>
                     <th scope="col">{t("w_owner_col_since")}</th>
                   </tr>
                 </thead>
@@ -141,10 +143,15 @@ function GroupCard({ t, fmt, detail }: { t: T; fmt: Fmt; detail: repo.OwnerGroup
                               <Link href={`/admin/users/${member.userId}`} prefetch={false} className="owner-person-name">
                                 {name}
                               </Link>
-                              {member.username && <span className="small muted">@{member.username}</span>}
+                              {member.realName && member.fullName && member.fullName !== member.realName && (
+                                <span className="small muted">{member.fullName}</span>
+                              )}
                             </span>
                           </div>
                         </th>
+                        <td data-label={t("w_owner_col_tg")}>
+                          <TelegramCell t={t} user={member} />
+                        </td>
                         <td data-label={t("w_owner_col_role")}>
                           {t(member.role === "admin" ? "w_owner_role_admin" : "w_owner_role_member")}
                         </td>
@@ -157,6 +164,9 @@ function GroupCard({ t, fmt, detail }: { t: T; fmt: Fmt; detail: repo.OwnerGroup
                           ) : (
                             <span className="muted">{t("w_owner_sched_none")}</span>
                           )}
+                        </td>
+                        <td data-label={t("w_owner_col_active")} className="tnum">
+                          {member.lastActive ? <Idle t={t} n={fmt.n} idle={daysSince(member.lastActive, now)} /> : "—"}
                         </td>
                         <td data-label={t("w_owner_col_since")} className="tnum">
                           {fmt.date(member.joinedAt)}

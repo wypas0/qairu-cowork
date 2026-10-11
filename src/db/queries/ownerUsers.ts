@@ -60,6 +60,9 @@ export const LAST_ACTIVITY = sql`
 // Список людей
 // --------------------------------------------------------------------------
 
+/** Группа в строке человека: название и ссылка на её карточку в консоли. */
+export type OwnerUserGroupRef = { chatId: number; title: string; slug: string | null };
+
 export type OwnerUserRow = {
   userId: number;
   username: string | null;
@@ -70,6 +73,8 @@ export type OwnerUserRow = {
   createdAt: Date;
   lastActive: Date;
   groups: number;
+  /** Группы человека, свежие сверху. В списке — для ссылок; в карточке — полной таблицей отдельно. */
+  groupList: OwnerUserGroupRef[];
   filled: boolean;
   origin: string | null;
   extVersion: string | null;
@@ -100,11 +105,12 @@ const USER_FILTER_SQL: Record<UserFilter, string> = {
   ext: "is_ext",
 };
 
+/** Имя, ник, id — и название или код группы (g.titles: всё через перевод строки). */
 function userSearch(q: string): SQL {
   const term = searchTerm(q);
   if (!term) return sql`true`;
   const like = likePattern(term.text);
-  const byText = sql`(u.full_name ilike ${like} or u.real_name ilike ${like} or u.username ilike ${like})`;
+  const byText = sql`(u.full_name ilike ${like} or u.real_name ilike ${like} or u.username ilike ${like} or g.titles ilike ${like})`;
   return term.id !== null ? sql`(${byText} or u.user_id = ${term.id})` : byText;
 }
 
@@ -119,6 +125,11 @@ function userRow(raw: Row): OwnerUserRow {
     createdAt: dateOrNull(raw.created_at) ?? new Date(0),
     lastActive: dateOrNull(raw.last_active) ?? dateOrNull(raw.created_at) ?? new Date(0),
     groups: num(raw.groups),
+    groupList: list<Row>(raw.group_list).map((group) => ({
+      chatId: num(group.chat_id),
+      title: String(group.title ?? ""),
+      slug: (group.slug as string | null) ?? null,
+    })),
     filled: Boolean(raw.filled),
     origin: (raw.origin as string | null) ?? null,
     extVersion: (raw.ext_version as string | null) ?? null,
@@ -143,13 +154,21 @@ export async function listOwnerUsers(query: UserListQuery, now = new Date(), exe
 
   const result = await ex(exec).execute(sql`
     with ${LAST_ACTIVITY},
-    grp as (select user_id, count(*)::int as n from memberships group by user_id),
+    grp as (
+      select m.user_id, count(*)::int as n,
+             json_agg(json_build_object('chat_id', c.chat_id, 'title', c.title, 'slug', c.slug)
+                      order by m.joined_at desc, c.chat_id) as list,
+             string_agg(c.title || chr(10) || coalesce(c.slug, ''), chr(10)) as titles
+        from memberships m join chats c on c.chat_id = m.chat_id
+       group by m.user_id
+    ),
     made as (select initiator_id as user_id, count(*)::int as n from meetings group by initiator_id),
     ans as (select user_id, count(*)::int as n from meeting_responses group by user_id),
     base as (
       select u.user_id, u.username, u.full_name, u.real_name, u.lang, u.is_web, u.created_at,
              greatest(u.created_at, la.at) as last_active,
              coalesce(g.n, 0) as groups,
+             coalesce(g.list, '[]'::json) as group_list,
              coalesce(ss.filled, false) as filled,
              case when ss.filled then ss.origin end as origin,
              case when ss.filled then ss.ext_version end as ext_version,
@@ -178,7 +197,7 @@ export async function listOwnerUsers(query: UserListQuery, now = new Date(), exe
          'ext', count(*) filter (where is_ext)) from base) as counts,
       (select count(*)::int from base where ${filter}) as total,
       (select coalesce(json_agg(p), '[]'::json) from (
-         select user_id, username, full_name, real_name, lang, is_web, created_at, last_active, groups,
+         select user_id, username, full_name, real_name, lang, is_web, created_at, last_active, groups, group_list,
                 filled, origin, ext_version, schedule_at, made, answers, avatar_at
            from base where ${filter}
           order by ${orderBy}
@@ -356,6 +375,7 @@ export async function ownerUserDetail(
   return {
     user: {
       ...base,
+      groupList: groups.map(({ chatId, title, slug }) => ({ chatId, title, slug })),
       hasPassword: Boolean(row.has_password),
       calendar: {
         connected: Boolean(row.calendar_on),
@@ -551,6 +571,8 @@ export type OwnerGroupMember = {
   origin: string | null;
   scheduleAt: Date | null;
   avatarAt: Date | null;
+  /** Последнее действие где угодно на сайте и в боте, не только в этой группе. */
+  lastActive: Date | null;
 };
 
 export type OwnerGroupDetail = {
@@ -578,6 +600,7 @@ export async function ownerGroupDetail(
   const month = new Date(now.getTime() - 30 * DAY).toISOString();
   const result = await ex(exec).execute(sql`
     with c as (select * from chats where chat_id = ${chatId}),
+    ${LAST_ACTIVITY},
     gm as (select id, status, when_start, repeat_until, created_at, summary from meetings where chat_id = ${chatId})
     select c.chat_id, c.slug, c.title, c.origin, c.created_at, c.tz, c.lang, c.semester_start, c.created_by,
       (select count(*)::int from memberships where chat_id = c.chat_id) as size,
@@ -605,10 +628,12 @@ export async function ownerGroupDetail(
           'is_web', u.is_web, 'role', m.role, 'joined_at', m.joined_at,
           'filled', coalesce(s.filled, false), 'origin', case when s.filled then s.origin end,
           'schedule_at', s.updated_at,
-          'avatar_at', (select updated_at from avatars av where av.user_id = u.user_id))
+          'avatar_at', (select updated_at from avatars av where av.user_id = u.user_id),
+          'last_active', greatest(u.created_at, la.at))
           order by m.role = 'admin' desc, m.joined_at), '[]'::json)
          from memberships m join users u on u.user_id = m.user_id
          left join schedule_state s on s.user_id = m.user_id
+         left join last_act la on la.user_id = m.user_id
         where m.chat_id = c.chat_id) as members
     from c
   `);
@@ -635,6 +660,7 @@ export async function ownerGroupDetail(
       origin: (member.origin as string | null) ?? null,
       scheduleAt: dateOrNull(member.schedule_at),
       avatarAt: dateOrNull(member.avatar_at),
+      lastActive: dateOrNull(member.last_active),
     })),
     meetings: {
       past: num(row.past),

@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { IconChevronLeft, IconLock } from "@/components/icons";
+import { IconChevronLeft, IconLock, IconSend } from "@/components/icons";
 import { type Fmt, type T, originName } from "@/components/owner/format";
-import { OwnerAvatar } from "@/components/owner/OwnerList";
+import { OwnerAvatar, telegramUrl } from "@/components/owner/OwnerList";
 import { ownerPage } from "@/components/owner/OwnerPage";
 import * as repo from "@/db/repo";
 import { displayName } from "@/db/schema";
@@ -42,6 +42,7 @@ function UserCard({ t, fmt, detail }: { t: T; fmt: Fmt; detail: repo.OwnerUserDe
   const { user, groups, schedule, meetings, sessions, notices } = detail;
   const name = displayName(user);
   const yesNo = (value: boolean) => t(value ? "w_owner_yes" : "w_owner_no");
+  const tgUrl = user.isWeb ? null : telegramUrl(user.username);
 
   const tiles: Tile[] = [
     {
@@ -50,8 +51,17 @@ function UserCard({ t, fmt, detail }: { t: T; fmt: Fmt; detail: repo.OwnerUserDe
         [t(user.isWeb ? "w_owner_site_id" : "w_owner_tg_id"), <span className="tnum" key="id">{user.userId}</span>],
         [t("w_owner_real_name"), user.realName ?? "—"],
         [t("w_owner_tg_name"), user.fullName || "—"],
-        [t("w_owner_username"), user.username ? `@${user.username}` : "—"],
-        [t("w_owner_col_via"), t(user.isWeb ? "w_owner_via_web" : "w_owner_via_tg")],
+        [
+          t("w_owner_username"),
+          tgUrl ? (
+            <a href={tgUrl} target="_blank" rel="noopener noreferrer" key="nick">
+              @{user.username}
+            </a>
+          ) : (
+            "—"
+          ),
+        ],
+        [t("w_owner_via"), t(user.isWeb ? "w_owner_via_web" : "w_owner_via_tg")],
         [t("w_owner_lang"), user.lang],
         [t("w_owner_registered"), fmt.dateTime(user.createdAt)],
         [t("w_owner_last_active"), fmt.dateTime(user.lastActive)],
@@ -92,10 +102,7 @@ function UserCard({ t, fmt, detail }: { t: T; fmt: Fmt; detail: repo.OwnerUserDe
         [t("w_owner_ans_change"), fmt.n(meetings.answers.change)],
         [t("w_owner_ans_no"), fmt.n(meetings.answers.no)],
         [t("w_owner_meet_last_answer"), meetings.lastAnswerAt ? fmt.dateTime(meetings.lastAnswerAt) : "—"],
-        [
-          t("w_stats_attended"),
-          `${fmt.n(meetings.attended)} / ${fmt.n(meetings.asked)} · ${fmt.percent(meetings.attended, meetings.asked)}`,
-        ],
+        [t("w_stats_attended"), fmt.ratio(meetings.attended, meetings.asked)],
       ],
     },
     {
@@ -107,7 +114,6 @@ function UserCard({ t, fmt, detail }: { t: T; fmt: Fmt; detail: repo.OwnerUserDe
         [t("w_owner_notices"), fmt.n(notices.total)],
         [t("w_owner_notices_unread"), fmt.n(notices.unread)],
         [t("w_owner_notice_last"), notices.lastAt ? fmt.dateTime(notices.lastAt) : "—"],
-        [t("w_owner_bot_last"), t("w_owner_not_stored")],
       ],
     },
   ];
@@ -121,13 +127,26 @@ function UserCard({ t, fmt, detail }: { t: T; fmt: Fmt; detail: repo.OwnerUserDe
       </p>
       <section className="card owner-hero" aria-labelledby="owner-user-title">
         <OwnerAvatar userId={user.userId} name={name} avatarAt={user.avatarAt} />
-        <div>
+        <div className="owner-hero-main">
           <h2 id="owner-user-title">{name}</h2>
-          <p className="small muted">
-            {[user.realName ? user.fullName : null, user.username ? `@${user.username}` : null].filter(Boolean).join(" · ") ||
-              t(user.isWeb ? "w_owner_via_web" : "w_owner_via_tg")}
+          <p className="small muted tnum">
+            {[
+              user.realName && user.fullName !== user.realName ? user.fullName : null,
+              user.username ? `@${user.username}` : null,
+              user.isWeb ? t("w_owner_site_only") : `${t("w_owner_tg_id")} ${user.userId}`,
+              `${t("w_owner_col_groups")}: ${fmt.n(groups.length)}`,
+              `${t("w_owner_last_active")}: ${fmt.dateTime(user.lastActive)}`,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
           </p>
+          {!user.isWeb && !tgUrl && <p className="small muted">{t("w_owner_no_nick_hint")}</p>}
         </div>
+        {tgUrl && (
+          <a className="btn btn-sm owner-hero-action" href={tgUrl} target="_blank" rel="noopener noreferrer">
+            <IconSend size={16} /> {t("w_owner_open_tg")}
+          </a>
+        )}
       </section>
 
       <div className="stats-grid">

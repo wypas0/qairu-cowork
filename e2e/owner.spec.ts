@@ -104,10 +104,27 @@ test.describe("консоль владельца", () => {
     await expect(page).toHaveURL(/q=/);
     await expect(rows).toHaveCount(1);
     await expect(rows.first()).toContainText("1002");
+    // Ник — ссылкой на профиль в Telegram, группы — ссылками на их карточки.
+    await expect(rows.first().getByRole("link", { name: "@asel_n" })).toHaveAttribute("href", "https://t.me/asel_n");
+    await expect(rows.first().locator(".owner-group-chip")).toHaveCount(2);
+    await expect(rows.first()).toContainText("ещё 3");
+
+    // Поиск по группе: «Хор» — только Асель; Болат без ника — пометка.
+    await page.getByRole("searchbox").fill("Хор");
+    await page.getByRole("button", { name: "Найти" }).click();
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toContainText("Асель");
+    await page.getByRole("searchbox").fill("Болат");
+    await page.getByRole("button", { name: "Найти" }).click();
+    await expect(rows.first()).toContainText("без ника");
+    await page.getByRole("searchbox").fill("Асель");
+    await page.getByRole("button", { name: "Найти" }).click();
+    await expect(rows).toHaveCount(1);
     await rows.first().getByRole("link", { name: "Асель" }).click();
 
     await expect(page).toHaveURL(/\/admin\/users\/1002$/);
     await expect(page.getByRole("heading", { name: "Асель" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Открыть в Telegram" })).toHaveAttribute("href", "https://t.me/asel_n");
     const groupsTable = page.locator(".owner-rows");
     await expect(groupsTable.getByRole("link", { name: "Дипломники" })).toBeVisible();
     await expect(groupsTable.getByRole("row", { name: /Хор/ })).toContainText("староста");
@@ -119,6 +136,7 @@ test.describe("консоль владельца", () => {
     await groupsTable.getByRole("link", { name: "ИС-21" }).click();
     await expect(page.getByRole("heading", { name: "ИС-21" })).toBeVisible();
     await expect(page.locator(".owner-rows tbody tr")).toHaveCount(5);
+    await expect(page.locator(".owner-rows").getByRole("link", { name: "@amir_k" })).toBeVisible();
     await page.getByRole("link", { name: "Все группы" }).click();
     await expect(page.locator(".owner-rows tbody tr")).toHaveCount(5);
     // Число на фильтре совпадает со строками (другие e2e вступают в группы, точное число не фиксируем).

@@ -33,6 +33,9 @@ export function formatters(lang: string) {
     /** «2026-10-09» → «09.10»: календарный день, без сдвига пояса. */
     day: (value: string) => day.format(new Date(`${value}T12:00:00Z`)),
     percent: (part: number, whole: number) => (whole > 0 ? `${Math.round((part / whole) * 100)}%` : "—"),
+    /** «8 / 9 · 89%»; когда спрашивать было не о чем — просто «—», без «0 / 0 · —». */
+    ratio: (part: number, whole: number) =>
+      whole > 0 ? `${number.format(part)} / ${number.format(whole)} · ${Math.round((part / whole) * 100)}%` : "—",
   };
 }
 export type Fmt = ReturnType<typeof formatters>;

@@ -167,7 +167,7 @@ describe("параметры списка из адреса", () => {
 });
 
 describe("список людей", () => {
-  it("поиск по имени, настоящему имени, @нику и id", async () => {
+  it("поиск по имени, настоящему имени, @нику, id и группе", async () => {
     const { repo, query } = await mods();
     const find = async (q: string) => (await repo.listOwnerUsers(query.parseUserListQuery({ q }), NOW)).rows.map((row) => row.userId);
     expect(await find("Студент 13")).toEqual([8013]);
@@ -178,6 +178,9 @@ describe("список людей", () => {
     expect(await find("50%_")).toEqual([8007]);
     expect(await find("%")).toEqual([8007]);
     expect(await find("нет такого")).toEqual([]);
+    // По названию и коду группы — все её участники.
+    expect((await find("Вторая")).sort()).toEqual([8001, 8002]);
+    expect(await find("lonely")).toEqual([8004]);
   });
 
   it("строка: группы, расписание и его источник, встречи, аватар — без лишнего", async () => {
@@ -185,6 +188,12 @@ describe("список людей", () => {
     const { rows } = await repo.listOwnerUsers(query.parseUserListQuery({ q: "@stud1" }), NOW);
     const first = rows.find((row) => row.userId === 8001)!;
     expect(first).toMatchObject({ groups: 2, filled: true, origin: "campus", extVersion: "0.3.0", made: 1, answers: 1, isWeb: false });
+    // Группы ссылками — свежее вступление сверху.
+    expect(first.groupList).toEqual([
+      { chatId: -501, title: "Первая группа", slug: "grpone" },
+      { chatId: -502, title: "Вторая", slug: "grptwo" },
+    ]);
+    expect(first.username).toBe("stud1");
     const second = (await repo.listOwnerUsers(query.parseUserListQuery({ q: "@stud2" }), NOW)).rows.find((row) => row.userId === 8002)!;
     expect(second).toMatchObject({ groups: 2, origin: "photo", made: 1, answers: 1 });
     expect(second.avatarAt).toBeInstanceOf(Date);
@@ -298,6 +307,9 @@ describe("группы", () => {
     const { repo } = await mods();
     const detail = (await repo.ownerGroupDetail(-501, NOW))!;
     expect(detail.members.map((member) => member.userId)).toEqual([8001, 8002, 8003]);
+    // Последнее действие участника — где угодно, не только в этой группе.
+    expect(detail.members.every((member) => member.lastActive instanceof Date)).toBe(true);
+    expect(detail.members[0]!.username).toBe("stud1");
     expect(detail.meetings).toMatchObject({ recurring: 1, withSummary: 1, responses: 2, asked: 1, attended: 1 });
     expect(JSON.stringify(detail)).not.toContain("секрет");
     expect(await repo.ownerGroupDetail(-999, NOW)).toBeNull();

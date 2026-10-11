@@ -58,10 +58,7 @@ export default ownerPage("system", async ({ t, fmt }) => {
           webhook?.last_error_date ? fmt.dateTime(new Date(webhook.last_error_date * 1000)) : t("w_owner_no_errors"),
         ],
         [t("w_owner_cron_last"), cron ? fmt.dateTime(new Date(cron.at)) : t("w_owner_cron_never")],
-        [
-          t("w_owner_reminders"),
-          cron ? `${fmt.n(cron.week.sent)} / ${fmt.n(cron.week.due)} · ${fmt.percent(cron.week.sent, cron.week.due)}` : "—",
-        ],
+        [t("w_owner_reminders"), cron ? fmt.ratio(cron.week.sent, cron.week.due) : "—"],
       ],
       hint: webhook?.last_error_message ? webhook.last_error_message.slice(0, 160) : undefined,
     },

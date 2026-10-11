@@ -26,6 +26,7 @@
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
+  min-width: 0;
   padding-bottom: 8px;
   border-bottom: 1px solid var(--border);
 }
@@ -196,6 +197,7 @@
 /* --- доли: подпись, число, тонкая полоса --- */
 .owner-shares {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
   margin-top: 12px;
 }
@@ -204,6 +206,9 @@
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
+}
+.owner-share-head > .small {
+  min-width: 0;
 }
 .owner-value {
   font-weight: 600;
@@ -615,6 +620,77 @@
 .owner-hero h2,
 .owner-hero p {
   margin: 0;
+}
+.owner-hero-main {
+  display: grid;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.owner-hero-action {
+  flex: none;
+  gap: 6px;
+}
+@media (max-width: 720px) {
+  .owner-hero {
+    flex-wrap: wrap;
+  }
+  .owner-hero-main {
+    flex-basis: calc(100% - 72px);
+  }
+}
+
+/* --- Telegram и группы в строке человека --- */
+.owner-tg {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.owner-tg-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.owner-tg-link .icon {
+  flex: none;
+}
+.owner-groups {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  max-width: 260px;
+}
+.owner-group-chip {
+  display: inline-block;
+  max-width: 160px;
+  padding: 2px 8px;
+  border-radius: var(--r-full);
+  background: var(--seg-fill);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 18px;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.owner-group-chip:hover {
+  text-decoration: underline;
+}
+@media (max-width: 720px) {
+  .owner-tg {
+    justify-items: end;
+    text-align: right;
+  }
+  .owner-groups {
+    justify-content: flex-end;
+    max-width: none;
+  }
 }
 .owner-hero .owner-avatar {
   width: 56px;

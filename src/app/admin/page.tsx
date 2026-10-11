@@ -163,10 +163,7 @@ function Overview({
         [t("w_owner_ans_yes"), fmt.n(meetings.answers.yes)],
         [t("w_owner_ans_change"), fmt.n(meetings.answers.change)],
         [t("w_owner_ans_no"), fmt.n(meetings.answers.no)],
-        [
-          t("w_stats_attended"),
-          `${fmt.n(meetings.attended)} / ${fmt.n(meetings.asked)} · ${fmt.percent(meetings.attended, meetings.asked)}`,
-        ],
+        [t("w_stats_attended"), fmt.ratio(meetings.attended, meetings.asked)],
       ],
     },
     {
@@ -195,12 +192,8 @@ function Overview({
         )),
         <ShareRow
           key="recurring"
-          label={t("w_owner_feat_recurring")}
-          value={t("w_owner_feat_meetings_value", {
-            n: fmt.n(features.recurringMeetings),
-            total: fmt.n(features.meetings),
-            authors: fmt.n(features.recurringAuthors),
-          })}
+          label={t("w_owner_feat_recurring", { authors: fmt.n(features.recurringAuthors) })}
+          value={t("w_owner_feat_meetings_value", { n: fmt.n(features.recurringMeetings), total: fmt.n(features.meetings) })}
           share={features.meetings > 0 ? features.recurringMeetings / features.meetings : 0}
         />,
         <ShareRow
