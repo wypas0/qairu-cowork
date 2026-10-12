@@ -3,12 +3,13 @@ import type { NextRequest } from "next/server";
 import * as repo from "@/db/repo";
 import { currentTelegramUser } from "@/lib/auth";
 import { loadGroupState, toBoardPayload } from "@/lib/group";
+import { timedRoute } from "@/lib/metrics";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-/** JSON-версия дашборда — сетка перерисовывается без перезагрузки страницы. */
-export async function GET(request: NextRequest, context: { params: Promise<{ slug: string }> }) {
+/** JSON-версия дашборда — сетка перерисовывается без перезагрузки страницы. Время ответа — в «Качество» консоли. */
+export const GET = timedRoute("state", async (request: NextRequest, context: { params: Promise<{ slug: string }> }) => {
   const { slug } = await context.params;
   const chat = await repo.getChatBySlug(slug);
   if (!chat) return Response.json({ detail: "not found" }, { status: 404 });
@@ -41,4 +42,4 @@ export async function GET(request: NextRequest, context: { params: Promise<{ slu
   });
 
   return Response.json(toBoardPayload(state, chat.lang, user.userId));
-}
+});

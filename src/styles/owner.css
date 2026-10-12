@@ -781,3 +781,63 @@
   display: grid;
   gap: 2px;
 }
+
+/* --- «Качество за 24 часа»: время ответа, напоминания, Telegram, cron --- */
+.owner-quality > h3 {
+  margin-top: 16px;
+}
+.owner-q-grid {
+  display: grid;
+  gap: 16px 24px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  margin-top: 16px;
+}
+.owner-q-block {
+  min-width: 0;
+}
+.owner-q-block h3 {
+  margin-bottom: 0;
+}
+/* Длинные подписи («необработанных ошибок сервера») переносятся, число — нет. */
+.owner-q-block dt {
+  min-width: 0;
+}
+/* Плохое значение: значок рядом с числом, цвет — токен предупреждения. */
+.owner-q-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.owner-q-flag .icon {
+  flex: none;
+}
+.owner-q-problems {
+  margin: 12px 0 0;
+}
+.owner-q-problems .icon {
+  flex: none;
+  margin-top: 1px;
+  color: var(--warning);
+}
+.owner-q-problems p,
+.owner-q-problems ul {
+  margin: 0;
+}
+.owner-q-problems ul {
+  padding-left: 18px;
+  list-style: disc;
+}
+.owner-q-table th[scope="row"] {
+  font-weight: 500;
+  color: var(--text);
+  text-align: left;
+}
+/* Числа на широком экране — по правому краю, как в «Хранилище». */
+@media (min-width: 721px) {
+  .owner-table.owner-q-table td:not(:first-child) {
+    text-align: right;
+  }
+  .owner-table.owner-q-table th[scope="col"]:not(:first-child) {
+    text-align: right;
+  }
+}

@@ -4,12 +4,16 @@ import { cleanIncomingSlots } from "@/core/grid";
 import * as repo from "@/db/repo";
 import { currentTelegramUser } from "@/lib/auth";
 import { checkConflictsQuietly } from "@/lib/conflicts";
+import { timedRoute } from "@/lib/metrics";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-/** Сохранить недельную занятость. Тело: {"slots": [{weekday,start,end,label,parity,kind}]} */
-export async function POST(request: NextRequest, context: { params: Promise<{ slug: string }> }) {
+/**
+ * Сохранить недельную занятость. Тело: {"slots": [{weekday,start,end,label,parity,kind}]}.
+ * Время ответа — в «Качество» консоли.
+ */
+export const POST = timedRoute("schedule", async (request: NextRequest, context: { params: Promise<{ slug: string }> }) => {
   const { slug } = await context.params;
   const chat = await repo.getChatBySlug(slug);
   if (!chat) return Response.json({ detail: "not found" }, { status: 404 });
@@ -39,4 +43,4 @@ export async function POST(request: NextRequest, context: { params: Promise<{ sl
   // Не легла ли теперь чья-то встреча на занятое время — уже после ответа браузеру.
   after(() => checkConflictsQuietly(user.userId));
   return Response.json({ ok: true, saved: cleaned.length });
-}
+});

@@ -120,7 +120,7 @@ meetings(id PK, chat_id, initiator_id, place, when_text, when_start,
          goal, chat_message_id, invitees, status, reminder_sent, created_at)
 meeting_responses(meeting_id, user_id, answer yes|no|change,
                   comment, responded_at)                        PK(meeting_id,user_id)
-bot_state(key PK, data jsonb, updated_at)                       -- шаги диалогов бота
+bot_state(key PK, data jsonb, updated_at)                       -- шаги диалогов бота; metric:<имя>:<YYYY-MM-DDTHH> — часовые счётчики «Качества»
 owner_login_codes(user_id PK, code_hash, salt, attempts, expires_at) -- код в консоль: только HMAC
 owner_sessions(token_hash PK, user_id, web_token_hash, expires_at)   -- сессия консоли: только SHA-256
 owner_audit(id PK, user_id, event, ok, target_id, ip_hash, ua_hash, device) -- журнал консоли: входы и просмотры карточек
@@ -128,6 +128,7 @@ owner_audit(id PK, user_id, event, ok, target_id, ip_hash, ua_hash, device) -- �
 
 Замечания:
 
+- Метрики качества (вкладка «Система» консоли) — без своей таблицы и миграции: часовые корзины в `bot_state`, ключ `metric:<имя>:<час UTC>`. В корзине только плоские счётчики — число замеров, сумма, гистограмма с фиксированными границами (`b0`…`b8`: время ответа 50…6400 мс, задержка напоминаний 30 с…1 ч) и счётчики сбоев; у cron ещё моменты прогонов (для перерывов). Приращение — одна инструкция `on conflict do update` с jsonb-арифметикой, без гонок; запись — после ответа (`after()`). p50/p95 оцениваются по гистограмме (`src/core/metrics.ts`). Корзины старше 8 дней убирает cron. Ни id людей, ни текстов, ни адресов. Выключатель — `QAIRU_METRICS=off`.
 - `busy_slots` хранит **занятость**, а не свободу: расписание пар — это то, что человеку легко продиктовать. Свободные окна вычисляются как дополнение.
 - Одна таблица `busy_slots` покрывает четыре вида занятости, и вид определяется тем, какие поля не NULL:
   `weekday` + `week_parity IS NULL` — каждую неделю;

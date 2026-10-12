@@ -227,6 +227,12 @@ test.describe("консоль владельца", () => {
     await page.goto("/admin/system");
     await expect(page.getByRole("heading", { name: "Хранилище" })).toBeVisible();
     await expect(page.locator(".owner-table").getByRole("cell", { name: "owner_sessions" })).toBeVisible();
+    // «Качество за 24 часа» по засеянным корзинам: медленное сохранение и перерыв cron — словами, не только цветом.
+    const quality = page.locator(".owner-quality");
+    await expect(quality.getByRole("heading", { name: "Качество за 24 часа" })).toBeVisible();
+    await expect(quality.getByRole("rowheader", { name: "Сохранение расписания" })).toBeVisible();
+    await expect(quality.locator(".owner-q-problems")).toContainText("Сохранение расписания — p95");
+    await expect(quality.locator(".owner-q-problems")).toContainText("перерыв между прогонами cron");
     // Журнал входов: вход есть (засеянный или из теста с кодом), адрес — меткой хеша.
     const logins = page.locator(".owner-events:not(.owner-views) li");
     const login = logins.filter({ hasText: "вход" }).first();

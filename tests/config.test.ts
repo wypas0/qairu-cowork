@@ -8,7 +8,18 @@ import { readFileSync } from "node:fs";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { alertChatId, botToken, cronSecret, defaultTz, env, hasBot, ownerConsoleSecret, siteUrl, webhookSecret } from "@/lib/config";
+import {
+  alertChatId,
+  botToken,
+  cronSecret,
+  defaultTz,
+  env,
+  hasBot,
+  healthchecksPingUrl,
+  ownerConsoleSecret,
+  siteUrl,
+  webhookSecret,
+} from "@/lib/config";
 import { ownerIds } from "@/lib/owner";
 import { env as scriptEnv } from "../scripts/env.mjs";
 
@@ -65,6 +76,7 @@ describe("все переменные пустые (как бывает в Verce
       expect(cronSecret()).toBe("");
       expect(alertChatId()).toBe("");
       expect(ownerConsoleSecret()).toBe("");
+      expect(healthchecksPingUrl()).toBe("");
       expect(ownerIds().size).toBe(0);
       for (const key of KEYS) expect(scriptEnv(key)).toBeUndefined();
     });

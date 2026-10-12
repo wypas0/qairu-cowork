@@ -91,3 +91,23 @@ export function ownerConsoleSecret(): string {
   if (!token) return "";
   return crypto.createHash("sha256").update(`qairu-owner-console:${token}`).digest("hex");
 }
+
+/**
+ * Адрес «пульса» cron в healthchecks.io (или похожем сервисе): после каждого
+ * удачного прогона напоминаний туда уходит GET, после неудачного — GET на
+ * `<адрес>/fail`. Не пришёл пульс вовремя — сервис пишет в Telegram.
+ * Только https: адрес — сам себе пароль, по http он ушёл бы открытым текстом.
+ * Пусто или не https — пульса нет.
+ */
+export function healthchecksPingUrl(): string {
+  const raw = env("HEALTHCHECKS_PING_URL");
+  if (!raw) return "";
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return "";
+  }
+  if (url.protocol !== "https:" || url.username || url.password) return "";
+  return raw.replace(/\/+$/, "");
+}

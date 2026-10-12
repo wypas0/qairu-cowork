@@ -14,7 +14,8 @@
     "db:push": "drizzle-kit push",
     "bot:webhook": "node scripts/set-webhook.mjs --force",
     "db:check": "node scripts/check-schema.mjs",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "load": "node scripts/load/run.mjs"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.3",

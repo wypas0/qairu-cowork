@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import type { TgUpdate } from "@/bot/api";
 import { handleUpdate } from "@/bot/router";
 import { hasBot, webhookSecret } from "@/lib/config";
+import { observeRoute } from "@/lib/metrics";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -30,10 +31,15 @@ export async function POST(request: NextRequest) {
     return new Response("ok", { status: 200 });
   }
 
+  // Время обработки апдейта и ошибки — для «Качества» в консоли; пишется после ответа.
+  const started = performance.now();
+  let failed = false;
   try {
     await handleUpdate(update);
   } catch (error) {
+    failed = true;
     console.error("qairu: ошибка при обработке апдейта", update.update_id, error);
   }
+  observeRoute("webhook", started, failed);
   return new Response("ok", { status: 200 });
 }

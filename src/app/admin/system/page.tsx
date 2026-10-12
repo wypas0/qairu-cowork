@@ -5,6 +5,7 @@ import { IconAlert, IconCheck } from "@/components/icons";
 import { Meter } from "@/components/OwnerCharts";
 import { DB_LIMIT_BYTES, bytes } from "@/components/owner/format";
 import { ownerPage } from "@/components/owner/OwnerPage";
+import { QualityCard } from "@/components/owner/QualityCard";
 import * as repo from "@/db/repo";
 import { env, hasBot } from "@/lib/config";
 import { ipTag } from "@/lib/ownerConsole";
@@ -24,16 +25,19 @@ async function webhookInfo(): Promise<TgWebhookInfo | null> {
 }
 
 /**
- * «Система»: бот и cron, деплой, хранилище (размер и строки каждой таблицы),
- * журнал входов в консоль и просмотров карточек. База и Telegram — параллельно.
+ * «Система»: бот и cron, деплой, качество за сутки (время ответа, напоминания,
+ * сбои Telegram, перерывы cron — один запрос по часовым корзинам), хранилище
+ * (размер и строки каждой таблицы), журнал входов в консоль и просмотров
+ * карточек. База и Telegram — параллельно.
  */
-export default ownerPage("system", async ({ t, fmt }) => {
-  const [storage, webhook, cron, events, views] = await Promise.all([
+export default ownerPage("system", async ({ t, fmt, now }) => {
+  const [storage, webhook, cron, events, views, quality] = await Promise.all([
     repo.storageStats(),
     webhookInfo(),
     repo.lastCronRun(),
     repo.recentOwnerEvents(12),
     repo.recentOwnerViews(20),
+    repo.qualityStats(now),
   ]);
   const dbShare = storage.bytes / DB_LIMIT_BYTES;
   const limit = bytes(t, DB_LIMIT_BYTES);
@@ -88,6 +92,8 @@ export default ownerPage("system", async ({ t, fmt }) => {
           {tile.hint && <p className="small muted owner-hint">{tile.hint}</p>}
         </section>
       ))}
+
+      <QualityCard stats={quality} t={t} fmt={fmt} />
 
       <section className="card stats-tile owner-wide" aria-labelledby="owner-storage-title">
         <h2 id="owner-storage-title">{t("w_owner_health")}</h2>

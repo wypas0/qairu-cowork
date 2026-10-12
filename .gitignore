@@ -44,3 +44,6 @@ graphify-out/
 playwright-report/
 test-results/
 e2e/.state.json
+
+# нагрузочный тест (scripts/load): результаты прогонов
+.load/

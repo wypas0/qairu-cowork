@@ -229,6 +229,8 @@ describe("адрес cron", () => {
     const call = (headers: Record<string, string> = {}, query = "") =>
       GET(new Request(`http://x/api/cron/reminders${query}`, { headers }));
     await cancelAll();
+    // Записи метрик прошлых тестов (lib/metrics) тоже идут через after() — дождаться их.
+    await Promise.all(afterTasks.splice(0));
 
     delete process.env.CRON_SECRET;
     expect((await call()).status).toBe(503);

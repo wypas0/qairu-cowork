@@ -1,0 +1,58 @@
+# Проверка прода после каждого деплоя.
+#
+# Vercel сообщает GitHub о каждом деплое (deployment_status). Когда деплой на
+# Production готов, этот воркфлоу открывает живой сайт как обычный посетитель
+# (scripts/smoke.mjs): главная, /api/healthz с проверкой базы, /admin для гостя —
+# 404, /extension, /api/cron/reminders без секрета — 401. Провал виден красным
+# крестиком у коммита и письмом от GitHub.
+#
+# Проверяется адрес сайта (SITE_URL), а не адрес самого деплоя из события
+# (target_url, *-qairu-hub.vercel.app): тот закрыт защитой деплоев Vercel и
+# отвечает гостю редиректом на вход. Что адрес сайта уже отдаёт именно этот
+# коммит, скрипт сверяет по полю version в /api/healthz — Vercel сообщает об
+# успехе чуть раньше, чем на деплой переключается адрес.
+#
+# Секретов не нужно. Адрес сайта меняется переменной SITE_URL (Settings →
+# Secrets and variables → Actions → Variables), как и в reminders.yml.
+name: Smoke
+
+on:
+  deployment_status:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "Адрес сайта (по умолчанию SITE_URL или https://qairu-cowork.vercel.app)"
+        required: false
+      sha:
+        description: "Дождаться этого коммита (пусто — проверить то, что сейчас на сайте)"
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.deployment_status.state == 'success' &&
+      startsWith(github.event.deployment.environment, 'Production'))
+    # Новый деплой отменяет проверку предыдущего: она ждала бы коммит, который уже
+    # сменился. На уровне задачи, а не воркфлоу: иначе событие о деплое превью
+    # (его задача пропускается) отменяло бы идущую проверку прода.
+    concurrency:
+      group: smoke
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Проверить живой сайт
+        env:
+          SMOKE_URL: ${{ inputs.url || vars.SITE_URL || 'https://qairu-cowork.vercel.app' }}
+          SMOKE_SHA: ${{ github.event_name == 'deployment_status' && github.event.deployment.sha || inputs.sha }}
+        run: node scripts/smoke.mjs

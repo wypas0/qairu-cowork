@@ -1,6 +1,6 @@
 // Сайт с наполненной базой для сквозных тестов и ручной проверки глазами.
 //
-//   node scripts/dev/e2e-server.mjs [порт сайта]
+//   node scripts/dev/e2e-server.mjs [порт сайта] [--fake-bot]
 //
 // Поднимает PGlite в памяти, накатывает миграции, заводит группу «ИС-21»
 // (пять человек, разные расписания и отметки «неудобно», встреча через
@@ -11,6 +11,12 @@
 // ownerToken — кука консоли владельца (Амир — владелец, OWNER_IDS), ownerCode —
 // его живой код входа в консоль.
 // Ctrl+C гасит всё.
+//
+// --fake-bot — для нагрузочного теста бота (scripts/load/README.md): у сайта
+// появляется выдуманный BOT_TOKEN и случайный секрет вебхука (пишется в
+// .state.json как bot.secret), а все вызовы api.telegram.org перехватывает
+// заглушка scripts/load/tg-blackhole.mjs — в Telegram не уходит ничего.
+// Без флага бота нет (BOT_TOKEN пустой), как раньше.
 
 import { spawn } from "node:child_process";
 import crypto from "node:crypto";
@@ -20,7 +26,9 @@ import { PGlite } from "@electric-sql/pglite";
 import { PGLiteSocketServer } from "@electric-sql/pglite-socket";
 import postgres from "postgres";
 
-const SITE_PORT = Number(process.argv[2] ?? 3200);
+const args = process.argv.slice(2);
+const SITE_PORT = Number(args.find((arg) => /^\d+$/.test(arg)) ?? 3200);
+const FAKE_BOT = args.includes("--fake-bot");
 const DB_PORT = SITE_PORT + 2345;
 const TZ = "Asia/Almaty"; // UTC+5, без перевода часов
 const DATABASE_URL = `postgres://postgres:postgres@127.0.0.1:${DB_PORT}/postgres`;
@@ -138,13 +146,48 @@ await sql`insert into bot_state (key, data) values ('cron:reminders', ${sql.json
   at: now - 300_000, ok: true, due: 1, sent: 1, attendance: 0, calendars: 0, sessions: 0,
   week: { since: now - 3 * 86_400_000, due: 9, sent: 8 },
 })})`;
+// «Качество за 24 часа»: часовые корзины метрик (формат — src/core/metrics.ts).
+// Cron раз в 5 минут, но с перерывом в 40 минут три часа назад; сохранение
+// расписания медленное (p95 > 2 с); одно напоминание опоздало, одно не дошло.
+const hourKey = (at) => new Date(at).toISOString().slice(0, 13);
+const buckets = new Map();
+const bump = (name, at, data) => {
+  const key = `metric:${name}:${hourKey(at)}`;
+  const into = buckets.get(key) ?? {};
+  for (const [field, value] of Object.entries(data)) {
+    into[field] = Array.isArray(value) ? [...(into[field] ?? []), ...value] : (into[field] ?? 0) + value;
+  }
+  buckets.set(key, into);
+};
+for (let at = now - 24 * 3_600_000; at <= now - 60_000; at += 5 * 60_000) {
+  if (at > now - 3 * 3_600_000 - 40 * 60_000 && at < now - 3 * 3_600_000) continue;
+  bump("cron", at, { n: 1, sum: 900, budget: 0, err: 0, at: [Math.round(at / 1000)] });
+}
+for (let hour = 0; hour < 24; hour += 1) {
+  const at = now - hour * 3_600_000;
+  bump("webhook", at, { n: 12, sum: 1800, b1: 4, b2: 7, b3: 1 });
+  bump("board", at, { n: 6, sum: 1500, b2: 3, b3: 3 });
+  bump("state", at, { n: 9, sum: 900, b1: 6, b2: 3 });
+  bump("tg", at, { n: 14, sum: 2100, b1: 3, b2: 10, b3: 1, ...(hour === 5 ? { forbidden: 1 } : {}) });
+}
+bump("schedule", now, { n: 5, sum: 12_000, b3: 2, b6: 3 });
+bump("reminder", now - 2 * 3_600_000, { n: 3, sum: 600, b0: 1, b2: 1, b5: 1, late: 1 });
+bump("reminder", now - 4 * 3_600_000, { failed: 1 });
+for (const [key, data] of buckets) {
+  await sql`insert into bot_state (key, data) values (${key}, ${sql.json(data)})`;
+}
 await sql.end();
 
 const url = `http://localhost:${SITE_PORT}`;
-const state = { slug: "smoke001", token, tokenEmpty, ownerToken, ownerCode, url, weekday };
+// Выдуманный бот: токен не настоящий, секрет вебхука — случайный на каждый запуск.
+// По совпадению секрета нагрузочный тест понимает, что перед ним этот сервер с заглушкой.
+const bot = FAKE_BOT ? { fake: true, secret: crypto.randomBytes(24).toString("hex") } : null;
+const blackhole = new URL("../load/tg-blackhole.mjs", import.meta.url).href;
+const state = { slug: "smoke001", token, tokenEmpty, ownerToken, ownerCode, url, weekday, bot };
 await mkdir(new URL("../../e2e/", import.meta.url), { recursive: true });
 await writeFile(new URL("../../e2e/.state.json", import.meta.url), JSON.stringify(state));
 console.log(`[e2e] база на ${DB_PORT}, сайт на ${url}, вход: кука qairu_token=${token}`);
+if (bot) console.log("[e2e] --fake-bot: бот включён, Telegram подменён заглушкой");
 
 // ---------- сайт ----------
 const next = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start", "-p", String(SITE_PORT)], {
@@ -157,15 +200,16 @@ const next = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start"
     DATABASE_URL,
     DATABASE_POOL_MAX: "1",
     NEXT_PUBLIC_SITE_URL: url,
-    BOT_TOKEN: "",
+    BOT_TOKEN: bot ? "123456789:fake-load-test-token" : "",
     DESIGN_SPECIMEN: "1",
     OWNER_IDS: String(amir),
     ALERT_CHAT_ID: "",
     OWNER_CONSOLE_SECRET: ownerSecret,
     DEFAULT_TZ: "",
     WEB_BASE_URL: "",
-    TELEGRAM_WEBHOOK_SECRET: "",
+    TELEGRAM_WEBHOOK_SECRET: bot ? bot.secret : "",
     CRON_SECRET: "",
+    ...(bot ? { NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ""} --import=${blackhole}`.trim() } : {}),
   },
 });
 const stop = async () => {

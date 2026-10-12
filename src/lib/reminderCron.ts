@@ -6,7 +6,7 @@
  *   1. напоминания о встречах (опоздавшее напоминание бесполезно);
  *   2. вопрос «был ли ты» после закончившихся встреч;
  *   3. личные календари — на остаток бюджета;
- *   4. уборка протухших сессий (одна инструкция).
+ *   4. уборка: протухшие сессии и часовые корзины метрик старше 8 дней.
  *
  * Бюджет общий на весь прогон и считается от прихода запроса. Прогоны могут
  * идти одновременно (внешний пингер, GitHub Actions, cron Vercel): каждая
@@ -22,6 +22,8 @@ import * as repo from "@/db/repo";
 import { type Budget, timeBudget } from "./budget";
 import { syncStaleCalendars } from "./calendarSync";
 import { hasBot } from "./config";
+import { pingHeartbeat } from "./heartbeat";
+import { flushMetrics, observeCronRun } from "./metrics";
 
 /** `maxDuration` маршрута (максимум Vercel Hobby). Держать в согласии с route.ts. */
 export const CRON_MAX_DURATION_S = 300;
@@ -42,12 +44,16 @@ export type CronResult = {
   calendars: number;
   sessions: number;
   ms: number;
+  /** Упёрся ли прогон в бюджет: что-то отложено или новую работу брать уже нельзя. */
+  budgetHit: boolean;
   error?: string;
 };
 
 export async function runReminderCron(startedAt = Date.now(), budget?: Budget): Promise<CronResult> {
   const time = budget ?? timeBudget(CRON_BUDGET_MS, CRON_GRACE_MS, Date.now, startedAt);
-  const result: CronResult = { ok: true, due: 0, sent: 0, deferred: 0, attendance: 0, calendars: 0, sessions: 0, ms: 0 };
+  const result: CronResult = {
+    ok: true, due: 0, sent: 0, deferred: 0, attendance: 0, calendars: 0, sessions: 0, ms: 0, budgetHit: false,
+  };
   try {
     if (hasBot()) {
       const tally: ReminderTally = { due: 0 };
@@ -59,12 +65,15 @@ export async function runReminderCron(startedAt = Date.now(), budget?: Budget): 
     result.calendars = await syncStaleCalendars(time);
     // Сессии, которые уже не пускают (30 дней без заходов), в базе не нужны.
     result.sessions = await repo.deleteIdleWebSessions();
+    // Корзины метрик качества живут неделю с запасом — дальше консоли не нужны.
+    await repo.deleteOldMetrics();
   } catch (error) {
     // Ответ вызвавшему уже ушёл: падение видно только в журнале и в консоли владельца.
     result.ok = false;
     result.error = error instanceof Error ? error.message.split("\n")[0]!.slice(0, 200) : String(error);
   }
   result.ms = Date.now() - startedAt;
+  result.budgetHit = result.deferred > 0 || !time.canStart();
 
   // Отметка для консоли владельца: когда был прогон, удачно ли и сколько напоминаний дошло.
   // Её сбой не должен ронять прогон, рассылка уже прошла.
@@ -79,7 +88,13 @@ export async function runReminderCron(startedAt = Date.now(), budget?: Budget): 
       sessions: result.sessions,
     })
     .catch(() => {});
+  // «Качество» в консоли: момент прогона (для перерывов между ними), бюджет, ошибка.
+  // Прогон и так идёт после ответа — записываем сразу, вместе с замерами рассылки.
+  observeCronRun({ startedAt, ms: result.ms, ok: result.ok, budgetHit: result.budgetHit });
+  await flushMetrics();
   // Журнал Vercel: итог прогона одной строкой (без данных людей).
   console.log(`[qairu:cron] ${JSON.stringify(result)}`);
+  // Пульс для healthchecks.io (DEPLOY.md, «Мониторинг»): не задан — ничего, сбой проглатывается.
+  await pingHeartbeat(result.ok);
   return result;
 }

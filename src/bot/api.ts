@@ -9,7 +9,9 @@
 
 import "server-only";
 
+import { tgFailureOf } from "@/core/metrics";
 import { botToken } from "@/lib/config";
+import { observeTelegram } from "@/lib/metrics";
 
 export type InlineButton = {
   text: string;
@@ -128,6 +130,20 @@ async function request<T>(method: string, payload: unknown, token: string): Prom
 async function call<T>(method: string, payload: unknown, token = botToken()): Promise<T> {
   if (!token) throw new TelegramError(method, 0, "BOT_TOKEN не задан");
 
+  // Замер для консоли («Качество»): время вызова вместе с ожиданием 429 и класс
+  // сбоя. Только счётчики — ни чата, ни текста. Пишется после ответа (lib/metrics).
+  const started = performance.now();
+  try {
+    const result = await callOnce<T>(method, payload, token);
+    observeTelegram(started, null);
+    return result;
+  } catch (error) {
+    observeTelegram(started, error instanceof TelegramError ? tgFailureOf(error.code, error.description) : "network");
+    throw error;
+  }
+}
+
+async function callOnce<T>(method: string, payload: unknown, token: string): Promise<T> {
   let body = await request<T>(method, payload, token);
   // 429 «Too Many Requests»: Telegram говорит, сколько секунд подождать. Ждём
   // и повторяем ровно один раз; если просят ждать дольше предела — сдаёмся,
@@ -261,12 +277,17 @@ export async function sendDocument(payload: {
   form.set("document", new Blob([payload.content], { type: payload.mime }), payload.filename);
   if (payload.caption) form.set("caption", payload.caption);
 
+  const started = performance.now();
   const response = await fetch(`https://api.telegram.org/bot${token}/sendDocument`, {
     method: "POST",
     body: form,
     cache: "no-store",
     signal: AbortSignal.timeout(telegramLimits.timeoutMs),
+  }).catch((error: unknown) => {
+    observeTelegram(started, "network");
+    throw error;
   });
+  observeTelegram(started, response.ok ? null : tgFailureOf(response.status));
   return response.ok;
 }
 

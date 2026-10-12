@@ -4,6 +4,7 @@ import "server-only";
 
 import { computeAvailability, parityFromSemesterStart, topSlots } from "@/core/availability";
 import { buildIcs } from "@/core/calendar";
+import { reminderDelayS } from "@/core/metrics";
 import { fmtInterval, fmtMinutes } from "@/core/intervals";
 import { escapeHtml } from "@/core/textutils";
 import { nextOccurrence } from "@/core/recurrence";
@@ -22,6 +23,7 @@ import { formatDay, t } from "@/i18n";
 import { isGroupAdmin, isTelegramChat } from "@/lib/admin";
 import { type Budget, UNLIMITED } from "@/lib/budget";
 import { meetingEvent, normalizeDuration } from "@/lib/group";
+import { countReminderFailed, observeReminder } from "@/lib/metrics";
 import {
   FORCE_REPLY,
   answerCallbackQuery,
@@ -670,11 +672,13 @@ export async function sendDueReminders(
   const startedAt = Date.now();
   const current = () => new Date(now.getTime() + (Date.now() - startedAt));
 
-  type Due = { meeting: Meeting; chat: Chat; when: string; claim: () => Promise<boolean> };
+  // `start` — начало встречи или повтора: от него считается, насколько напоминание опоздало.
+  type Due = { meeting: Meeting; chat: Chat; when: string; start: Date; claim: () => Promise<boolean> };
   const due: Due[] = (await repo.meetingsDueForReminder(now)).map(({ meeting, chat }) => ({
     meeting,
     chat,
     when: meeting.whenText,
+    start: meeting.whenStart!,
     claim: () => repo.claimReminder(meeting.id, current()),
   }));
 
@@ -691,6 +695,7 @@ export async function sendDueReminders(
       meeting,
       chat,
       when: `${formatDay(chat.lang, wall.day)} · ${fmtMinutes(wall.minutes)}`,
+      start: next,
       // Отмечаем именно этот повтор: следующий получит своё напоминание.
       claim: async () => next > current() && repo.claimRecurringReminder(meeting.id, next),
     });
@@ -698,8 +703,12 @@ export async function sendDueReminders(
 
   let sent = 0;
   if (tally) tally.due = due.length;
+  // Для «Качества» в консоли: через сколько после срока напоминание ушло (по
+  // первой доставке) — или что не дошло никому. Только числа, без встреч и людей.
+  const noteDelivery = (meeting: Meeting, chat: Chat, start: Date) =>
+    observeReminder(reminderDelayS(start, chat.reminderMin, meeting.createdAt, current()));
 
-  for (const [index, { meeting, chat, when, claim }] of due.entries()) {
+  for (const [index, { meeting, chat, when, start, claim }] of due.entries()) {
     if (!budget.canStart()) {
       if (tally) tally.deferred = due.length - index;
       break;
@@ -715,12 +724,14 @@ export async function sendDueReminders(
 
     // Группа с сайта: общего чата нет — напоминаем каждому лично.
     if (!isTelegramChat(chat)) {
-      let delivered = 0;
+      let reached = 0;
+      let attempts = 0;
       for (const user of ordered) {
         if (!budget.canContinue()) break;
         if (user.isWeb || user.userId <= 0) continue;
         const lang = user.lang || chat.lang;
         const button = chat.slug ? webAppButton(t(lang, "btn_open_group_site"), groupPath(chat)) : null;
+        attempts += 1;
         try {
           await sendMessage({
             chat_id: user.userId,
@@ -734,12 +745,14 @@ export async function sendDueReminders(
             parse_mode: "HTML",
             reply_markup: button ? keyboard([[button]]) : undefined,
           });
-          delivered += 1;
+          if (reached === 0) noteDelivery(meeting, chat, start);
+          reached += 1;
         } catch {
           // Человек не запускал бота или заблокировал его.
         }
       }
-      if (delivered > 0) sent += 1;
+      if (reached > 0) sent += 1;
+      else if (attempts > 0) countReminderFailed();
       continue;
     }
 
@@ -755,9 +768,11 @@ export async function sendDueReminders(
         }),
         parse_mode: "HTML",
       });
+      noteDelivery(meeting, chat, start);
       sent += 1;
     } catch {
-      // Чат мог быть удалён или бота выгнали — молча пропускаем.
+      // Чат мог быть удалён или бота выгнали — молча пропускаем (в консоли — «не дошло»).
+      countReminderFailed();
     }
   }
   return sent;

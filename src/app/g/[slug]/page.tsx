@@ -35,6 +35,7 @@ import {
 import { feedPath } from "@/lib/calendarFeed";
 import { BEST_COOKIE, WINDOWS_COOKIE } from "@/lib/cookies";
 import { formatCode } from "@/lib/invite";
+import { routeTimer } from "@/lib/metrics";
 import { hasBot } from "@/lib/config";
 import { baseUrl } from "@/lib/url";
 import {
@@ -68,6 +69,9 @@ export default async function GroupPage({
   params: Promise<{ slug: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  // Время сервера на доску (все запросы к базе до разметки) — в «Качество» консоли.
+  // Не найдено и переход ко вступлению не меряются: это не доска.
+  const boardDone = routeTimer("board");
   const { slug } = await params;
   const query = await searchParams;
   const chat = await repo.getChatBySlug(slug);
@@ -198,6 +202,7 @@ export default async function GroupPage({
       : t("w_notice_fill", { name: from });
   };
 
+  boardDone();
   return (
     <>
       <ScrollToAnchor id={typeof query.at === "string" ? query.at : null} />
