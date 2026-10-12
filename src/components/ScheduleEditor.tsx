@@ -6,14 +6,14 @@ import { useRouter } from "next/navigation";
 
 import type { Period, WeeklySlot } from "@/core/grid";
 import { SOFT_PREFIX, editorCells, editorSlots, periodOverlaps } from "@/core/grid";
-import { LATEST_EXTENSION, PAGE_SOURCE, campusScheduleUrl, olderVersion, readExtensionMessage, supportsIntent } from "@/core/extensionImport";
+import { CAMPUS_TARGET, LATEST_EXTENSION, PAGE_SOURCE, campusScheduleUrl, olderVersion, readExtensionMessage, supportsIntent } from "@/core/extensionImport";
 import { haptic, webApp, whenReady } from "@/lib/telegram";
 import { moveFocusByArrow } from "./gridKeys";
 import { IconArrowDown, IconCheck, IconChevronRight, IconGrid } from "./icons";
 import { BreakRow, PeriodTime } from "./PeriodRow";
 import { TelegramMainButton } from "./TelegramButtons";
 import { toast } from "./toast";
-import { desktopChromium, startCampusTransfer, useCampusExtension } from "./useCampusExtension";
+import { campusLinkClick, desktopChromium, useCampusExtension } from "./useCampusExtension";
 
 export type EditorLabels = {
   paintHint: string;
@@ -168,7 +168,9 @@ export function ScheduleEditor({
 
   // Первый раз расписание заполняют не сразу сеткой: сперва человек выбирает
   // способ — перенести из кампуса или отметить вручную.
-  const startedEmpty = useRef(initialBusy.length === 0);
+  // «Отметить вручную» на первом экране — прокрутить к сетке. После «Перенести из
+  // кампуса» не крутим: наверху остаётся подсказка «кампус открылся…» с кнопкой.
+  const scrollToGrid = useRef(false);
   const [mode, setMode] = useState<"choose" | "manual">(() => (initialBusy.length === 0 ? "choose" : "manual"));
   const painting = useRef(false);
   const paintTo = useRef(true);
@@ -450,7 +452,8 @@ export function ScheduleEditor({
 
   // Выбрали «вручную» — показываем сетку.
   useEffect(() => {
-    if (mode === "manual" && startedEmpty.current) {
+    if (mode === "manual" && scrollToGrid.current) {
+      scrollToGrid.current = false;
       rootRef.current?.scrollIntoView({ block: "start" });
     }
   }, [mode]);
@@ -579,10 +582,10 @@ export function ScheduleEditor({
               className="choose-row choose-main"
               href={campusOption.href}
               data-choose="campus"
-              {...(campusOption.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-              onClick={() => {
+              {...(campusOption.external ? { target: CAMPUS_TARGET, rel: "noopener noreferrer" } : {})}
+              onClick={(event) => {
                 if (!canTransfer) return;
-                startCampusTransfer(campus.title, campus.lang);
+                campusLinkClick(event, { title: campus.title, lang: campus.lang, version: extension.version });
                 setMode("manual");
               }}
             >
@@ -595,7 +598,15 @@ export function ScheduleEditor({
             </a>
           </li>
           <li>
-            <button type="button" className="choose-row" data-choose="manual" onClick={() => setMode("manual")}>
+            <button
+              type="button"
+              className="choose-row"
+              data-choose="manual"
+              onClick={() => {
+                scrollToGrid.current = true;
+                setMode("manual");
+              }}
+            >
               <IconGrid size={22} />
               <span className="choose-text">
                 <b>{labels.chooseManual}</b>

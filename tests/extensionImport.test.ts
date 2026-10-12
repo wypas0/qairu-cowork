@@ -12,10 +12,17 @@ import {
   readExtensionMessage,
   readExtensionReport,
   EXTENSION_FOLDER,
+  EXTENSION_ZIP,
   EXTENSION_ZIP_NAME,
+  INTENT_EXTENSION,
+  OPEN_ACK_MS,
+  OPEN_SLOW_ACK_MS,
+  OPEN_TAB_EXTENSION,
   campusScheduleUrl,
   supportsIntent,
+  supportsOpenTab,
 } from "@/core/extensionImport";
+import nextConfig from "../next.config";
 
 const message = (patch: Record<string, unknown> = {}) => ({
   source: EXT_SOURCE,
@@ -162,5 +169,29 @@ describe("«Перенести из кампуса»", () => {
   it("архив сохраняется под понятным именем, папка — без версии", () => {
     expect(EXTENSION_ZIP_NAME).toBe(`${EXTENSION_FOLDER}.zip`);
     expect(EXTENSION_FOLDER).not.toMatch(/\d/);
+  });
+
+  it("кампус открывает расширение сам — с 0.4.1; самая свежая версия это умеет", () => {
+    expect(supportsOpenTab(null)).toBe(false);
+    expect(supportsOpenTab("0.4.0")).toBe(false);
+    expect(supportsOpenTab("0.4.1")).toBe(true);
+    expect(supportsOpenTab("0.5.0")).toBe(true);
+    expect(supportsOpenTab("0.10.0")).toBe(true);
+    expect(supportsOpenTab(LATEST_EXTENSION)).toBe(true);
+    expect(olderVersion(INTENT_EXTENSION, OPEN_TAB_EXTENSION)).toBe(true);
+    expect(olderVersion(OPEN_TAB_EXTENSION, LATEST_EXTENSION)).toBe(false);
+  });
+
+  it("медленный фон ждём дольше, но не дольше, чем браузер помнит нажатие (5 с)", () => {
+    expect(OPEN_ACK_MS).toBeGreaterThan(0);
+    expect(OPEN_SLOW_ACK_MS).toBeGreaterThan(OPEN_ACK_MS);
+    expect(OPEN_SLOW_ACK_MS).toBeLessThan(5000);
+  });
+
+  it("сервер отдаёт архив под тем же именем, что назван в гайде", async () => {
+    const rules = await nextConfig.headers!();
+    const rule = rules.find((item) => item.source === EXTENSION_ZIP);
+    const disposition = rule?.headers.find((header) => header.key === "Content-Disposition")?.value;
+    expect(disposition).toBe(`attachment; filename="${EXTENSION_ZIP_NAME}"`);
   });
 });

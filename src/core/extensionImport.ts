@@ -13,6 +13,17 @@
  *   страница → расширение  { source: PAGE_SOURCE, type: "campus-intent", title, lang }
  *   расширение → страница  { source: EXT_SOURCE, type: "campus-intent-ok" }
  *
+ * С 0.4.1 — кампус открывает само расширение, чтобы не плодить вкладки:
+ *
+ *   страница → расширение  { source: PAGE_SOURCE, type: "campus-intent", title, lang, open: true }
+ *   расширение → страница  { source: EXT_SOURCE, type: "campus-intent-opening" }   сразу: принял, открываю
+ *   расширение → страница  { source: EXT_SOURCE, type: "campus-intent-ok", opened: boolean }
+ *
+ * Открытую вкладку кампуса оно переводит на нужный адрес и выводит вперёд, новую
+ * создаёт только если открытой нет. Нет ответа с opened: true за OPEN_ACK_MS (а после
+ * «campus-intent-opening» — за OPEN_SLOW_ACK_MS) — сайт открывает кампус сам, в окне
+ * с постоянным именем (CAMPUS_TARGET).
+ *
  * Расширение запоминает группу (по адресу страницы) на час, сайт открывает
  * кампус, там расширение само предлагает перенос карточкой и возвращает
  * человека сюда — с теми же campus-slots на проверку.
@@ -27,6 +38,16 @@ import { fmtMinutes } from "./intervals";
 
 export const EXT_SOURCE = "qairu-schedule-ext";
 export const PAGE_SOURCE = "qairu-cowork";
+/** Имя окна кампуса: повторные нажатия открывают кампус в той же вкладке, а не в новой. */
+export const CAMPUS_TARGET = "qairu-campus";
+/** Сколько ждём campus-intent-ok с opened: true, прежде чем открыть кампус самим. */
+export const OPEN_ACK_MS = 1500;
+/**
+ * Столько ждём итога, если расширение уже ответило «campus-intent-opening» (принял, открываю):
+ * медленный фон не должен получить вторую вкладку поверх своей. Меньше 5 с — пока браузер
+ * помнит нажатие и не заблокирует запасной window.open.
+ */
+export const OPEN_SLOW_ACK_MS = 4000;
 
 /** Столько же пар, сколько принимает импорт с фото. */
 const MAX_SLOTS = 80;
@@ -110,7 +131,7 @@ export function readExtensionReport(data: unknown): ExtensionReport | null {
  * расширение само не обновляется, поэтому сайт сравнивает её с присланной
  * расширением и предлагает обновиться. Менять вместе с архивом.
  */
-export const LATEST_EXTENSION = "0.4.0";
+export const LATEST_EXTENSION = "0.4.1";
 export const EXTENSION_ZIP = "/downloads/qairu-schedule-ext.zip";
 /**
  * Под этим именем архив сохраняется при скачивании. «Извлечь всё» в Windows
@@ -121,6 +142,8 @@ export const EXTENSION_ZIP_NAME = "QairuCowork-extension.zip";
 export const EXTENSION_FOLDER = "QairuCowork-extension";
 /** С этой версии расширение умеет «Перенести из кампуса». */
 export const INTENT_EXTENSION = "0.4.0";
+/** С этой версии расширение само открывает кампус в уже открытой вкладке (campus-intent с open: true). */
+export const OPEN_TAB_EXTENSION = "0.4.1";
 
 /** Страница расписания кампуса на языке сайта (кампус говорит на тех же трёх). */
 export function campusScheduleUrl(lang: string): string {
@@ -131,6 +154,11 @@ export function campusScheduleUrl(lang: string): string {
 /** Версия расширения умеет «Перенести из кампуса». */
 export function supportsIntent(version: string | null): boolean {
   return !!version && !olderVersion(version, INTENT_EXTENSION);
+}
+
+/** Версия расширения само открывает или переиспользует вкладку кампуса. */
+export function supportsOpenTab(version: string | null): boolean {
+  return !!version && !olderVersion(version, OPEN_TAB_EXTENSION);
 }
 
 /** Версия a старше b («0.1.0» < «0.2.0»). */

@@ -152,6 +152,7 @@ export default async function MySchedulePage({
                 install: t("w_ext_hint"),
                 update: t("w_ext_hint_update"),
                 how: t("w_ext_hint_how"),
+                howUpdate: t("w_ext_hint_how_update"),
                 later: t("w_ext_hint_later"),
                 changed: t("w_ext_changed", { added: "{added}", removed: "{removed}" }),
                 pull: t("w_ext_pull"),

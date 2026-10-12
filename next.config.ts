@@ -13,6 +13,13 @@ const nextConfig: NextConfig = {
         source: "/:path*",
         headers: [{ key: "Content-Security-Policy", value: "frame-ancestors 'self' https://*.telegram.org" }],
       },
+      // Архив расширения сохраняется под именем из гайда (EXTENSION_ZIP_NAME в
+      // src/core/extensionImport.ts): имя из заголовка браузер ставит выше
+      // атрибута download у ссылки, а по нему называется папка после «Извлечь всё».
+      {
+        source: "/downloads/qairu-schedule-ext.zip",
+        headers: [{ key: "Content-Disposition", value: 'attachment; filename="QairuCowork-extension.zip"' }],
+      },
     ];
   },
 };

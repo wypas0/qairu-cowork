@@ -3,10 +3,24 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { EXT_SOURCE, LATEST_EXTENSION, PAGE_SOURCE, campusScheduleUrl, olderVersion, supportsIntent } from "@/core/extensionImport";
+import {
+  CAMPUS_TARGET,
+  EXT_SOURCE,
+  LATEST_EXTENSION,
+  PAGE_SOURCE,
+  campusScheduleUrl,
+  olderVersion,
+  supportsIntent,
+} from "@/core/extensionImport";
 import { webApp } from "@/lib/telegram";
 
-import { desktopChromium, startCampusTransfer, transferRecentlyStarted, useCampusExtension } from "./useCampusExtension";
+import {
+  CAMPUS_BLOCKED_EVENT,
+  campusLinkClick,
+  desktopChromium,
+  transferRecentlyStarted,
+  useCampusExtension,
+} from "./useCampusExtension";
 
 const DISMISSED_KEY = "qairu-ext-hint-dismissed";
 
@@ -21,7 +35,8 @@ function wasDismissed(): boolean {
 /**
  * Подсказка про расширение кампуса вверху редактора «Моего расписания»: «поставь», если его
  * нет, «обнови», если версия старая, и «Перенести из кампуса», если оно стоит.
- * По кнопке сайт сообщает расширению группу и открывает кампус; там расширение
+ * По кнопке сайт сообщает расширению группу и открывает кампус (в уже открытой
+ * вкладке кампуса, а не в новой — см. campusLinkClick); там расширение
  * само предлагает перенос и возвращает сюда пары на проверку. В Telegram и на
  * телефоне про установку молчим — там расширений не бывает.
  */
@@ -37,6 +52,7 @@ export function ExtensionHint({
     install: string;
     update: string;
     how: string;
+    howUpdate: string;
     later: string;
     changed: string;
     pull: string;
@@ -50,15 +66,20 @@ export function ExtensionHint({
   // Перенос могли начать с экрана выбора — тогда сразу «кампус открылся…».
   const [sent, setSent] = useState(transferRecentlyStarted);
 
-  // Пары вернулись из кампуса — «кампус открылся…» больше не нужно.
+  // Пары вернулись из кампуса или браузер не дал его открыть — «кампус открылся…» больше не нужно.
   useEffect(() => {
     function onMessage(event: MessageEvent) {
       if (event.source !== window || event.origin !== window.location.origin) return;
       const data = event.data as { source?: unknown; type?: unknown } | null;
       if (data?.source === EXT_SOURCE && data.type === "campus-slots") setSent(false);
     }
+    const onBlocked = () => setSent(false);
     window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
+    window.addEventListener(CAMPUS_BLOCKED_EVENT, onBlocked);
+    return () => {
+      window.removeEventListener("message", onMessage);
+      window.removeEventListener(CAMPUS_BLOCKED_EVENT, onBlocked);
+    };
   }, []);
 
   const outdated = extension.status === "present" && olderVersion(extension.version ?? "0.0.0", LATEST_EXTENSION);
@@ -75,8 +96,8 @@ export function ExtensionHint({
     }
   }
 
-  function transfer() {
-    startCampusTransfer(title, lang);
+  function transfer(event: React.MouseEvent<HTMLAnchorElement>) {
+    campusLinkClick(event, { title, lang, version: extension.version });
     setSent(true);
   }
 
@@ -106,7 +127,7 @@ export function ExtensionHint({
           <span>{labels.update}</span>
           <span className="notice-actions">
             <Link className="btn btn-sm" href="/extension#update">
-              {labels.how}
+              {labels.howUpdate}
             </Link>
             <button
               type="button"
@@ -126,7 +147,7 @@ export function ExtensionHint({
             <a
               className="btn btn-sm"
               href={campusScheduleUrl(lang)}
-              target="_blank"
+              target={CAMPUS_TARGET}
               rel="noopener noreferrer"
               onClick={transfer}
               data-campus-transfer=""
