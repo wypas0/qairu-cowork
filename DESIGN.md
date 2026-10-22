@@ -124,7 +124,33 @@ bot_state(key PK, data jsonb, updated_at)                       -- шаги ди
 owner_login_codes(user_id PK, code_hash, salt, attempts, expires_at) -- код в консоль: только HMAC
 owner_sessions(token_hash PK, user_id, web_token_hash, expires_at)   -- сессия консоли: только SHA-256
 owner_audit(id PK, user_id, event, ok, target_id, ip_hash, ua_hash, device) -- журнал консоли: входы и просмотры карточек
+friend_requests(id PK, from_user, to_user, status pending|accepted|declined|cancelled,
+                via search|group|link, created_at, decided_at)  -- живая заявка — одна на пару (уникальный индекс)
+friendships(user_a, user_b, created_at)          PK(user_a,user_b), CHECK user_a < user_b
+user_blocks(blocker, blocked, created_at)        PK(blocker,blocked)
+friend_links(user_id PK, code UNIQUE)            -- личная ссылка /f/<код>
+group_invites(id PK, chat_id, from_user, to_user, kind invite|ask, status,
+              created_at, decided_at, expires_at) -- зовут в группу или просятся в неё; 14 дней
+-- плюс users.friends_see_groups / friends_see_free / findable, memberships.hidden_from_friends
 ```
+
+### 5.2. Друзья
+
+Друзья — люди, которые согласились видеть друг друга: группы друг друга (без скрытых), общее
+свободное время на неделю и приглашения в группы в одно нажатие. Код группы — это её адрес и
+пропуск в неё, поэтому в разделе друзей он не показывается никогда: ссылка на группу друга есть
+только там, где ты и так состоишь, а в остальные — «попроситься» (`group_invites.kind = ask`),
+и впускает участник.
+
+| Вопрос | Как устроено |
+|---|---|
+| Где правила | `src/core/friends.ts` — чистые функции «можно ли» (заявка, ссылка, группы, приглашение, ответ). `src/lib/friends.ts` — единственный вход для сайта и бота: собирает отношение двух людей из базы, спрашивает правила, пишет в транзакции, шлёт уведомление (`lib/friendNotify`) |
+| Чужой id в форме | Ничего не даёт: ответ на заявку и приглашение — `UPDATE … WHERE to_user = я AND status = 'pending'`, «В друзья» по id — только одногруппнику, скрыть — только свою группу |
+| Поиск по нику | По всем (решение 22.10.2026: общих групп в вузе нет), но только точный ник, только `findable`, не больше 30 поисков в час |
+| Блокировка | Рвёт дружбу, гасит заявки и приглашения в обе стороны. Заблокированный не узнаёт: его заявка «уходит», но её никто не видит; ссылка заблокировавшего для него «не работает», как устаревшая |
+| Пределы | 20 заявок и 30 приглашений в сутки, 10 просьб вступить, 5 смен ссылки, 50 ждущих заявок, 500 друзей; после отказа — неделя паузы. Счётчики — `bumpCounter` (`fr:<вид>:<id>` в `bot_state`) |
+| Срок и уборка | Приглашение живёт 14 дней и при ответе проверяется заново (жив ли хозяин в группе, нет ли блокировки). Cron гасит просроченные, удаляет ответы старше месяца и счётчики старше двух суток |
+| Источник запроса | Каждое действие — только вошедшему через Telegram и только с нашей страницы (`isSameOriginPost`): кука SameSite=None |
 
 Замечания:
 

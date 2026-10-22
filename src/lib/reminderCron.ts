@@ -67,6 +67,12 @@ export async function runReminderCron(startedAt = Date.now(), budget?: Budget): 
     result.sessions = await repo.deleteIdleWebSessions();
     // Корзины метрик качества живут неделю с запасом — дальше консоли не нужны.
     await repo.deleteOldMetrics();
+    // Друзья: просроченные приглашения гаснут (не держат место для нового),
+    // ответы старше месяца и счётчики лимитов старше двух суток не нужны.
+    const now = Date.now();
+    await repo.expireGroupInvites(new Date(now));
+    await repo.pruneFriendHistory(new Date(now - 30 * 86_400_000));
+    await repo.deleteStaleBotState("fr:", new Date(now - 2 * 86_400_000));
   } catch (error) {
     // Ответ вызвавшему уже ушёл: падение видно только в журнале и в консоли владельца.
     result.ok = false;

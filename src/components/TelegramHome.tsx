@@ -24,7 +24,15 @@ export function OpenLastGroup({ slug }: { slug: string | null }) {
         // Мини-апп открыли приглашением t.me/<бот>?startapp=<код> — ведём в эту
         // группу (вступление само, см. join), а не в последнюю открытую.
         const invited = app.initDataUnsafe?.start_param ?? "";
-        const target = /^[a-z0-9]{3,24}$/i.test(invited) ? `/g/${invited.toLowerCase()}/join` : slug ? `/g/${slug}` : null;
+        // f_<код> — чужая личная ссылка «добавь меня в друзья».
+        const friend = /^f_([a-z0-9]{6,16})$/i.exec(invited)?.[1];
+        const target = friend
+          ? `/f/${friend.toLowerCase()}`
+          : /^[a-z0-9]{3,24}$/i.test(invited)
+            ? `/g/${invited.toLowerCase()}/join`
+            : slug
+              ? `/g/${slug}`
+              : null;
         if (!target) return;
         try {
           if (sessionStorage.getItem(OPENED_KEY) === "1") return;

@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { tn, translator } from "@/i18n";
 import { SIDEBAR_COOKIE } from "@/lib/cookies";
+import { FriendsLink } from "./friends/FriendsLink";
 import { BrandMark, IconCalendarUser, IconMeeting, IconPlus } from "./icons";
 import { ProfilePanel } from "./ProfilePanel";
 import { profilePanelProps } from "./profilePanelProps";
@@ -112,6 +113,13 @@ export async function AppShell({
           <IconPlus size={18} />
           <span className="sidebar-label">{t("w_pp_create")}</span>
         </Link>
+        {panel.user && (
+          <FriendsLink
+            label={t("w_fr_title")}
+            count={panel.friendsBadge ?? 0}
+            countLabel={t("w_fr_waiting_label", { n: String(panel.friendsBadge ?? 0) })}
+          />
+        )}
 
         <SidebarToday lang={lang} slug={slug} groups={panel.groups} />
 

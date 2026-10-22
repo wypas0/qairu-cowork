@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import Link from "next/link";
 
 import { CreateGroupDialog } from "@/components/CreateGroupDialog";
+import { FriendsLink } from "@/components/friends/FriendsLink";
 import { IconBell, IconPhone, IconPlus, IconUser } from "@/components/icons";
 import { GroupsButton, LandingShell } from "@/components/LandingShell";
 import { ProductDemo } from "@/components/ProductDemo";
@@ -246,6 +247,11 @@ export default async function LandingPage({
             <IconPlus size={18} />
             <span className="sidebar-label">{t("w_pp_create")}</span>
           </a>
+          <FriendsLink
+            label={t("w_fr_title")}
+            count={panel.friendsBadge ?? 0}
+            countLabel={t("w_fr_waiting_label", { n: String(panel.friendsBadge ?? 0) })}
+          />
 
           <form action={joinByCodeAction} className="sidebar-join" id="join">
             <label className="eyebrow" htmlFor="join-code">

@@ -31,13 +31,14 @@ async function webhookInfo(): Promise<TgWebhookInfo | null> {
  * карточек. База и Telegram — параллельно.
  */
 export default ownerPage("system", async ({ t, fmt, now }) => {
-  const [storage, webhook, cron, events, views, quality] = await Promise.all([
+  const [storage, webhook, cron, events, views, quality, friendsDay] = await Promise.all([
     repo.storageStats(),
     webhookInfo(),
     repo.lastCronRun(),
     repo.recentOwnerEvents(12),
     repo.recentOwnerViews(20),
     repo.qualityStats(now),
+    repo.friendStats(new Date(now.getTime() - 24 * 3_600_000)),
   ]);
   const dbShare = storage.bytes / DB_LIMIT_BYTES;
   const limit = bytes(t, DB_LIMIT_BYTES);
@@ -72,6 +73,18 @@ export default ownerPage("system", async ({ t, fmt, now }) => {
         [t("w_owner_env"), env("VERCEL_ENV") ?? t("w_owner_local")],
         [t("w_owner_commit"), env("VERCEL_GIT_COMMIT_SHA")?.slice(0, 7) ?? "—"],
         [t("w_owner_branch"), env("VERCEL_GIT_COMMIT_REF") ?? "—"],
+      ],
+    },
+    // Друзья за сутки — только числа: всплеск заявок или блокировок виден без чтения чужих данных.
+    {
+      title: t("w_owner_friends"),
+      rows: [
+        [t("w_owner_fr_requests"), fmt.n(friendsDay.requests)],
+        [t("w_owner_fr_accepted"), fmt.n(friendsDay.accepted)],
+        [t("w_owner_fr_link"), fmt.n(friendsDay.viaLink)],
+        [t("w_owner_fr_invites"), fmt.n(friendsDay.invites + friendsDay.asks)],
+        [t("w_owner_fr_joined"), fmt.n(friendsDay.joined)],
+        [t("w_owner_fr_blocks"), fmt.n(friendsDay.blocks)],
       ],
     },
   ];

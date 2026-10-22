@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { test as base, expect } from "@playwright/test";
 
 /** Что записал e2e-server: код группы и токен входа Амира. */
-export function state(): { slug: string; token: string; url: string } {
+export function state(): { slug: string; token: string; tokenAsel: string; url: string } {
   return JSON.parse(readFileSync("e2e/.state.json", "utf8"));
 }
 

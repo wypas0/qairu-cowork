@@ -2,7 +2,7 @@
 
 import "server-only";
 
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { avatars } from "../schema";
 import { type Exec, ex } from "./base";
 
@@ -45,6 +45,16 @@ export async function avatarVersion(userId: number, exec?: Exec): Promise<number
     .where(eq(avatars.userId, userId))
     .limit(1);
   return row ? row.updatedAt.getTime() : null;
+}
+
+/** Версии фото сразу многих людей — для списков (друзья, заявки) одним запросом. */
+export async function avatarVersions(userIds: number[], exec?: Exec): Promise<Map<number, number>> {
+  if (userIds.length === 0) return new Map();
+  const rows = await ex(exec)
+    .select({ userId: avatars.userId, updatedAt: avatars.updatedAt })
+    .from(avatars)
+    .where(inArray(avatars.userId, userIds));
+  return new Map(rows.map((row) => [row.userId, row.updatedAt.getTime()]));
 }
 
 export async function deleteAvatar(userId: number, exec?: Exec): Promise<void> {

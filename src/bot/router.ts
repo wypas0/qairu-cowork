@@ -17,12 +17,14 @@ import { parseCommand } from "./context";
 import * as attendance from "./handlers/attendance";
 import * as availability from "./handlers/availability";
 import * as common from "./handlers/common";
+import * as friends from "./handlers/friends";
 import * as meeting from "./handlers/meeting";
 import * as registration from "./handlers/registration";
 import * as weblogin from "./handlers/weblogin";
 
 export const PRIVATE_COMMANDS = [
   { command: "start", description: "Открыть QairuCowork" },
+  { command: "friends", description: "Друзья" },
   { command: "lang", description: "Язык / Тіл / Language" },
   { command: "help", description: "Что умеет бот" },
 ];
@@ -107,7 +109,13 @@ async function handleCommand(
 
   switch (command) {
     case "start":
-      if (privateChat) await common.cmdStart(message, args);
+      if (!privateChat) return;
+      // Чужая личная ссылка «добавь меня в друзья», открытая через бота.
+      if (/^f_[a-z0-9]{6,16}$/i.test(args[0] ?? "")) await friends.startFriendLink(message, args[0]!.slice(2));
+      else await common.cmdStart(message, args);
+      return;
+    case "friends":
+      if (privateChat) await friends.cmdFriends(message);
       return;
     case "help":
       await common.cmdHelp(message);
@@ -162,6 +170,7 @@ async function handleCallback(query: NonNullable<TgUpdate["callback_query"]>): P
   if (data.startsWith("vote:")) return meeting.onVote(query);
   if (data.startsWith("att:")) return attendance.onAttendanceButton(query);
   if (data.startsWith("card:")) return meeting.onCardButton(query);
+  if (friends.isFriendCallback(data)) return friends.onFriendButton(query);
   if (weblogin.isWebLoginCallback(data)) return weblogin.onWebLoginButton(query);
   // Кнопки мастера расписания и выбора чата из старых сообщений.
   if (/^(sch|wiz|clr|avl):/.test(data)) return common.onRetiredButton(query);

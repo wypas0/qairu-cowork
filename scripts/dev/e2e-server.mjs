@@ -64,6 +64,8 @@ const [amir, asel, bolat, dana, erlan] = [1001, 1002, 1003, 1004, 1005];
 const token = crypto.randomBytes(32).toString("base64url");
 // Болат ещё не заполнил расписание: вход им — пустой редактор.
 const tokenEmpty = crypto.randomBytes(32).toString("base64url");
+// Асель — второй человек в сценарии друзей (e2e/social.spec.ts).
+const tokenAsel = crypto.randomBytes(32).toString("base64url");
 
 await sql`insert into chats (chat_id, slug, origin, title, lang, tz, created_by)
           values (${chat}, 'smoke001', 'web', 'ИС-21', 'ru', ${TZ}, ${amir}),
@@ -85,7 +87,8 @@ await sql`insert into memberships (chat_id, user_id, role) values
           (${chat6}, ${erlan}, 'admin')`;
 await sql`insert into web_sessions (token_hash, user_id)
           values (${crypto.createHash("sha256").update(token).digest("hex")}, ${amir}),
-                 (${crypto.createHash("sha256").update(tokenEmpty).digest("hex")}, ${bolat})`;
+                 (${crypto.createHash("sha256").update(tokenEmpty).digest("hex")}, ${bolat}),
+                 (${crypto.createHash("sha256").update(tokenAsel).digest("hex")}, ${asel})`;
 
 const weekly = (user, days, start, end, kind = "class") =>
   days.map((day) => ({ user_id: user, weekday: day, start_min: start, end_min: end, kind, source: "web", label: "" }));
@@ -183,7 +186,7 @@ const url = `http://localhost:${SITE_PORT}`;
 // По совпадению секрета нагрузочный тест понимает, что перед ним этот сервер с заглушкой.
 const bot = FAKE_BOT ? { fake: true, secret: crypto.randomBytes(24).toString("hex") } : null;
 const blackhole = new URL("../load/tg-blackhole.mjs", import.meta.url).href;
-const state = { slug: "smoke001", token, tokenEmpty, ownerToken, ownerCode, url, weekday, bot };
+const state = { slug: "smoke001", token, tokenEmpty, tokenAsel, ownerToken, ownerCode, url, weekday, bot };
 await mkdir(new URL("../../e2e/", import.meta.url), { recursive: true });
 await writeFile(new URL("../../e2e/.state.json", import.meta.url), JSON.stringify(state));
 console.log(`[e2e] база на ${DB_PORT}, сайт на ${url}, вход: кука qairu_token=${token}`);

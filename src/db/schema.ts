@@ -15,10 +15,11 @@
  * tests/schema.test.ts.
  */
 
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   bigint,
   boolean,
+  check,
   date,
   index,
   integer,
@@ -28,6 +29,7 @@ import {
   serial,
   text,
   timestamp,
+  uniqueIndex,
   varchar,
 } from "drizzle-orm/pg-core";
 
@@ -52,8 +54,18 @@ export const users = pgTable("users", {
   // Почему последняя загрузка не удалась: код ошибки, а не текст — его
   // переводит сайт. NULL — всё в порядке.
   calendarError: varchar("calendar_error", { length: 32 }),
+  // Друзья (0012): видят ли они группы человека — каждую можно ещё скрыть
+  // отдельно (memberships.hidden_from_friends) — и общее свободное время с ним.
+  friendsSeeGroups: boolean("friends_see_groups").notNull().default(true),
+  friendsSeeFree: boolean("friends_see_free").notNull().default(true),
+  // Находится ли человек поиском друзей по @нику. Нет — добавить его можно
+  // только по его личной ссылке или из общей группы.
+  findable: boolean("findable").notNull().default(true),
   createdAt: createdAt(),
-}).enableRLS();
+}, (table) => [
+  // Поиск друзей и вход по нику сравнивают ник без учёта регистра.
+  index("ix_users_username_lower").on(sql`lower(${table.username})`),
+]).enableRLS();
 
 export const chats = pgTable("chats", {
   chatId: bigint("chat_id", { mode: "number" }).primaryKey(),
@@ -88,6 +100,8 @@ export const memberships = pgTable(
       .references(() => users.userId, { onDelete: "cascade" }),
     joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
     role: varchar("role", { length: 16 }).notNull().default("member"), // member | admin
+    // Группа скрыта от друзей человека: в его карточке друга её не видно.
+    hiddenFromFriends: boolean("hidden_from_friends").notNull().default(false),
   },
   (table) => [
     primaryKey({ columns: [table.chatId, table.userId] }),
@@ -377,6 +391,125 @@ export const ownerAudit = pgTable(
   (table) => [index("ix_owner_audit_created_at").on(table.createdAt)],
 ).enableRLS();
 
+/**
+ * Заявки в друзья. Живая (pending) — одна на пару людей в любую сторону:
+ * это держит уникальный индекс по паре. Ответ не удаляет строку, а меняет
+ * статус: по отказу (declined, decided_at) считается пауза перед новой
+ * заявкой, по строкам — счётчики консоли. Добавление по личной ссылке
+ * пишется сразу принятой заявкой (via = link).
+ */
+export const friendRequests = pgTable(
+  "friend_requests",
+  {
+    id: serial("id").primaryKey(),
+    fromUser: bigint("from_user", { mode: "number" })
+      .notNull()
+      .references(() => users.userId, { onDelete: "cascade" }),
+    toUser: bigint("to_user", { mode: "number" })
+      .notNull()
+      .references(() => users.userId, { onDelete: "cascade" }),
+    status: varchar("status", { length: 16 }).notNull().default("pending"), // pending | accepted | declined | cancelled
+    via: varchar("via", { length: 8 }).notNull().default("search"), // search | group | link
+    createdAt: createdAt(),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("ix_friend_requests_to").on(table.toUser, table.status),
+    index("ix_friend_requests_from").on(table.fromUser, table.status),
+    uniqueIndex("ux_friend_requests_pending")
+      .on(sql`least("from_user", "to_user")`, sql`greatest("from_user", "to_user")`)
+      .where(sql`"status" = 'pending'`),
+  ],
+).enableRLS();
+
+/** Дружба взаимна: одна строка на пару, меньший id — в user_a. */
+export const friendships = pgTable(
+  "friendships",
+  {
+    userA: bigint("user_a", { mode: "number" })
+      .notNull()
+      .references(() => users.userId, { onDelete: "cascade" }),
+    userB: bigint("user_b", { mode: "number" })
+      .notNull()
+      .references(() => users.userId, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userA, table.userB] }),
+    index("ix_friendships_user_b").on(table.userB),
+    check("ck_friendships_order", sql`"user_a" < "user_b"`),
+  ],
+).enableRLS();
+
+/**
+ * Блокировка. Заблокированный не пришлёт ни заявку, ни приглашение и не
+ * увидит групп того, кто его заблокировал; дружба при блокировке рвётся.
+ * Сам он об этом не узнаёт.
+ */
+export const userBlocks = pgTable(
+  "user_blocks",
+  {
+    blocker: bigint("blocker", { mode: "number" })
+      .notNull()
+      .references(() => users.userId, { onDelete: "cascade" }),
+    blocked: bigint("blocked", { mode: "number" })
+      .notNull()
+      .references(() => users.userId, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (table) => [primaryKey({ columns: [table.blocker, table.blocked] }), index("ix_user_blocks_blocked").on(table.blocked)],
+).enableRLS();
+
+/**
+ * Личная ссылка «добавь меня в друзья» (/f/<код>, QR, startapp=f_<код>).
+ * Кто её открыл и нажал «Добавить», сразу становится другом — человек сам
+ * ею поделился. Код можно сменить: старая ссылка перестаёт работать.
+ */
+export const friendLinks = pgTable("friend_links", {
+  userId: bigint("user_id", { mode: "number" })
+    .primaryKey()
+    .references(() => users.userId, { onDelete: "cascade" }),
+  code: varchar("code", { length: 16 }).notNull().unique(),
+  createdAt: createdAt(),
+}).enableRLS();
+
+/**
+ * Приглашения в группы между друзьями.
+ *   invite — участник (from_user) зовёт друга (to_user); друг принимает сам;
+ *   ask    — друг (from_user) просится в группу участника (to_user);
+ *            участник одним нажатием принимает его.
+ * Без согласия второй стороны в группу никто не попадает. Срок — expires_at;
+ * при ответе всё проверяется заново (lib/friends).
+ */
+export const groupInvites = pgTable(
+  "group_invites",
+  {
+    id: serial("id").primaryKey(),
+    chatId: bigint("chat_id", { mode: "number" })
+      .notNull()
+      .references(() => chats.chatId, { onDelete: "cascade" }),
+    fromUser: bigint("from_user", { mode: "number" })
+      .notNull()
+      .references(() => users.userId, { onDelete: "cascade" }),
+    toUser: bigint("to_user", { mode: "number" })
+      .notNull()
+      .references(() => users.userId, { onDelete: "cascade" }),
+    kind: varchar("kind", { length: 8 }).notNull().default("invite"), // invite | ask
+    status: varchar("status", { length: 16 }).notNull().default("pending"), // pending | accepted | declined | cancelled
+    createdAt: createdAt(),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("ix_group_invites_to").on(table.toUser, table.status),
+    index("ix_group_invites_from").on(table.fromUser, table.status),
+    index("ix_group_invites_chat").on(table.chatId),
+    uniqueIndex("ux_group_invites_pending")
+      .on(table.chatId, table.kind, table.fromUser, table.toUser)
+      .where(sql`"status" = 'pending'`),
+  ],
+).enableRLS();
+
 export const usersRelations = relations(users, ({ many }) => ({
   slots: many(busySlots),
 }));
@@ -398,6 +531,8 @@ export type Chat = typeof chats.$inferSelect;
 export type BusySlot = typeof busySlots.$inferSelect;
 export type Meeting = typeof meetings.$inferSelect;
 export type MeetingResponse = typeof meetingResponses.$inferSelect;
+export type FriendRequest = typeof friendRequests.$inferSelect;
+export type GroupInvite = typeof groupInvites.$inferSelect;
 export type Notice = typeof notices.$inferSelect;
 
 /** Как показывать человека в списках: имя, иначе @username, иначе id. */

@@ -12,7 +12,7 @@ import {
   saveRealNameAction,
 } from "@/app/profile/actions";
 import type { Theme } from "@/lib/theme";
-import { BrandMark, IconCheck, IconChevronLeft, IconChevronRight, IconClose } from "./icons";
+import { BrandMark, IconCheck, IconChevronLeft, IconChevronRight, IconClose, IconFriends } from "./icons";
 import { slideIn, useExit } from "./motion";
 import { ThemeSwitch } from "./ThemeSwitch";
 
@@ -96,6 +96,9 @@ export type ProfileLabels = {
   themeSystem: string;
   themeLight: string;
   themeDark: string;
+  friends: string;
+  /** «Друзья: ждут ответа {n}» — подпись счётчика для скринридера. */
+  friendsWaiting: string;
 };
 
 /** Сторона квадрата, до которого браузер ужимает фото перед загрузкой. */
@@ -166,10 +169,12 @@ export type ProfilePanelProps = {
   theme: Theme;
   /** Бот настроен — подключить Telegram можно. */
   botEnabled: boolean;
+  /** Сколько ждёт в «Друзьях»: заявки, приглашения в группы, просьбы вступить. */
+  friendsBadge?: number;
   labels: ProfileLabels;
 };
 
-export function ProfilePanel({ user, groups, theme, botEnabled, labels }: ProfilePanelProps) {
+export function ProfilePanel({ user, groups, theme, botEnabled, friendsBadge = 0, labels }: ProfilePanelProps) {
   const pathname = usePathname();
   const [nameState, saveName, savingName] = useActionState<RealNameState, FormData>(
     saveRealNameAction,
@@ -328,6 +333,10 @@ export function ProfilePanel({ user, groups, theme, botEnabled, labels }: Profil
               strokeLinecap="round"
             />
           </svg>
+        )}
+        {/* Точка на кнопке: в «Друзьях» что-то ждёт ответа. */}
+        {friendsBadge > 0 && (
+          <span className="pp-dot" role="img" aria-label={labels.friendsWaiting.replace("{n}", String(friendsBadge))} />
         )}
       </button>
 
@@ -567,6 +576,21 @@ export function ProfilePanel({ user, groups, theme, botEnabled, labels }: Profil
                         </ul>
                       )}
                     </section>
+                  )}
+
+                  {user && (
+                    <nav className="pp-menu pp-section" aria-label={labels.friends}>
+                      <Link className="pp-menu-item" href="/friends" onClick={close}>
+                        <span className="pp-menu-label">
+                          <IconFriends size={18} />
+                          {labels.friends}
+                        </span>
+                        <span className="pp-menu-end">
+                          {friendsBadge > 0 && <span className="count-badge">{friendsBadge}</span>}
+                          <IconChevronRight className="muted" />
+                        </span>
+                      </Link>
+                    </nav>
                   )}
 
                   {themeSwitch}

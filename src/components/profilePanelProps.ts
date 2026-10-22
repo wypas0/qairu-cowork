@@ -24,12 +24,15 @@ export async function profilePanelProps(langOverride?: string): Promise<ProfileP
 
   let profile: ProfileUser | null = null;
   let groups: ProfileGroup[] = [];
+  let friendsBadge = 0;
   if (user) {
-    const [credentials, avatar, userGroupList] = await Promise.all([
+    const [credentials, avatar, userGroupList, waiting] = await Promise.all([
       repo.getCredentials(user.userId),
       repo.avatarVersion(user.userId),
       userGroups(user.userId, lang),
+      user.isWeb ? Promise.resolve(0) : repo.friendBadge(user.userId, new Date()),
     ]);
+    friendsBadge = waiting;
     profile = {
       name: displayName(user),
       realName: user.realName,
@@ -48,6 +51,7 @@ export async function profilePanelProps(langOverride?: string): Promise<ProfileP
     groups,
     theme,
     botEnabled: hasBot(),
+    friendsBadge,
     labels: {
     profile: t("w_profile"),
     close: t("w_close"),
@@ -87,6 +91,8 @@ export async function profilePanelProps(langOverride?: string): Promise<ProfileP
     themeSystem: t("w_pp_theme_system"),
     themeLight: t("w_pp_theme_light"),
     themeDark: t("w_pp_theme_dark"),
+    friends: t("w_fr_title"),
+    friendsWaiting: t("w_fr_waiting_label", { n: "{n}" }),
     },
   };
 }

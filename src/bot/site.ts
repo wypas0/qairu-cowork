@@ -56,6 +56,15 @@ export async function miniAppInvite(slug: string): Promise<string | null> {
   return bot.hasMainWebApp && bot.username ? `https://t.me/${bot.username}?startapp=${slug}` : null;
 }
 
+/**
+ * Личная ссылка «добавь меня в друзья» внутри Telegram: мини-апп откроется
+ * сразу на /f/<код> (TelegramHome). Только если у бота есть главное мини-приложение.
+ */
+export async function miniAppFriendLink(code: string): Promise<string | null> {
+  const bot = await botInfo();
+  return bot.hasMainWebApp && bot.username ? `https://t.me/${bot.username}?startapp=f_${code}` : null;
+}
+
 /** Главная кнопка под сообщениями бота в группе: с мини-приложением — сразу в нём. */
 export async function openGroupButton(lang: string, chatId: number, key = "btn_fill_schedule"): Promise<InlineButton> {
   const chat = await repo.getChat(chatId);

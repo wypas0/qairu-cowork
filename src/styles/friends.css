@@ -1,0 +1,289 @@
+/* Друзья: список людей, заявки, карточка друга, личная ссылка, приватность;
+   кнопка «В друзья» в «Участниках», «Позвать друзей» в приглашении,
+   точка на кнопке профиля. Движение строк — в motion.css. */
+
+/* --- человек: фото или инициалы --- */
+.fr-avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-full);
+  background: var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
+  line-height: 1;
+  object-fit: cover;
+}
+img.fr-avatar {
+  background: var(--surface-2);
+}
+
+/* --- строки списка: фото, имя с подписью, действия справа --- */
+.fr-list {
+  list-style: none;
+  margin: 8px -8px 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+.fr-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 8px;
+  border-radius: var(--r-lg);
+  color: var(--text);
+  text-decoration: none;
+}
+.fr-list > .fr-row + .fr-row,
+.fr-list > li + li > .fr-row {
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+}
+.fr-list > li + li > .fr-link {
+  border-radius: var(--r-lg);
+}
+/* Строка-ссылка (друг в списке): подсветка и нажатие — motion.css. */
+.fr-link {
+  transition: scale var(--dur-fast) var(--ease);
+}
+.fr-who {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+.fr-who b {
+  font-size: 15px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fr-who .small {
+  overflow-wrap: anywhere;
+}
+.fr-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+/* На телефоне кнопки ответа уходят под имя — не сжимают его в столбик. */
+@media (max-width: 560px) {
+  .fr-row:has(.fr-actions form + form) {
+    flex-wrap: wrap;
+  }
+  .fr-row:has(.fr-actions form + form) .fr-actions {
+    flex-basis: 100%;
+    justify-content: flex-start;
+    padding-left: 52px;
+  }
+}
+
+/* --- поиск по нику --- */
+.fr-search {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.fr-search input {
+  flex: 1;
+  min-width: 0;
+}
+.fr-search .btn {
+  flex: none;
+  height: 48px;
+}
+.fr-found {
+  margin-top: 12px;
+  border: 1px solid var(--border);
+}
+.fr-search-note {
+  margin: 12px 0 0;
+}
+
+/* --- личная ссылка --- */
+.fr-link-card .invite-qr {
+  margin-top: 12px;
+}
+.fr-link-card .invite-qr-text {
+  min-width: 0;
+  flex: 1 1 200px;
+}
+.fr-rotate {
+  margin-top: 12px;
+}
+.fr-link-page {
+  max-width: 440px;
+  margin: 32px auto;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  text-align: center;
+}
+.fr-link-page h1 {
+  margin: 0;
+}
+.fr-link-page .eyebrow {
+  margin: 8px 0 0;
+}
+.fr-link-page p {
+  margin: 0;
+}
+.fr-link-page .btn,
+.fr-link-page form {
+  margin-top: 12px;
+}
+
+/* --- приватность --- */
+.fr-settings {
+  display: grid;
+  gap: 4px;
+  margin-top: 8px;
+}
+.fr-settings .checkbox {
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+.fr-settings .checkbox input {
+  margin-top: 2px;
+}
+.fr-hint {
+  display: block;
+  margin-top: 2px;
+}
+.fr-hide {
+  margin-top: 8px;
+}
+.fr-settings .btn {
+  justify-self: start;
+  margin-top: 8px;
+}
+
+/* --- карточка друга --- */
+.fr-back {
+  margin: -8px 0 12px -12px;
+  gap: 4px;
+}
+.fr-head-who {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+.fr-head-who h1 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.fr-head-meta {
+  margin: 4px 0 0;
+}
+.fr-head-meta a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.fr-head-meta a:hover {
+  text-decoration: underline;
+}
+.fr-free li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+}
+.fr-free-day {
+  min-width: 88px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.fr-invite {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+.fr-invite label {
+  margin: 0;
+}
+.fr-invite .btn {
+  justify-self: start;
+}
+.fr-chips {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.fr-danger {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+/* --- страница группы: «В друзья» и «Позвать друзей» --- */
+.roster-friend {
+  display: flex;
+  align-items: center;
+}
+a.badge {
+  text-decoration: none;
+}
+.fr-call {
+  display: grid;
+  gap: 8px;
+  margin: 8px 0 16px;
+}
+.fr-pick {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.fr-pick .checkbox {
+  margin: 0;
+  padding: 6px 0;
+}
+.fr-pick input:disabled + span {
+  color: var(--muted);
+}
+.fr-call .btn {
+  justify-self: start;
+}
+
+/* --- точка «что-то ждёт» на кнопке профиля и пункт «Друзья» в панели --- */
+.icon-btn {
+  position: relative;
+}
+.pp-dot {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--r-full);
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--bg);
+}
+.pp-menu-label,
+.pp-menu-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.pp-menu-end .count-badge {
+  margin-left: 0;
+}
+.pp-menu.pp-section {
+  padding: 8px 0;
+  margin: 0 -8px;
+  border-bottom: 1px solid var(--border);
+}

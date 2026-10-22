@@ -174,7 +174,8 @@
 .pp-me,
 .pp-menu-item,
 .who-row-btn,
-.your-week-row {
+.your-week-row,
+.fr-link {
   position: relative;
   isolation: isolate;
 }
@@ -184,7 +185,8 @@
 .pp-me::before,
 .pp-menu-item::before,
 .who-row-btn::before,
-.your-week-row::before {
+.your-week-row::before,
+.fr-link::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -209,7 +211,9 @@
 .pp-menu-item:hover::before,
 .pp-menu-item:focus-visible::before,
 .who-row-btn:not(:disabled):hover::before,
-.your-week-row:hover::before {
+.your-week-row:hover::before,
+.fr-link:hover::before,
+.fr-link:focus-visible::before {
   opacity: 1;
   scale: 1;
 }
@@ -220,7 +224,7 @@
 }
 
 /* Нажатие: строка и кнопка чуть поддаются под пальцем. */
-:is(.sidebar-link, .pp-menu-item, .pp-me, .chipbtn, .who-picker-btn, .who-row-btn, .choose-row):not(.pp-static):active,
+:is(.sidebar-link, .pp-menu-item, .pp-me, .chipbtn, .who-picker-btn, .who-row-btn, .choose-row, .fr-link):not(.pp-static):active,
 :is(.seg, .pp-theme, .brush) > button:active {
   scale: 0.97;
 }
@@ -252,7 +256,7 @@
 .icon-chevron-left {
   transition: translate var(--dur-fast) var(--ease);
 }
-:is(.pp-menu-item, .pp-me, .choose-row, .btn, .pp-close):not(:disabled):hover .icon-chevron-right {
+:is(.pp-menu-item, .pp-me, .choose-row, .btn, .pp-close, .fr-link):not(:disabled):hover .icon-chevron-right {
   translate: 2px 0;
 }
 :is(.btn, .pp-close):not(:disabled):hover .icon-chevron-left {

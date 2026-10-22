@@ -24,7 +24,9 @@ export function TelegramAuth() {
     let cancelled = false;
 
     return whenReady((app) => {
-      const slug = /^\/g\/([a-z0-9]{3,24})(?:\/|$)/i.exec(pathname)?.[1] ?? app.initDataUnsafe?.start_param ?? "";
+      // Код группы — из адреса или из приглашения startapp=<код>; f_<код> — ссылка друга, не группа.
+      const param = app.initDataUnsafe?.start_param ?? "";
+      const slug = /^\/g\/([a-z0-9]{3,24})(?:\/|$)/i.exec(pathname)?.[1] ?? (/^[a-z0-9]{3,24}$/i.test(param) ? param : "");
       const doneKey = `${DONE_KEY}:${slug}`;
       try {
         if (sessionStorage.getItem(doneKey) === "1") return;

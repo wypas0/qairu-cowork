@@ -29,3 +29,4 @@ export * from "./queries/owner";
 export * from "./queries/ownerUsers";
 export * from "./queries/insights";
 export * from "./queries/metrics";
+export * from "./queries/friends";

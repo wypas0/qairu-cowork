@@ -151,6 +151,18 @@ export function IconUser(props: IconProps) {
   );
 }
 
+/** Друзья: двое рядом. */
+export function IconFriends(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="9" cy="8" r="3.5" />
+      <path d="M2.5 20c1.2-3.4 3.8-5.5 6.5-5.5s5.3 2.1 6.5 5.5" />
+      <path d="M15.5 4.8a3.5 3.5 0 0 1 0 6.4" />
+      <path d="M18 14.9c1.6.8 2.8 2.6 3.5 5.1" />
+    </Icon>
+  );
+}
+
 export function IconComment(props: IconProps) {
   return (
     <Icon {...props}>

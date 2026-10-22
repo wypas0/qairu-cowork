@@ -49,6 +49,8 @@ import {
   saveSettingsAction,
   setRoleAction,
 } from "./actions";
+import { inviteFriendsAction, requestFriendAction } from "../../friends/actions";
+import { friendFlash } from "../../friends/flash";
 
 export const dynamic = "force-dynamic";
 
@@ -134,6 +136,18 @@ export default async function GroupPage({
     isAdmin ? repo.weeklyBusyMinutes(memberIds) : Promise.resolve(new Map<number, number>()),
     isAdmin ? repo.attendanceByUser(chat.chatId) : Promise.resolve(new Map<number, { attended: number; total: number }>()),
   ]);
+  // Друзья: кто из участников уже друг, кому ушла заявка, кого из друзей
+  // можно позвать сюда (их ещё нет в группе и приглашение не ждёт ответа).
+  const others = memberIds.filter((id) => id !== user.userId);
+  const [friendList, pendingFriends, blockedIds, invitedIds] = await Promise.all([
+    repo.friendsOf(user.userId),
+    repo.pendingWith(user.userId, others),
+    repo.blockedIdsBy(user.userId),
+    repo.invitedTo(chat.chatId, now),
+  ]);
+  const friendIds = new Set(friendList.map((entry) => entry.user.userId));
+  const memberSet = new Set(memberIds);
+  const invitableFriends = friendList.map((entry) => entry.user).filter((friend) => !memberSet.has(friend.userId));
   const attendanceOf = (meeting: (typeof state.meetings)[number]) => {
     if (meeting.status === "cancelled") return null;
     const occurrence = lastEnded(meeting, meetingDurationMin(meeting, tz), tz, now);
@@ -241,6 +255,8 @@ export default async function GroupPage({
           params={["sent", "saved", "code"]}
         />
         <FlashToast message={errorKey ? t(errorKey) : null} tone="error" params={["err"]} />
+        {/* Итог действия с друзьями: заявка участнику, приглашение, «ты в группе». */}
+        <FlashToast {...friendFlash(t, query.fr)} params={["fr"]} />
 
         {state.filledIds.has(user.userId) && outdated(user.userId) && (
           <div className="notice notice-row" role="status">
@@ -529,6 +545,31 @@ export default async function GroupPage({
                             )}
                           </div>
 
+                          {/* Друзья: «В друзья» — у каждого, кто ещё не друг. */}
+                          {!self && !blockedIds.has(member.userId) && (
+                            <div className="roster-friend">
+                              {friendIds.has(member.userId) ? (
+                                <Link className="badge ok" href={`/friends/${member.userId}`}>
+                                  {t("w_fr_badge_friend")}
+                                </Link>
+                              ) : pendingFriends.out.has(member.userId) ? (
+                                <span className="badge">{t("w_fr_waits")}</span>
+                              ) : pendingFriends.in.has(member.userId) ? (
+                                <Link className="btn btn-sm" href="/friends?tab=requests">
+                                  {t("w_fr_answer")}
+                                </Link>
+                              ) : (
+                                <form action={requestFriendAction}>
+                                  <input type="hidden" name="member" value={member.userId} />
+                                  <input type="hidden" name="next" value={`/g/${slug}?at=members`} />
+                                  <button className="btn btn-sm btn-quiet" type="submit">
+                                    {t("w_fr_to_friends")}
+                                  </button>
+                                </form>
+                              )}
+                            </div>
+                          )}
+
                           {/* Старосте — сведения о человеке: в середине строки было пусто. */}
                           {isAdmin && (
                             <div className="roster-facts small muted">
@@ -601,6 +642,42 @@ export default async function GroupPage({
                 {/* ============ приглашение: код, ссылки, QR — справа ============ */}
                 <section className="card split-side invite-card">
                   <h2>{t("w_invite_title")}</h2>
+                  {/* Друзья — в одно нажатие: приглашение ждёт их согласия. */}
+                  <h3>{t("w_fr_call_title")}</h3>
+                  {invitableFriends.length === 0 ? (
+                    <p className="small muted">
+                      {friendList.length === 0 ? t("w_fr_call_no_friends") : t("w_fr_call_all_here")}{" "}
+                      <Link href="/friends?tab=add">{t("w_fr_call_add")}</Link>
+                    </p>
+                  ) : (
+                    <form action={inviteFriendsAction} className="fr-call">
+                      <input type="hidden" name="chat" value={chat.chatId} />
+                      <input type="hidden" name="next" value={`/g/${slug}?at=members`} />
+                      <ul className="fr-pick">
+                        {invitableFriends.map((friend) => (
+                          <li key={friend.userId}>
+                            <label className="checkbox">
+                              <input
+                                type="checkbox"
+                                name="friend"
+                                value={friend.userId}
+                                disabled={invitedIds.has(friend.userId)}
+                              />
+                              <span>
+                                {displayName(friend)}
+                                {invitedIds.has(friend.userId) && (
+                                  <span className="small muted"> · {t("w_fr_invited")}</span>
+                                )}
+                              </span>
+                            </label>
+                          </li>
+                        ))}
+                      </ul>
+                      <button className="btn btn-sm" type="submit">
+                        {t("w_fr_call_btn")}
+                      </button>
+                    </form>
+                  )}
                   <h3>{t("w_code_title")}</h3>
                   <div className="invite-code">
                     <b className="code">{formatCode(slug)}</b>
