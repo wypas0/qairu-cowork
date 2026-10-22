@@ -151,6 +151,28 @@ export function IconUser(props: IconProps) {
   );
 }
 
+/** «Ещё» — меню действий: три точки. */
+export function IconMore(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="5" cy="12" r="1.2" fill="currentColor" />
+      <circle cx="12" cy="12" r="1.2" fill="currentColor" />
+      <circle cx="19" cy="12" r="1.2" fill="currentColor" />
+    </Icon>
+  );
+}
+
+/** Добавить человека: силуэт и плюс. */
+export function IconUserPlus(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="9" cy="8" r="3.5" />
+      <path d="M2.5 20c1.2-3.4 3.8-5.5 6.5-5.5s5.3 2.1 6.5 5.5" />
+      <path d="M19 8v6M16 11h6" />
+    </Icon>
+  );
+}
+
 /** Друзья: двое рядом. */
 export function IconFriends(props: IconProps) {
   return (

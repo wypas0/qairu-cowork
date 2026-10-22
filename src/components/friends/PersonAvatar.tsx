@@ -1,11 +1,5 @@
 import { displayName, type User } from "@/db/schema";
-
-/** Две первые буквы имени: «Асель» → «Ас» — как кружки людей на доске. */
-function initials(name: string): string {
-  const word = name.replace(/^@/, "").trim().split(/\s+/)[0] ?? "";
-  const letters = [...word];
-  return letters.length === 0 ? "?" : letters[0]!.toUpperCase() + (letters[1] ?? "").toLowerCase();
-}
+import { initials } from "./initials";
 
 /**
  * Фото человека или его инициалы — в списках друзей, заявок и в карточке.

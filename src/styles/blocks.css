@@ -294,6 +294,92 @@
 .empty .btn {
   margin-top: 20px;
 }
+/* Несколько первых шагов в пустом состоянии: главный и запасной. */
+.empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 20px;
+}
+.empty-actions .btn {
+  margin-top: 0;
+}
+
+/* Меню действий (Menu.tsx): «⋯» у участника, «Позвать в группу» у друга.
+   Список — поверх страницы, у края своей кнопки; появление — motion.css. */
+.menu {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+.menu-panel {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 6px);
+  min-width: 220px;
+  max-width: min(320px, calc(100vw - 32px));
+  display: grid;
+  gap: 2px;
+  padding: 6px;
+  background: var(--popover);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-float);
+}
+.menu-end {
+  right: 0;
+}
+.menu-start {
+  left: 0;
+}
+.menu-panel form {
+  display: contents;
+}
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.menu-item:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+/* Недоступный пункт: «приглашение ждёт ответа» — подпись под названием. */
+.menu-item:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+.menu-item:has(> .small) {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+}
+.menu-danger {
+  color: var(--danger);
+}
+.menu-title,
+.menu-note {
+  margin: 0;
+  padding: 6px 12px 4px;
+}
+.menu-note {
+  max-width: 34ch;
+  padding-bottom: 8px;
+}
 
 /* Скелетон на месте данных, пока они грузятся. */
 .skeleton {

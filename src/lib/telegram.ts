@@ -55,6 +55,8 @@ export type TelegramWebApp = {
   /** Bot API 8.0: ярлык мини-аппа на главном экране телефона. */
   addToHomeScreen?(): void;
   checkHomeScreenStatus?(callback: (status: "unsupported" | "unknown" | "added" | "missed") => void): void;
+  /** Открыть ссылку t.me внутри Telegram (поделиться, личка), не закрывая мини-апп. */
+  openTelegramLink?(url: string): void;
   onEvent?(event: string, handler: () => void): void;
   offEvent?(event: string, handler: () => void): void;
   MainButton?: NativeButton;

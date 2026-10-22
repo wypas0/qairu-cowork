@@ -18,6 +18,7 @@ const GOOD = new Set([
   "invited_many",
   "joined",
   "approved",
+  "restored",
 ]);
 
 /**

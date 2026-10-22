@@ -1,6 +1,6 @@
 /* Друзья: список людей, заявки, карточка друга, личная ссылка, приватность;
-   кнопка «В друзья» в «Участниках», «Позвать друзей» в приглашении,
-   точка на кнопке профиля. Движение строк — в motion.css. */
+   меню «⋯» в «Участниках», «Позвать друзей» в приглашении, точка на кнопке
+   профиля. Движение строк и меню — в motion.css. */
 
 /* --- человек: фото или инициалы --- */
 .fr-avatar {
@@ -36,13 +36,13 @@ img.fr-avatar {
   color: var(--text);
   text-decoration: none;
 }
-.fr-list > .fr-row + .fr-row,
-.fr-list > li + li > .fr-row {
+/* Разделитель — на пункте списка, а не на строке: у строки-ссылки скруглённая
+   подсветка, и линия на ней загибалась бы по краям. */
+.fr-list > li + li {
   border-top: 1px solid var(--border);
-  border-radius: 0;
 }
-.fr-list > li + li > .fr-link {
-  border-radius: var(--r-lg);
+.fr-list > li.fr-row {
+  border-radius: 0;
 }
 /* Строка-ссылка (друг в списке): подсветка и нажатие — motion.css. */
 .fr-link {
@@ -64,6 +64,15 @@ img.fr-avatar {
 .fr-who .small {
   overflow-wrap: anywhere;
 }
+/* Строка заявки «Асель зовёт в «Литклуб»»: имя и группа — жирным, глагол — нет. */
+.fr-main {
+  font-size: 15px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+.fr-main b {
+  font-weight: 600;
+}
 .fr-actions {
   display: flex;
   align-items: center;
@@ -84,19 +93,67 @@ img.fr-avatar {
   }
 }
 
-/* --- поиск по нику --- */
+/* --- поиск друга в списке (от 9 друзей) --- */
+.fr-filter {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin: 0 0 8px;
+}
+.fr-filter svg {
+  position: absolute;
+  left: 14px;
+  pointer-events: none;
+}
+.fr-filter input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px 10px 40px;
+  background: var(--field);
+  color: var(--text);
+  border: 1px solid var(--field-line);
+  border-radius: var(--r-input);
+  font: inherit;
+  transition: border-color var(--dur-fast) var(--ease);
+}
+@media (max-width: 560px) {
+  .fr-filter input {
+    font-size: 16px;
+  }
+}
+
+/* --- поиск по нику: «@» стоит в поле, вводить его не нужно --- */
 .fr-search {
   display: flex;
   gap: 8px;
   margin-top: 12px;
 }
-.fr-search input {
+.fr-at-field {
+  position: relative;
   flex: 1;
   min-width: 0;
+}
+.fr-at-field > span {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  translate: 0 -50%;
+  color: var(--muted);
+  pointer-events: none;
+}
+.fr-search .fr-at-field input {
+  padding-left: 32px;
 }
 .fr-search .btn {
   flex: none;
   height: 48px;
+}
+/* Пояснение и ошибка — прямо под полем, а не тостом. */
+.fr-field-note {
+  margin: 8px 0 0;
+}
+.fr-field-error {
+  color: var(--danger);
 }
 .fr-found {
   margin-top: 12px;
@@ -106,16 +163,41 @@ img.fr-avatar {
   margin: 12px 0 0;
 }
 
-/* --- личная ссылка --- */
-.fr-link-card .invite-qr {
-  margin-top: 12px;
+/* --- личная ссылка: QR, сама ссылка, «Поделиться» и «Скопировать» --- */
+.fr-link-body {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 16px;
 }
-.fr-link-card .invite-qr-text {
+.fr-link-body .qr {
+  width: 132px;
+  height: 132px;
+  flex: none;
+  border-radius: var(--r-md);
+}
+.fr-link-side {
+  flex: 1 1 180px;
   min-width: 0;
-  flex: 1 1 200px;
+  display: grid;
+  gap: 12px;
+}
+.fr-link-url {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.fr-link-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 .fr-rotate {
-  margin-top: 12px;
+  margin-top: 16px;
 }
 .fr-link-page {
   max-width: 440px;
@@ -139,29 +221,71 @@ img.fr-avatar {
   margin-top: 12px;
 }
 
-/* --- приватность --- */
+/* --- приватность: строки с переключателями, вся строка нажимается --- */
 .fr-settings {
   display: grid;
-  gap: 4px;
-  margin-top: 8px;
+  margin-top: 4px;
 }
-.fr-settings .checkbox {
-  align-items: flex-start;
-  margin-bottom: 10px;
+.fr-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0;
+  padding: 14px 0;
+  border-top: 1px solid var(--border);
+  color: var(--text);
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 500;
+  cursor: pointer;
 }
-.fr-settings .checkbox input {
-  margin-top: 2px;
+/* Первой в форме серверного действия идут его скрытые поля — поэтому first-of-type. */
+.fr-settings > .fr-switch-row:first-of-type {
+  border-top: 0;
 }
-.fr-hint {
-  display: block;
-  margin-top: 2px;
+.fr-switch-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
 }
-.fr-hide {
-  margin-top: 8px;
+.fr-switch-text .small {
+  font-weight: 400;
+}
+/* Группы по одной: погашены, пока группы друзьям не видны вовсе. */
+.fr-visible {
+  min-width: 0;
+  margin: 8px 0 0;
+  padding: 12px 0 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+.fr-visible legend {
+  float: left;
+  width: 100%;
+  margin: 0 0 4px;
+  padding: 0;
+}
+.fr-visible .fr-switch-row {
+  clear: left;
+  padding: 10px 0;
+  font-size: 14px;
+}
+.fr-visible legend + .fr-switch-row,
+.fr-visible-off + .fr-switch-row {
+  border-top: 0;
+}
+.fr-visible:disabled .fr-switch-row {
+  color: var(--muted);
+  cursor: default;
+}
+.fr-visible-off {
+  clear: left;
+  margin: 0 0 4px;
 }
 .fr-settings .btn {
   justify-self: start;
-  margin-top: 8px;
+  margin-top: 16px;
 }
 
 /* --- карточка друга --- */
@@ -189,50 +313,130 @@ img.fr-avatar {
 .fr-head-meta a:hover {
   text-decoration: underline;
 }
-.fr-free li {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 16px;
+/* Главные действия — в шапке, рядом с именем: «Позвать в группу» и «⋯». */
+.fr-head {
+  align-items: center;
 }
-.fr-free-day {
-  min-width: 88px;
+.fr-head-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.fr-head-actions .icon-btn {
+  width: 36px;
+  height: 36px;
+}
+.fr-head-note {
+  max-width: 32ch;
+}
+@media (pointer: coarse) {
+  .fr-head-actions .icon-btn {
+    width: 44px;
+    height: 44px;
+  }
+}
+/* Группы друга: «Вы оба здесь» и «Можно попроситься». */
+.fr-sub {
+  margin: 16px 0 0;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.fr-sub-note {
+  margin: 12px 0 0;
+}
+
+/* --- когда вы оба свободны: полоска дня 8–22 и время под ней --- */
+.fr-free-card {
+  --fr-day-w: 68px;
+}
+.fr-axis {
+  position: relative;
+  height: 16px;
+  margin: 16px 0 6px calc(var(--fr-day-w) + 12px);
+  font-size: 11px;
+  line-height: 16px;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
-.fr-invite {
-  display: grid;
-  gap: 8px;
-  margin-top: 8px;
+.fr-axis span {
+  position: absolute;
+  top: 0;
+  translate: -50% 0;
 }
-.fr-invite label {
-  margin: 0;
-}
-.fr-invite .btn {
-  justify-self: start;
-}
-.fr-chips {
+.fr-days {
   list-style: none;
-  margin: 8px 0 0;
+  margin: 0;
   padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  display: grid;
+  gap: 10px;
 }
-.fr-danger {
+.fr-days li {
+  display: grid;
+  grid-template-columns: var(--fr-day-w) 1fr;
+  align-items: center;
+  gap: 2px 12px;
+}
+.fr-day {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.fr-strip {
+  position: relative;
+  height: 8px;
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.fr-strip i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: var(--r-full);
+  background: var(--accent);
+}
+.fr-day-times {
+  grid-column: 2;
+  font-size: 13px;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+}
+.fr-free-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin: 8px 0;
+  margin-top: 16px;
 }
 
-/* --- страница группы: «В друзья» и «Позвать друзей» --- */
+/* --- страница группы: «⋯» у участника и «Позвать друзей» --- */
 .roster-friend {
   display: flex;
   align-items: center;
+  gap: 8px;
 }
-a.badge {
-  text-decoration: none;
+.icon-btn-sm {
+  width: 36px;
+  height: 36px;
+  border-color: transparent;
+  color: var(--muted);
+}
+.icon-btn-sm:hover,
+.icon-btn-sm[aria-expanded="true"] {
+  color: var(--text);
+}
+@media (pointer: coarse) {
+  .icon-btn-sm {
+    width: 44px;
+    height: 44px;
+  }
+}
+.fr-call-none {
+  margin: 16px 0 0;
 }
 .fr-call {
   display: grid;

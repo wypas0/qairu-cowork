@@ -70,6 +70,38 @@
   background: var(--danger);
   color: #ffffff;
 }
+/* Тост с кнопкой «Вернуть»: текст слева, кнопка справа; нажимается только
+   пока виден. */
+.toast.has-action {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 6px 6px 18px;
+  text-align: left;
+}
+.toast.has-action.show {
+  pointer-events: auto;
+}
+.toast-action {
+  flex: none;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--ink-text) 14%, transparent);
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease);
+}
+.toast-action:hover {
+  background: color-mix(in srgb, var(--ink-text) 24%, transparent);
+}
+.toast-action:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
 /* На страницах группы снизу нижняя панель разделов — тост встаёт над ней. */
 @media (max-width: 1023px) {
   body:has(.bottomnav) .toast {

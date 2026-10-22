@@ -9,6 +9,8 @@ import { ConfirmSubmit } from "@/components/ConfirmSubmit";
 import { FlashToast } from "@/components/FlashToast";
 import { GroupTabs, type GroupTabKey } from "@/components/GroupTabs";
 import { CopyButton } from "@/components/CopyButton";
+import { IconMore } from "@/components/icons";
+import { Menu } from "@/components/Menu";
 import { MeetingCard } from "@/components/MeetingCard";
 import { MeetingForm } from "@/components/MeetingForm";
 import { QrCode } from "@/components/QrCode";
@@ -543,32 +545,42 @@ export default async function GroupPage({
                                 {t("w_updated_on", { date: updatedLabel(member.userId) })}
                               </span>
                             )}
+                            {/* Друзья: в строке — только тихая метка «друг»; действия
+                                (добавить, карточка, ответить) — в меню «⋯» в той же строке,
+                                что и имя: на телефоне переносится вместе с ним. */}
+                            {!self && !blockedIds.has(member.userId) && (
+                              <div className="roster-friend">
+                                {friendIds.has(member.userId) && <span className="badge ok">{t("w_fr_badge_friend")}</span>}
+                                <Menu
+                                  label={t("w_fr_menu_member", { name: displayName(member) })}
+                                  icon={<IconMore size={18} />}
+                                  className="icon-btn icon-btn-sm"
+                                >
+                                  {friendIds.has(member.userId) ? (
+                                    <Link className="menu-item" href={`/friends/${member.userId}`}>
+                                      {t("w_fr_menu_card")}
+                                    </Link>
+                                  ) : pendingFriends.out.has(member.userId) ? (
+                                    <button type="button" className="menu-item" disabled>
+                                      {t("w_fr_menu_waits")}
+                                    </button>
+                                  ) : pendingFriends.in.has(member.userId) ? (
+                                    <Link className="menu-item" href="/friends?tab=requests">
+                                      {t("w_fr_answer")}
+                                    </Link>
+                                  ) : (
+                                    <form action={requestFriendAction}>
+                                      <input type="hidden" name="member" value={member.userId} />
+                                      <input type="hidden" name="next" value={`/g/${slug}?at=members`} />
+                                      <button className="menu-item" type="submit">
+                                        {t("w_fr_add")}
+                                      </button>
+                                    </form>
+                                  )}
+                                </Menu>
+                              </div>
+                            )}
                           </div>
-
-                          {/* Друзья: «В друзья» — у каждого, кто ещё не друг. */}
-                          {!self && !blockedIds.has(member.userId) && (
-                            <div className="roster-friend">
-                              {friendIds.has(member.userId) ? (
-                                <Link className="badge ok" href={`/friends/${member.userId}`}>
-                                  {t("w_fr_badge_friend")}
-                                </Link>
-                              ) : pendingFriends.out.has(member.userId) ? (
-                                <span className="badge">{t("w_fr_waits")}</span>
-                              ) : pendingFriends.in.has(member.userId) ? (
-                                <Link className="btn btn-sm" href="/friends?tab=requests">
-                                  {t("w_fr_answer")}
-                                </Link>
-                              ) : (
-                                <form action={requestFriendAction}>
-                                  <input type="hidden" name="member" value={member.userId} />
-                                  <input type="hidden" name="next" value={`/g/${slug}?at=members`} />
-                                  <button className="btn btn-sm btn-quiet" type="submit">
-                                    {t("w_fr_to_friends")}
-                                  </button>
-                                </form>
-                              )}
-                            </div>
-                          )}
 
                           {/* Старосте — сведения о человеке: в середине строки было пусто. */}
                           {isAdmin && (
@@ -642,14 +654,11 @@ export default async function GroupPage({
                 {/* ============ приглашение: код, ссылки, QR — справа ============ */}
                 <section className="card split-side invite-card">
                   <h2>{t("w_invite_title")}</h2>
-                  {/* Друзья — в одно нажатие: приглашение ждёт их согласия. */}
-                  <h3>{t("w_fr_call_title")}</h3>
-                  {invitableFriends.length === 0 ? (
-                    <p className="small muted">
-                      {friendList.length === 0 ? t("w_fr_call_no_friends") : t("w_fr_call_all_here")}{" "}
-                      <Link href="/friends?tab=add">{t("w_fr_call_add")}</Link>
-                    </p>
-                  ) : (
+                  {/* Друзья — в одно нажатие: приглашение ждёт их согласия. Звать
+                      некого — блок уходит вниз одной строкой и не занимает
+                      место над кодом и ссылками. */}
+                  {invitableFriends.length > 0 && <h3>{t("w_fr_call_title")}</h3>}
+                  {invitableFriends.length > 0 && (
                     <form action={inviteFriendsAction} className="fr-call">
                       <input type="hidden" name="chat" value={chat.chatId} />
                       <input type="hidden" name="next" value={`/g/${slug}?at=members`} />
@@ -729,6 +738,12 @@ export default async function GroupPage({
                       </Link>
                     </div>
                   </div>
+                  {invitableFriends.length === 0 && (
+                    <p className="small muted fr-call-none">
+                      {friendList.length === 0 ? t("w_fr_call_no_friends") : t("w_fr_call_all_here")}{" "}
+                      <Link href="/friends?tab=add">{t("w_fr_call_add")}</Link>
+                    </p>
+                  )}
                 </section>
               </div>
             ),

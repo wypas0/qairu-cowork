@@ -228,6 +228,38 @@ export async function decideFriendRequest(
   return row ?? null;
 }
 
+/**
+ * Вернуть только что отклонённую заявку («Вернуть» в тосте): только свою
+ * (адресат — я) и только отклонённую после `since`. null — поздно или уже
+ * есть другая живая заявка между этими людьми (уникальный индекс).
+ */
+export async function restoreFriendRequest(id: number, toUser: number, since: Date, exec?: Exec): Promise<FriendRequest | null> {
+  try {
+    const [row] = await ex(exec)
+      .update(friendRequests)
+      .set({ status: "pending", decidedAt: null })
+      .where(
+        and(
+          eq(friendRequests.id, id),
+          eq(friendRequests.toUser, toUser),
+          eq(friendRequests.status, "declined"),
+          gt(friendRequests.decidedAt, since),
+        ),
+      )
+      .returning();
+    return row ?? null;
+  } catch (error) {
+    if (uniqueViolation(error)) return null;
+    throw error;
+  }
+}
+
+/** 23505 — нарушена уникальность (драйвер кладёт код прямо в ошибку или в cause). */
+function uniqueViolation(error: unknown): boolean {
+  const failure = error as { code?: string; cause?: { code?: string } };
+  return failure.code === "23505" || failure.cause?.code === "23505";
+}
+
 /** Отозвать свою заявку. */
 export async function cancelFriendRequest(id: number, fromUser: number, exec?: Exec): Promise<FriendRequest | null> {
   const [row] = await ex(exec)
@@ -355,6 +387,21 @@ export async function sharedGroupCounts(userId: number, others: number[], exec?:
   return new Map(rows.map((row) => [row.userId, row.n]));
 }
 
+/** Названия общих групп с каждым из этих людей — «общая группа: ИС-21» у заявки и в поиске. */
+export async function sharedGroupTitles(userId: number, others: number[], exec?: Exec): Promise<Map<number, string[]>> {
+  const result = new Map<number, string[]>();
+  if (others.length === 0) return result;
+  const mine = ex(exec).select({ chatId: memberships.chatId }).from(memberships).where(eq(memberships.userId, userId));
+  const rows = await ex(exec)
+    .select({ userId: memberships.userId, title: chats.title })
+    .from(memberships)
+    .innerJoin(chats, eq(chats.chatId, memberships.chatId))
+    .where(and(inArray(memberships.userId, others), inArray(memberships.chatId, mine)))
+    .orderBy(asc(chats.title));
+  for (const row of rows) result.set(row.userId, [...(result.get(row.userId) ?? []), row.title]);
+  return result;
+}
+
 /** Общие группы двоих — оба в них состоят, поэтому и адрес знают оба. */
 export async function sharedGroups(a: number, b: number, exec?: Exec): Promise<Pick<Chat, "chatId" | "slug" | "title">[]> {
   const theirs = ex(exec).select({ chatId: memberships.chatId }).from(memberships).where(eq(memberships.userId, b));
@@ -380,9 +427,8 @@ export async function setFriendLink(userId: number, code: string, exec?: Exec): 
       .onConflictDoUpdate({ target: friendLinks.userId, set: { code, createdAt: new Date() } });
     return true;
   } catch (error) {
-    // 23505 — код совпал с чужим (уникальность friend_links.code).
-    if ((error as { code?: string; cause?: { code?: string } }).code === "23505") return false;
-    if ((error as { cause?: { code?: string } }).cause?.code === "23505") return false;
+    // Код совпал с чужим (уникальность friend_links.code).
+    if (uniqueViolation(error)) return false;
     throw error;
   }
 }
@@ -522,6 +568,35 @@ export async function decideGroupInvite(
     .where(and(eq(groupInvites.id, id), eq(groupInvites.toUser, toUser), eq(groupInvites.status, "pending")))
     .returning();
   return row ?? null;
+}
+
+/** Вернуть только что отклонённое приглашение или просьбу — как restoreFriendRequest, и пока не истёк срок. */
+export async function restoreGroupInvite(
+  id: number,
+  toUser: number,
+  since: Date,
+  now: Date,
+  exec?: Exec,
+): Promise<GroupInvite | null> {
+  try {
+    const [row] = await ex(exec)
+      .update(groupInvites)
+      .set({ status: "pending", decidedAt: null })
+      .where(
+        and(
+          eq(groupInvites.id, id),
+          eq(groupInvites.toUser, toUser),
+          eq(groupInvites.status, "declined"),
+          gt(groupInvites.decidedAt, since),
+          gt(groupInvites.expiresAt, now),
+        ),
+      )
+      .returning();
+    return row ?? null;
+  } catch (error) {
+    if (uniqueViolation(error)) return null;
+    throw error;
+  }
 }
 
 /** Погасить живые приглашения и просьбы между двумя людьми (блокировка, удаление из друзей). */

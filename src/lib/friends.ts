@@ -186,6 +186,23 @@ export async function answerFriendRequest(me: User, requestId: number, accept: b
   return { code: declined ? "declined" : "gone" };
 }
 
+/** Сколько после отказа ещё можно нажать «Вернуть»: тост живёт 5 секунд, запас — на медленную сеть. */
+const UNDO_WINDOW_MS = 60_000;
+
+/**
+ * «Вернуть» после отказа — заявка или приглашение снова ждут ответа, будто
+ * отказа не было (и недельной паузы после него тоже). Только своё и только
+ * что отклонённое.
+ */
+export async function undoDecline(me: User, kind: "fr" | "gi", id: number, now = new Date()): Promise<"restored" | "gone"> {
+  const since = new Date(now.getTime() - UNDO_WINDOW_MS);
+  const restored =
+    kind === "fr"
+      ? await repo.restoreFriendRequest(id, me.userId, since)
+      : await repo.restoreGroupInvite(id, me.userId, since, now);
+  return restored ? "restored" : "gone";
+}
+
 export async function cancelRequest(me: User, requestId: number): Promise<"cancelled" | "gone"> {
   return (await repo.cancelFriendRequest(requestId, me.userId)) ? "cancelled" : "gone";
 }
@@ -295,6 +312,8 @@ export type FriendGroupView = {
   slug: string | null;
   /** Я уже попросился и жду. */
   asked: boolean;
+  /** Меня уже позвали — проситься незачем, осталось ответить. */
+  invited: boolean;
 };
 
 /**
@@ -308,11 +327,14 @@ export async function friendGroups(
 ): Promise<{ visible: boolean; groups: FriendGroupView[] }> {
   const relation = rel ?? (await relationOf(me.userId, friend.userId));
   if (!canSeeGroups(relation, friend)) return { visible: false, groups: [] };
-  const [groups, mine, asked] = await Promise.all([
+  const now = new Date();
+  const [groups, mine, asked, invites] = await Promise.all([
     repo.groupsOfUser(friend.userId),
     repo.chatIdsOf(me.userId),
-    repo.pendingAsksFrom(me.userId, new Date()),
+    repo.pendingAsksFrom(me.userId, now),
+    repo.incomingInvites(me.userId, "invite", now),
   ]);
+  const invited = new Set(invites.map((entry) => entry.chat.chatId));
   return {
     visible: true,
     groups: groups
@@ -324,6 +346,7 @@ export async function friendGroups(
         mine: mine.has(group.chatId),
         slug: mine.has(group.chatId) ? group.slug : null,
         asked: asked.has(group.chatId),
+        invited: invited.has(group.chatId),
       })),
   };
 }
@@ -465,10 +488,11 @@ export type { InviteRefusal };
 export type FreeTogether =
   | { status: "hidden" }
   | { status: "missing"; me: boolean; friend: boolean }
+  /** Все дни недели по порядку, и без общих окон: полоска дня показывает и пустые. */
   | { status: "ok"; tz: string; days: { day: DateStr; windows: Interval[] }[] };
 
 /** Сколько вперёд и какие окна предлагаем двоим: неделя, 8–22, от часа. */
-const TOGETHER = { daysAhead: 7, dayStart: 8 * 60, dayEnd: 22 * 60, minSlot: 60 };
+export const TOGETHER = { daysAhead: 7, dayStart: 8 * 60, dayEnd: 22 * 60, minSlot: 60 };
 
 /**
  * Когда оба свободны на неделе — то же ядро, что у групп, только на двоих и
@@ -490,14 +514,12 @@ export async function freeTogether(me: User, friend: User, now = new Date(), rel
   return {
     status: "ok",
     tz,
-    days: result.days
-      .map(({ day, windows }) => ({
-        day,
-        // Сегодняшние окна — не раньше «сейчас»: встречу в прошлом не назначить.
-        windows: windows
-          .map(({ interval }): Interval => (day === today ? [Math.max(interval[0], Math.ceil(nowMin / 10) * 10), interval[1]] : interval))
-          .filter(([start, end]) => end - start >= TOGETHER.minSlot),
-      }))
-      .filter((entry) => entry.windows.length > 0),
+    days: result.days.map(({ day, windows }) => ({
+      day,
+      // Сегодняшние окна — не раньше «сейчас»: встречу в прошлом не назначить.
+      windows: windows
+        .map(({ interval }): Interval => (day === today ? [Math.max(interval[0], Math.ceil(nowMin / 10) * 10), interval[1]] : interval))
+        .filter(([start, end]) => end - start >= TOGETHER.minSlot),
+    })),
   };
 }

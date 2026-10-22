@@ -514,8 +514,65 @@ describe("общее свободное время", () => {
     expect(free.status).toBe("ok");
     if (free.status !== "ok") return;
     expect(free.days[0]).toEqual({ day: "2026-10-19", windows: [[1080, 1320]] });
+    // Вся неделя по дням, и без общих окон тоже: полоска дня рисует каждый.
+    expect(free.days.map((entry) => entry.day)).toEqual([
+      "2026-10-19",
+      "2026-10-20",
+      "2026-10-21",
+      "2026-10-22",
+      "2026-10-23",
+      "2026-10-24",
+      "2026-10-25",
+    ]);
 
     await repo.setFriendSettings(b.userId, { friendsSeeFree: false });
     expect((await friends.freeTogether(a, (await repo.getUser(b.userId))!, now)).status).toBe("hidden");
+  });
+});
+
+describe("«Вернуть» после отказа", () => {
+  it("заявка снова ждёт ответа — только у адресата и только сразу после отказа", async () => {
+    const { friends, repo } = await mods();
+    const a = await person(7201, "undo_a");
+    const b = await person(7202, "undo_b");
+    const thief = await person(7203, "undo_c");
+    expect(await friends.requestByUsername(a, "undo_b")).toBe("sent");
+    const [request] = await repo.incomingRequests(b.userId);
+    const id = request!.request.id;
+    expect((await friends.answerFriendRequest(b, id, false)).code).toBe("declined");
+
+    // Чужой номер заявки ничего не возвращает.
+    expect(await friends.undoDecline(thief, "fr", id)).toBe("gone");
+    expect(await friends.undoDecline(b, "fr", id)).toBe("restored");
+    expect((await repo.incomingRequests(b.userId)).map((entry) => entry.request.id)).toEqual([id]);
+    // Будто отказа не было: недельной паузы нет, заявка просто ждёт.
+    expect(await friends.requestByUsername(a, "undo_b")).toBe("pending");
+    // Второй раз вернуть нечего — заявка уже ждёт.
+    expect(await friends.undoDecline(b, "fr", id)).toBe("gone");
+
+    // Через минуту после отказа — поздно.
+    expect((await friends.answerFriendRequest(b, id, false)).code).toBe("declined");
+    expect(await friends.undoDecline(b, "fr", id, new Date(Date.now() + 61_000))).toBe("gone");
+    expect(await repo.incomingRequests(b.userId)).toEqual([]);
+  });
+
+  it("приглашение в группу — пока не истёк срок", async () => {
+    const { friends, repo } = await mods();
+    const host = await person(7211, "undo_host");
+    const friend = await person(7212, "undo_friend");
+    const chat = await group(-7211, "Возвратная", [[host.userId]]);
+    await befriend(host.userId, friend.userId);
+    await friends.inviteFriends(host, chat, [friend.userId]);
+    const [invite] = await repo.incomingInvites(friend.userId, "invite", new Date());
+    const id = invite!.invite.id;
+
+    expect((await friends.answerGroupInvite(friend, id, false)).code).toBe("declined");
+    expect(await friends.undoDecline(host, "gi", id)).toBe("gone");
+    expect(await friends.undoDecline(friend, "gi", id)).toBe("restored");
+    expect((await repo.incomingInvites(friend.userId, "invite", new Date())).map((entry) => entry.invite.id)).toEqual([id]);
+
+    expect((await friends.answerGroupInvite(friend, id, false)).code).toBe("declined");
+    await db.query("update group_invites set expires_at = now() - interval '1 minute' where id = $1", [id]);
+    expect(await friends.undoDecline(friend, "gi", id)).toBe("gone");
   });
 });

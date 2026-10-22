@@ -24,16 +24,17 @@ function backPath(formData: FormData, fallback = "/friends"): string {
   return /^\/(friends(\/|\?|$)|f\/|g\/)/.test(next) ? next : fallback;
 }
 
-/** Путь с итогом действия для тоста. */
-function withFlash(path: string, code: string): string {
+/** Путь с итогом действия для тоста; `undo` — что вернуть кнопкой в тосте («fr:12»). */
+function withFlash(path: string, code: string, undo?: string): string {
   const url = new URL(path, "http://local");
   url.searchParams.set("fr", code);
+  if (undo) url.searchParams.set("undo", undo);
   return `${url.pathname}${url.search}`;
 }
 
-function done(path: string, code: string): never {
+function done(path: string, code: string, undo?: string): never {
   revalidatePath("/", "layout");
-  redirect(withFlash(path, code));
+  redirect(withFlash(path, code, undo));
 }
 
 async function actor(back: string): Promise<User> {
@@ -65,7 +66,16 @@ export async function answerRequestAction(formData: FormData): Promise<void> {
   const id = idOf(formData, "id");
   const accept = formData.get("accept") === "1";
   const outcome = id === null ? { code: "gone" as const } : await friends.answerFriendRequest(me, id, accept);
-  done(back, outcome.code);
+  // Отказ — без окна «Ты уверен?», зато с «Вернуть» в тосте.
+  done(back, outcome.code, outcome.code === "declined" ? `fr:${id}` : undefined);
+}
+
+/** «Вернуть» в тосте после отказа: заявка или приглашение снова ждут ответа. */
+export async function undoDeclineAction(kind: string, id: number): Promise<void> {
+  const back = "/friends?tab=requests";
+  const me = await actor(back);
+  const valid = (kind === "fr" || kind === "gi") && Number.isSafeInteger(id) && id > 0;
+  done(back, valid ? await friends.undoDecline(me, kind, id) : "gone");
 }
 
 export async function cancelRequestAction(formData: FormData): Promise<void> {
@@ -110,19 +120,24 @@ export async function addByLinkAction(formData: FormData): Promise<void> {
   done(page, outcome.code);
 }
 
-/** Приватность: что видят друзья, находят ли по нику, какие группы скрыты. */
+/** Приватность: что видят друзья, находят ли по нику, какие группы им видны. */
 export async function saveFriendSettingsAction(formData: FormData): Promise<void> {
   const me = await actor("/friends?tab=privacy");
+  const seeGroups = formData.get("friends_see_groups") === "on";
   await repo.setFriendSettings(me.userId, {
-    friendsSeeGroups: formData.get("friends_see_groups") === "on",
+    friendsSeeGroups: seeGroups,
     friendsSeeFree: formData.get("friends_see_free") === "on",
     findable: formData.get("findable") === "on",
   });
-  // Скрытие — только у своих групп: чужой chat_id из формы ничего не меняет.
-  const hidden = new Set(formData.getAll("hidden").map(Number));
-  for (const group of await repo.groupsOfUser(me.userId)) {
-    const want = hidden.has(group.chatId);
-    if (want !== group.hidden) await repo.setGroupHidden(group.chatId, me.userId, want);
+  // Группы видны друзьям — выбор по каждой. Выключено целиком — список
+  // погашен и в форму не попадает: прежний выбор сохраняется до включения.
+  // Только свои группы: чужой chat_id из формы ничего не меняет.
+  if (seeGroups) {
+    const visible = new Set(formData.getAll("visible").map(Number));
+    for (const group of await repo.groupsOfUser(me.userId)) {
+      const hidden = !visible.has(group.chatId);
+      if (hidden !== group.hidden) await repo.setGroupHidden(group.chatId, me.userId, hidden);
+    }
   }
   done("/friends?tab=privacy", "saved");
 }
@@ -147,7 +162,7 @@ export async function answerInviteAction(formData: FormData): Promise<void> {
   const accept = formData.get("accept") === "1";
   const outcome = id === null ? { code: "gone" as const } : await friends.answerGroupInvite(me, id, accept);
   if (outcome.code === "joined" && outcome.chat?.slug) done(`/g/${outcome.chat.slug}`, "joined");
-  done(back, outcome.code);
+  done(back, outcome.code, outcome.code === "declined" ? `gi:${id}` : undefined);
 }
 
 /** Попроситься в группу друга. */

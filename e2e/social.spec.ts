@@ -31,7 +31,7 @@ async function createGroup(page: Page, title: string) {
 test.describe("друзья", () => {
   test.describe.configure({ mode: "serial" });
 
-  test("заявка по нику: у Асель точка на профиле, она принимает", async ({ page, context }) => {
+  test("заявка по нику: у Асель точка на профиле; отказ можно вернуть, потом она принимает", async ({ page, context }) => {
     await page.goto("/friends?tab=add");
     await page.getByPlaceholder("@ник в Telegram").fill("@asel_n");
     await page.getByRole("button", { name: "Найти" }).click();
@@ -46,8 +46,13 @@ test.describe("друзья", () => {
     // Есть что ответить — раздел открывается сразу на заявках, на кнопке профиля точка.
     await expect(page.getByRole("tab", { name: /^Заявки/ })).toHaveAttribute("aria-selected", "true");
     await expect(page.locator(".icon-btn .pp-dot").first()).toBeAttached();
-    const row = page.locator(".fr-row", { hasText: "хочет дружить" });
-    await row.getByRole("button", { name: "Принять" }).click();
+    const requests = page.locator("section", { hasText: "Хотят дружить" });
+    // Отказ — без окна «Ты уверен?», зато с «Вернуть» в тосте.
+    await requests.locator(".fr-row", { hasText: "Амир" }).getByRole("button", { name: "Отклонить" }).click();
+    await expect(page.locator(".toast")).toContainText("Отклонено");
+    await page.locator(".toast").getByRole("button", { name: "Вернуть" }).click();
+    await expect(page.locator(".toast")).toContainText("Вернули");
+    await requests.locator(".fr-row", { hasText: "Амир" }).getByRole("button", { name: "Принять" }).click();
     await expect(page.locator(".toast")).toContainText("теперь вы друзья");
     await page.getByRole("tab", { name: "Друзья" }).click();
     await expect(page.locator("#panel-friends")).toContainText("Амир");
@@ -57,14 +62,23 @@ test.describe("друзья", () => {
     await as(context, "asel");
     for (const title of ["Литклуб", "Кино", "Шахматы"]) await createGroup(page, title);
     await page.goto("/friends?tab=privacy");
-    await page.locator(".fr-hide").getByLabel("Шахматы").check();
-    await page.getByRole("button", { name: "Сохранить" }).click();
+    const save = page.getByRole("button", { name: "Сохранить" });
+    // Сохранять нечего, пока ничего не изменено.
+    await expect(save).toBeDisabled();
+    await page.locator(".fr-visible").getByRole("switch", { name: "Шахматы" }).uncheck();
+    await save.click();
     await expect(page.locator(".toast")).toContainText("Сохранено");
+    await expect(page.locator(".fr-visible").getByRole("switch", { name: "Шахматы" })).not.toBeChecked();
 
+    // «Позвать в группу» в шапке карточки — сразу список групп.
     await page.goto(`/friends/${AMIR}`);
-    await page.getByLabel("Группа").selectOption({ label: "Литклуб" });
-    await page.getByRole("button", { name: "Пригласить" }).click();
+    await page.getByRole("button", { name: "Позвать в группу" }).click();
+    await page.locator(".menu-panel").getByRole("button", { name: "Литклуб" }).click();
     await expect(page.locator(".toast")).toContainText("Приглашение отправлено");
+    await page.getByRole("button", { name: "Позвать в группу" }).click();
+    await expect(page.locator(".menu-panel").getByRole("button", { name: /Литклуб/ })).toBeDisabled();
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".menu-panel")).toHaveCount(0);
 
     await as(context, "amir");
     await page.goto("/friends?tab=requests");
@@ -78,8 +92,8 @@ test.describe("друзья", () => {
     const groups = page.locator(".card", { hasText: "Группы: Асель" });
     await expect(groups).toContainText("Кино");
     await expect(groups).not.toContainText("Шахматы");
-    await expect(groups.locator(".fr-row", { hasText: "Литклуб" })).toContainText("ты здесь");
     // Ссылка (а с ней и код группы) — только там, где Амир и так состоит.
+    await expect(groups.getByRole("link", { name: "Литклуб" })).toBeVisible();
     const cinema = groups.locator(".fr-row", { hasText: "Кино" });
     await expect(cinema.locator("a")).toHaveCount(0);
     await cinema.getByRole("button", { name: "Попроситься" }).click();
@@ -93,30 +107,38 @@ test.describe("друзья", () => {
 
     await as(context, "amir");
     await page.goto(`/friends/${ASEL}`);
-    await page.locator(".fr-row", { hasText: "Кино" }).getByRole("link", { name: "Открыть" }).click();
+    await page.locator(".card", { hasText: "Группы: Асель" }).getByRole("link", { name: "Кино" }).click();
     await expect(page.getByRole("heading", { name: "Кино", level: 1 })).toBeVisible();
   });
 
-  test("«В друзья» у участника группы", async ({ page }) => {
+  test("«⋯» у участника группы: добавить в друзья, у друга — карточка", async ({ page }) => {
     await page.goto("/g/smoke001?at=members");
-    const dana = page.locator(".roster-row", { hasText: "Дана" });
-    await dana.getByRole("button", { name: "В друзья" }).click();
+    await page.getByRole("button", { name: "Действия: Дана" }).click();
+    await page.locator(".menu-panel").getByRole("button", { name: "Добавить в друзья" }).click();
     await expect(page.locator(".toast")).toContainText("Заявка отправлена");
-    await expect(page.locator(".roster-row", { hasText: "Дана" })).toContainText("ждёт ответа");
-    await expect(page.locator(".roster-row", { hasText: "Асель" }).getByRole("link", { name: "друг" })).toBeVisible();
+    await page.getByRole("button", { name: "Действия: Дана" }).click();
+    await expect(page.locator(".menu-panel").getByRole("button", { name: "Заявка ждёт ответа" })).toBeDisabled();
+    await page.keyboard.press("Escape");
+
+    const asel = page.locator(".roster-row", { hasText: "Асель" });
+    await expect(asel.locator(".badge", { hasText: "друг" })).toBeVisible();
+    await page.getByRole("button", { name: "Действия: Асель" }).click();
+    await page.locator(".menu-panel").getByRole("link", { name: "Карточка друга" }).click();
+    await expect(page).toHaveURL(new RegExp(`/friends/${ASEL}$`));
   });
 
   test("блокировка рвёт дружбу; по личной ссылке — снова друзья", async ({ page, context }) => {
     page.on("dialog", (dialog) => void dialog.accept());
     await page.goto(`/friends/${ASEL}`);
-    await page.getByRole("button", { name: "Заблокировать" }).click();
+    await page.getByRole("button", { name: "Ещё" }).click();
+    await page.locator(".menu-panel").getByRole("button", { name: "Заблокировать" }).click();
     await expect(page.locator(".toast")).toContainText("Заблокировано");
     await expect(page.locator("#panel-privacy")).toContainText("Асель");
     await page.locator("#panel-privacy .fr-row", { hasText: "Асель" }).getByRole("button", { name: "Разблокировать" }).click();
     await expect(page.locator(".toast")).toContainText("Разблокировано");
 
     await page.goto("/friends?tab=add");
-    const link = await page.getByRole("textbox", { name: "Моя ссылка" }).inputValue();
+    const link = await page.locator(".fr-link-url").innerText();
     expect(link).toMatch(/\/f\/[a-z0-9]{10}$/);
 
     await as(context, "asel");

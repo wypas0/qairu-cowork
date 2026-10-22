@@ -594,7 +594,7 @@ function fixedTraps(page: Page, selector: string): Promise<string[]> {
   });
 }
 
-test("узкий телефон (360 px): подписи вкладок не вылезают за свои кнопки", async ({ page }) => {
+test("узкий телефон (360 px): ряд вкладок влезает, подписи не вылезают за свои кнопки", async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 });
   for (const path of [group(), "/friends"]) {
     await page.goto(path);
@@ -606,8 +606,21 @@ test("узкий телефон (360 px): подписи вкладок не в�
         .map((tab) => tab.textContent),
     );
     expect(clipped, path).toEqual([]);
+    // Со счётчиками («Встречи 2», «Заявки 1») ряд целиком, без прокрутки вбок.
+    expect(await tabs.evaluate((list) => list.scrollWidth - list.clientWidth), path).toBeLessThanOrEqual(1);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
   }
+  // 320 px: ряд листается, но выбранная последняя вкладка видна целиком.
+  await page.setViewportSize({ width: 320, height: 700 });
+  await page.goto("/friends?tab=privacy");
+  const tabs = page.locator(".tabs").first();
+  await expect(tabs).toHaveAttribute("data-thumb", "live");
+  const hidden = await tabs.evaluate((list) => {
+    const box = list.getBoundingClientRect();
+    const tab = list.querySelector<HTMLElement>('[aria-selected="true"]')!.getBoundingClientRect();
+    return Math.max(box.left - tab.left, tab.right - box.right, 0);
+  });
+  expect(hidden).toBeLessThanOrEqual(1);
 });
 
 test.describe("панель профиля — на весь экран, откуда ни открой", () => {

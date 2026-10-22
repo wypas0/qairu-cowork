@@ -104,11 +104,10 @@ describe("действия друзей", () => {
     expect(rows.rows.map((row) => Number(row.to_user))).toEqual([OTHER]);
   });
 
-  it("скрыть можно только свою группу: чужой id из формы ничего не меняет", async () => {
+  it("видимость меняется только у своих групп: чужой id из формы ничего не меняет", async () => {
     const { saveFriendSettingsAction } = await actions();
-    const to = await redirectOf(() =>
-      saveFriendSettingsAction(form({ friends_see_groups: "on", hidden: ["-7101", "-7102"] })),
-    );
+    // «Моя» не отмечена — скрыта от друзей; «Чужая» отмечена, но она не моя.
+    const to = await redirectOf(() => saveFriendSettingsAction(form({ friends_see_groups: "on", visible: ["-7102"] })));
     expect(to).toBe("/friends?tab=privacy&fr=saved");
     const rows = await db.query<{ chat_id: number; user_id: number; hidden_from_friends: boolean }>(
       "select chat_id, user_id, hidden_from_friends from memberships order by chat_id",
@@ -123,6 +122,34 @@ describe("действия друзей", () => {
       [ME],
     );
     expect(me.rows[0]).toEqual({ findable: false, friends_see_groups: true });
+  });
+
+  it("группы скрыты целиком — выбор по каждой сохраняется до включения", async () => {
+    const { saveFriendSettingsAction } = await actions();
+    // Список групп погашен и в форму не попал: «Моя» остаётся скрытой, а не открывается.
+    await redirectOf(() => saveFriendSettingsAction(form({ findable: "on" })));
+    const hidden = async () =>
+      (await db.query<{ hidden_from_friends: boolean }>("select hidden_from_friends from memberships where chat_id = -7101")).rows[0]
+        ?.hidden_from_friends;
+    expect(await hidden()).toBe(true);
+    await redirectOf(() => saveFriendSettingsAction(form({ friends_see_groups: "on", visible: ["-7101"] })));
+    expect(await hidden()).toBe(false);
+  });
+
+  it("«Вернуть» в тосте: отказ с номером для отмены, потом заявка снова ждёт", async () => {
+    const repo = await import("@/db/repo");
+    await db.query("insert into friend_requests (from_user, to_user) values ($1, $2)", [STRANGER, ME]);
+    const [request] = await repo.incomingRequests(ME);
+    const id = request!.request.id;
+    const { answerRequestAction, undoDeclineAction } = await actions();
+    expect(await redirectOf(() => answerRequestAction(form({ id: String(id), accept: "0" })))).toBe(
+      `/friends?tab=requests&fr=declined&undo=fr%3A${id}`,
+    );
+    expect(await redirectOf(() => undoDeclineAction("fr", id))).toBe("/friends?tab=requests&fr=restored");
+    expect((await repo.incomingRequests(ME)).map((entry) => entry.request.id)).toEqual([id]);
+    // Мусор вместо вида или номера — «уже неактуально», без запроса в базу.
+    expect(await redirectOf(() => undoDeclineAction("xx", id))).toBe("/friends?tab=requests&fr=gone");
+    expect(await redirectOf(() => undoDeclineAction("fr", -1))).toBe("/friends?tab=requests&fr=gone");
   });
 
   it("позвать в чужую группу нельзя, даже друга", async () => {

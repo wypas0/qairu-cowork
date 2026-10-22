@@ -100,6 +100,13 @@ export function useThumb(ref: RefObject<HTMLElement | null>, selected: unknown) 
       box.style.setProperty("--thumb-w", `${item.offsetWidth}px`);
       box.style.setProperty("--thumb-h", `${item.offsetHeight}px`);
       box.style.setProperty("--thumb-r", getComputedStyle(item).borderRadius);
+      // Ряд не влез и листается (320 px) — выбранная вкладка не прячется за краем.
+      if (box.scrollWidth > box.clientWidth) {
+        const left = item.offsetLeft - 8;
+        const right = item.offsetLeft + item.offsetWidth + 8 - box.clientWidth;
+        const target = box.scrollLeft > left ? left : box.scrollLeft < right ? right : null;
+        if (target !== null) box.scrollTo({ left: target, behavior: glide && !calm() ? "smooth" : "auto" });
+      }
       if (box.dataset.thumb === "live") return;
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {

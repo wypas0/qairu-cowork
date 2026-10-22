@@ -1,10 +1,15 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { slideIn, useThumb } from "./motion";
+import { calm, slideIn, useThumb } from "./motion";
 
-export type PageTab = { key: string; label: string; badge?: number };
+/** badge — синий счётчик «ждёт тебя»; count — тихое число рядом с подписью («Друзья 3»). */
+export type PageTab = { key: string; label: string; badge?: number; count?: number };
+
+/** Переключить вкладку со страницы: { tab, focus? } — ключ и что поставить в фокус. */
+const TAB_EVENT = "qairu:tab";
+type TabRequest = { tab: string; focus?: string };
 
 /**
  * Вкладки страницы — та же сегментированная панель, что у группы
@@ -23,26 +28,46 @@ export function PageTabs({
   panels: Record<string, React.ReactNode>;
   label: string;
 }) {
-  const [active, setActive] = useState(tabs.some((tab) => tab.key === initial) ? initial : tabs[0]!.key);
+  const known = (key: string) => tabs.some((tab) => tab.key === key);
+  const [active, setActive] = useState(known(initial) ? initial : tabs[0]!.key);
+  // Действие вернуло на ту же страницу с другим ?tab= — открываем его.
+  const [seenInitial, setSeenInitial] = useState(initial);
+  if (initial !== seenInitial) {
+    setSeenInitial(initial);
+    if (known(initial)) setActive(initial);
+  }
   const list = useRef<HTMLDivElement>(null);
   const enter = useRef<1 | -1 | null>(null);
+  const current = useRef(active);
   useThumb(list, active);
 
   useLayoutEffect(() => {
+    current.current = active;
     const direction = enter.current;
     enter.current = null;
     if (direction !== null) slideIn(document.getElementById(`panel-${active}`), direction);
   }, [active]);
 
   function choose(key: string) {
-    if (key === active) return;
+    if (key === current.current || !known(key)) return;
     const order = tabs.map((tab) => tab.key);
-    enter.current = order.indexOf(key) > order.indexOf(active) ? 1 : -1;
+    enter.current = order.indexOf(key) > order.indexOf(current.current) ? 1 : -1;
     setActive(key);
     const url = new URL(window.location.href);
     url.searchParams.set("tab", key);
     window.history.replaceState(window.history.state, "", url);
   }
+
+  // Кнопки на самой странице («Найти по нику» в пустом списке) — см. TabLink.
+  useEffect(() => {
+    function onRequest(event: Event) {
+      const { tab, focus } = (event as CustomEvent<TabRequest>).detail;
+      choose(tab);
+      if (focus) requestAnimationFrame(() => document.querySelector<HTMLElement>(focus)?.focus());
+    }
+    window.addEventListener(TAB_EVENT, onRequest);
+    return () => window.removeEventListener(TAB_EVENT, onRequest);
+  });
 
   return (
     <>
@@ -59,6 +84,7 @@ export function PageTabs({
             onClick={() => choose(tab.key)}
           >
             {tab.label}
+            {tab.count !== undefined && <span className="tab-count">{tab.count}</span>}
             {tab.badge ? <span className="count-badge">{tab.badge}</span> : null}
           </button>
         ))}
@@ -69,5 +95,35 @@ export function PageTabs({
         </div>
       ))}
     </>
+  );
+}
+
+/**
+ * Ссылка на другую вкладку той же страницы: без перезагрузки переключает её
+ * и ставит фокус (`focus` — селектор). Без JS — обычная ссылка `?tab=`.
+ */
+export function TabLink({
+  tab,
+  focus,
+  className,
+  children,
+}: {
+  tab: string;
+  focus?: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <a
+      className={className}
+      href={`?tab=${tab}`}
+      onClick={(event) => {
+        event.preventDefault();
+        window.dispatchEvent(new CustomEvent<TabRequest>(TAB_EVENT, { detail: { tab, focus } }));
+        window.scrollTo({ top: 0, behavior: calm() ? "auto" : "smooth" });
+      }}
+    >
+      {children}
+    </a>
   );
 }

@@ -175,7 +175,8 @@
 .pp-menu-item,
 .who-row-btn,
 .your-week-row,
-.fr-link {
+.fr-link,
+.menu-item {
   position: relative;
   isolation: isolate;
 }
@@ -186,7 +187,8 @@
 .pp-menu-item::before,
 .who-row-btn::before,
 .your-week-row::before,
-.fr-link::before {
+.fr-link::before,
+.menu-item::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -200,7 +202,8 @@
     scale var(--dur-base) var(--ease);
   pointer-events: none;
 }
-.who-row-btn {
+.who-row-btn,
+.menu-item {
   --blob: var(--hover);
 }
 .sidebar-link:hover::before,
@@ -213,7 +216,9 @@
 .who-row-btn:not(:disabled):hover::before,
 .your-week-row:hover::before,
 .fr-link:hover::before,
-.fr-link:focus-visible::before {
+.fr-link:focus-visible::before,
+.menu-item:not(:disabled):hover::before,
+.menu-item:focus-visible::before {
   opacity: 1;
   scale: 1;
 }
@@ -224,7 +229,7 @@
 }
 
 /* Нажатие: строка и кнопка чуть поддаются под пальцем. */
-:is(.sidebar-link, .pp-menu-item, .pp-me, .chipbtn, .who-picker-btn, .who-row-btn, .choose-row, .fr-link):not(.pp-static):active,
+:is(.sidebar-link, .pp-menu-item, .pp-me, .chipbtn, .who-picker-btn, .who-row-btn, .choose-row, .fr-link, .menu-item):not(.pp-static):not(:disabled):active,
 :is(.seg, .pp-theme, .brush) > button:active {
   scale: 0.97;
 }
@@ -373,6 +378,18 @@
   animation: drop-in var(--dur-base) var(--ease);
 }
 .who-panel[data-leaving] {
+  animation: drop-out var(--dur-exit) var(--ease-in) forwards;
+}
+.menu-panel {
+  animation: drop-in var(--dur-base) var(--ease);
+}
+.menu-end {
+  transform-origin: calc(100% - 16px) 0;
+}
+.menu-start {
+  transform-origin: 16px 0;
+}
+.menu-panel[data-leaving] {
   animation: drop-out var(--dur-exit) var(--ease-in) forwards;
 }
 .who-picker-icon {
