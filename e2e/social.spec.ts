@@ -141,10 +141,25 @@ test.describe("друзья", () => {
     const day = plan.locator(".pp-day:not([disabled])").first();
     await day.click();
     await expect(day).toHaveAttribute("aria-checked", "true");
+    // Повторное нажатие на выбранный день прячет и показывает его кнопки начала.
+    await day.click();
+    await expect(plan.locator(".pp-starts")).toHaveCount(0);
+    await day.click();
     const start = plan.locator(".pp-starts").getByRole("radio").first();
     const time = (await start.innerText()).trim();
     await start.click();
-    await expect(plan.locator(".pp-chosen")).toContainText(time);
+    // Время выбрано — выбор свернулся в строку «Время встречи» с выбранным.
+    const head = plan.locator(".pp-time-head");
+    await expect(head).toHaveAttribute("aria-expanded", "false");
+    await expect(head.locator(".pp-chosen")).toContainText(time);
+    await expect(plan.locator("#pp-time")).toBeHidden();
+    // Строку можно раскрыть и свернуть снова — выбор сохраняется.
+    await head.click();
+    await expect(plan.locator("#pp-time")).toBeVisible();
+    await expect(plan.locator(".pp-day[aria-checked=true]")).toHaveCount(1);
+    await head.click();
+    await expect(plan.locator("#pp-time")).toBeHidden();
+    await expect(head.locator(".pp-chosen")).toContainText(time);
     await plan.getByLabel("Цель").fill("Кофе и курсач");
     await submit.click();
     // В e2e бота нет — приглашение ждёт Асель на сайте.
@@ -203,6 +218,37 @@ test.describe("друзья", () => {
     await page.getByRole("button", { name: "Добавить в друзья" }).click();
     await expect(page).toHaveURL(new RegExp(`/friends/${AMIR}`));
     await expect(page.locator(".toast")).toContainText("Теперь вы друзья");
+  });
+
+  test("«Участники» на телефоне: «⋯» у правого края, сведения и кнопки — ровно под именем", async ({ page }) => {
+    for (const width of [320, 360, 390]) {
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto("/g/smoke001?at=members");
+      const rows = page.locator("#panel-members .roster-row");
+      await expect(rows.first()).toBeVisible();
+      const layout = await rows.evaluateAll((items) =>
+        items.map((row) => {
+          const box = (selector: string) => row.querySelector(selector)?.getBoundingClientRect() ?? null;
+          const who = box(".roster-who")!;
+          const menu = box(".roster-friend .icon-btn");
+          const actions = box(".roster-actions");
+          // Первый пункт сведений: его точка-разделитель (14 px) спрятана под обрезом слева.
+          const facts = box(".roster-facts > span");
+          const edge = row.getBoundingClientRect().right;
+          return {
+            name: row.querySelector(".roster-name b")?.textContent ?? "",
+            menuAtEdge: menu ? Math.abs(menu.right - edge) <= 2 && menu.top < who.top + 30 : true,
+            actionsUnderName: actions ? Math.abs(actions.left - who.left) <= 1 : true,
+            factsUnderName: facts ? Math.abs(facts.left + 14 - who.left) <= 1 : true,
+          };
+        }),
+      );
+      for (const row of layout) {
+        expect(row, `${width}px: ${row.name}`).toEqual({ ...row, menuAtEdge: true, actionsUnderName: true, factsUnderName: true });
+      }
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      expect(overflow, `${width}px`).toBe(0);
+    }
   });
 
   test("чужая карточка и мёртвая ссылка ничего не выдают", async ({ page }) => {

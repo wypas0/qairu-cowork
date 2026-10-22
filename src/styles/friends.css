@@ -419,7 +419,52 @@ img.fr-avatar {
 .pp-form .field {
   margin: 0;
 }
-.pp-form > .label {
+/* «Время встречи» — строка с выбранным и стрелкой; под ней сворачиваемый выбор. */
+.pp-time-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 8px 12px;
+  border: 1px solid var(--card-line);
+  border-radius: var(--r-lg);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 150ms var(--ease), border-color 150ms var(--ease);
+}
+.pp-time-head:hover {
+  background: var(--hover);
+  border-color: var(--hairline);
+}
+.pp-time-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.pp-time-head .label {
+  margin: 0;
+}
+.pp-time-icon {
+  flex: none;
+  color: var(--muted);
+  transition: rotate var(--dur-base) var(--ease);
+}
+.pp-time-head[aria-expanded="true"] .pp-time-icon {
+  rotate: 90deg;
+}
+.pp-time {
+  display: grid;
+  gap: 16px;
+}
+.pp-time[hidden] {
+  display: none;
+}
+.pp-time > .label {
   margin: 0 0 -10px;
 }
 .pp-controls {

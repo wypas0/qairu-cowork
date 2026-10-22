@@ -477,46 +477,116 @@
   margin: 8px 0 0;
   padding: 0;
 }
+/* Строка участника — сетка: точка | имя и сведения | «⋯» у правого края.
+   Сведения старосте и кнопки — отдельными строками ровно под именем. На
+   широком экране сведения встают справа в первую строку. */
 .roster-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px 12px;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: 12px;
+  row-gap: 8px;
   padding: 12px 0;
   border-bottom: 1px solid var(--border);
 }
 .roster-row:last-child {
   border-bottom: 0;
 }
+.roster-row > .dot {
+  grid-column: 1;
+  grid-row: 1;
+  margin-top: 8px; /* на середине строки имени */
+}
 .roster-who {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  grid-column: 2;
+  grid-row: 1;
+  display: grid;
+  gap: 2px;
   min-width: 0;
 }
-.roster-who b {
+.roster-name {
+  display: flex;
+  align-items: center;
+  gap: 4px 8px;
+  flex-wrap: wrap;
+  min-height: 24px;
+}
+.roster-name b {
   font-size: 15px;
+  line-height: 22px;
   font-weight: 600;
+  overflow-wrap: anywhere;
+}
+/* Ник, «заполнил», «обновлял …» и сведения старосте — через «·». Перенос не
+   должен начинать строку с точки: каждый пункт несёт точку перед собой, сам
+   список сдвинут влево на её ширину, а этот край обрезан — у первого пункта
+   каждой строки точка уходит под обрез. Плашка («расписание устарело») —
+   без точки, её отступ равен ширине точки. */
+.roster-meta,
+.roster-facts {
+  --sep: 14px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  row-gap: 2px;
+  margin-left: calc(-1 * var(--sep));
+  clip-path: inset(-4px -4px -4px var(--sep));
+  font-variant-numeric: tabular-nums;
+}
+.roster-meta > span:not(.badge)::before,
+.roster-facts > span::before {
+  content: "·";
+  display: inline-block;
+  width: var(--sep);
+  text-align: center;
+}
+.roster-meta > .badge {
+  margin-left: var(--sep);
+}
+.roster-row > .roster-friend {
+  grid-column: 3;
+  grid-row: 1;
+  margin: -6px 0; /* «⋯» не раздвигает строку имени */
 }
 /* Сведения о человеке для старосты: часы, источник расписания, явка. */
 .roster-facts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px 12px;
-  margin-left: auto;
-  font-variant-numeric: tabular-nums;
-}
-.roster-facts span + span::before {
-  content: "· ";
-  margin-left: -8px;
-  margin-right: 2px;
+  grid-column: 2 / 4;
 }
 .roster-actions {
+  grid-column: 2 / 4;
   display: flex;
-  gap: 8px;
+  gap: 4px 24px;
   flex-wrap: wrap;
+}
+/* У кнопок без рамки текст — ровно под именем, и в начале перенесённой
+   строки тоже: внутренний отступ (14 px и рамка) уходит в промежуток между
+   кнопками, подсветка при наведении остаётся прежней. */
+.roster-actions .btn-quiet {
+  margin-inline: -15px;
+}
+@media (min-width: 720px) {
+  .roster-row {
+    grid-template-columns: 8px minmax(0, 1fr) auto auto;
+  }
+  .roster-facts {
+    grid-column: 3;
+    grid-row: 1;
+    justify-content: flex-end;
+    align-self: center;
+    text-align: right;
+    margin-left: 0;
+    clip-path: none;
+  }
+  /* Справа в строке у первого пункта точки нет. */
+  .roster-facts > span:first-child::before {
+    content: none;
+  }
+  .roster-row > .roster-friend {
+    grid-column: 4;
+  }
+  .roster-actions {
+    grid-column: 2 / 5;
+  }
 }
 .dot {
   width: 8px;

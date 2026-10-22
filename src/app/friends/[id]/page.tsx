@@ -263,6 +263,7 @@ export default async function FriendPage({
                 }
                 labels={{
                   duration: t("w_duration"),
+                  time: t("w_pair_time"),
                   week: t("w_pair_week"),
                   suggest: t("w_pair_suggest"),
                   day: t("w_pair_day"),

@@ -529,35 +529,42 @@ export default async function GroupPage({
                       const self = member.userId === user.userId;
                       const siteAdmin = entry.role === ROLE_ADMIN;
                       return (
+                        // Строка — сетка: точка | имя и сведения | «⋯» у правого края. Под
+                        // именем — вторая строка (ник, заполнил, когда обновлял), ниже —
+                        // сведения старосте и кнопки, ровно под именем. На телефоне раньше
+                        // всё это было одним потоком: «⋯» висело посреди текста, кнопки и
+                        // «занят … в неделю» переносились вразнобой.
                         <li className="roster-row" key={member.userId}>
+                          <span className={`dot ${filled ? "ok" : stale ? "stale" : "warn"}`} aria-hidden="true" />
                           <div className="roster-who">
-                            <span className={`dot ${filled ? "ok" : stale ? "stale" : "warn"}`} aria-hidden="true" />
-                            <b>{displayName(member)}</b>
-                            {/* Главное имя — то, что человек указал сам; рядом
-                                Telegram, чтобы его можно было найти и написать. */}
-                            {telegramName(member) && telegramName(member) !== displayName(member) && (
-                              <span className="small muted">{telegramName(member)}</span>
-                            )}
-                            {self && <span className="small muted">({t("w_you")})</span>}
-                            {source && <span className="badge">{roleLabel(source)}</span>}
-                            {stale ? (
-                              <span className="badge stale">{t("w_schedule_stale")}</span>
-                            ) : (
-                              <span className="small muted">
-                                {filled ? t("w_filled") : t("w_not_filled")}
-                              </span>
-                            )}
-                            {updatedLabel(member.userId) && (
-                              <span className="small muted">
-                                {t("w_updated_on", { date: updatedLabel(member.userId) })}
-                              </span>
-                            )}
-                            {/* Друзья: в строке — только тихая метка «друг»; действия
-                                (добавить, карточка, ответить) — в меню «⋯» в той же строке,
-                                что и имя: на телефоне переносится вместе с ним. */}
-                            {!self && !blockedIds.has(member.userId) && (
+                            <div className="roster-name">
+                              <b>{displayName(member)}</b>
+                              {self && <span className="small muted">({t("w_you")})</span>}
+                              {source && <span className="badge">{roleLabel(source)}</span>}
+                              {!self && friendIds.has(member.userId) && (
+                                <span className="badge ok">{t("w_fr_badge_friend")}</span>
+                              )}
+                            </div>
+                            <div className="roster-meta small muted">
+                              {/* Главное имя — то, что человек указал сам; рядом
+                                  Telegram, чтобы его можно было найти и написать. */}
+                              {telegramName(member) && telegramName(member) !== displayName(member) && (
+                                <span>{telegramName(member)}</span>
+                              )}
+                              {stale ? (
+                                <span className="badge stale">{t("w_schedule_stale")}</span>
+                              ) : (
+                                <span>{filled ? t("w_filled") : t("w_not_filled")}</span>
+                              )}
+                              {updatedLabel(member.userId) && (
+                                <span>{t("w_updated_on", { date: updatedLabel(member.userId) })}</span>
+                              )}
+                            </div>
+                          </div>
+                          {/* Друзья: в строке — только тихая метка «друг» у имени; действия
+                              (добавить, карточка, ответить) — в меню «⋯» у правого края. */}
+                          {!self && !blockedIds.has(member.userId) && (
                               <div className="roster-friend">
-                                {friendIds.has(member.userId) && <span className="badge ok">{t("w_fr_badge_friend")}</span>}
                                 <Menu
                                   label={t("w_fr_menu_member", { name: displayName(member) })}
                                   icon={<IconMore size={18} />}
@@ -586,8 +593,7 @@ export default async function GroupPage({
                                   )}
                                 </Menu>
                               </div>
-                            )}
-                          </div>
+                          )}
 
                           {/* Старосте — сведения о человеке: в середине строки было пусто. */}
                           {isAdmin && (

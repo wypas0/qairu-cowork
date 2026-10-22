@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { type Interval, fmtInterval, fmtMinutes } from "@/core/intervals";
 import { PAIR_PLAN, openWindows, parsePickedWhen, startOptions, suggestStarts, withoutBooked } from "@/core/pairPlan";
 import type { DateStr } from "@/core/timeutils";
+import { IconChevronRight } from "../icons";
 import { PICK_EVENT, type PickDetail } from "../pick";
 import { useThumb } from "../motion";
 
@@ -20,6 +21,8 @@ export type PlanDayView = {
 
 export type PairPlannerLabels = {
   duration: string;
+  /** «Время встречи» — заголовок сворачиваемого выбора. */
+  time: string;
   week: string;
   suggest: string;
   day: string;
@@ -73,6 +76,11 @@ function addWeeks(date: string, weeks: number): string {
  * Общее время неизвестно (скрыто настройками или нет расписания) — те же
  * кнопки, только доступны все часы 8–22.
  *
+ * Выбор времени сворачивается в одну строку «Время встречи: Пт 23.10 ·
+ * 16:30–17:30»: сам — как только выбрано начало (на телефоне иначе до цели и
+ * кнопки листать через все дни), и нажатием на эту строку — в любой момент.
+ * Повторное нажатие на выбранный день прячет и показывает его кнопки начала.
+ *
  * «Повторить» у прошедшей встречи (событие PICK_EVENT) подставляет день,
  * время, длину, цель и место.
  */
@@ -98,6 +106,12 @@ export function PairPlanner({
   const [day, setDay] = useState<DateStr | null>(null);
   const [start, setStart] = useState<number | null>(null);
   const [repeat, setRepeat] = useState(false);
+  // Выбор времени раскрыт; `touched` — раскрывали ли его нажатием (тогда он приходит
+  // с движением; при загрузке страницы ничего не въезжает).
+  const [timeOpen, setTimeOpen] = useState(true);
+  const [touched, setTouched] = useState(false);
+  // Кнопки начала под выбранным днём видны (повторное нажатие на день их прячет).
+  const [dayOpen, setDayOpen] = useState(true);
   const [preset, setPreset] = useState({ goal: "", place: "", version: 0 });
   const durationsRef = useRef<HTMLDivElement>(null);
   const weeksRef = useRef<HTMLDivElement>(null);
@@ -133,13 +147,40 @@ export function PairPlanner({
     setStart(minutes);
     const index = plan.findIndex((entry) => entry.day === date);
     if (index >= 0) setWeek(Math.floor(index / WEEK));
+    // Время выбрано целиком — выбор сворачивается в строку, дальше — цель и кнопка.
+    if (minutes !== null) setTimeOpen(false);
+  }
+
+  function pickDay(date: DateStr) {
+    if (date === day && start === null) {
+      setDayOpen((open) => !open);
+      return;
+    }
+    setDayOpen(true);
+    pick(date, null);
+  }
+
+  function pickStart(minutes: number) {
+    setStart(minutes);
+    setTimeOpen(false);
+  }
+
+  function toggleTime() {
+    setTouched(true);
+    setTimeOpen((open) => !open);
   }
 
   function changeDuration(next: number) {
     setDuration(next);
-    // Прежнее начало с новой длиной не влезает — выбор начала сбрасывается, день остаётся.
+    // Прежнее начало с новой длиной не влезает — выбор начала сбрасывается, день
+    // остаётся, а выбор раскрывается: выбрать начало заново.
     const entry = plan.find((item) => item.day === day);
-    if (entry && start !== null && !startOptions(entry.usable, next).includes(start)) setStart(null);
+    if (entry && start !== null && !startOptions(entry.usable, next).includes(start)) {
+      setStart(null);
+      setDayOpen(true);
+      setTouched(true);
+      setTimeOpen(true);
+    }
   }
 
   useEffect(() => {
@@ -153,6 +194,7 @@ export function PairPlanner({
           setDay(when.day);
           setStart(when.start);
           setWeek(Math.floor(index / WEEK));
+          setTimeOpen(false);
         }
       }
       setPreset((current) => ({ goal: detail.goal ?? "", place: detail.place ?? "", version: current.version + 1 }));
@@ -193,28 +235,47 @@ export function PairPlanner({
             ))}
           </div>
         </div>
-        {weeks.length > 1 && (
-          <div className="field">
-            <span className="label" id="pp-week">
-              {labels.week}
-            </span>
-            <div className="seg" role="radiogroup" aria-labelledby="pp-week" ref={weeksRef}>
-              {weeks.map((part, index) => (
-                <button
-                  key={part[0]!.day}
-                  type="button"
-                  role="radio"
-                  aria-checked={index === week}
-                  className={index === week ? "active" : undefined}
-                  onClick={() => setWeek(index)}
-                >
-                  {`${part[0]!.label.split(" ").pop()}–${part[part.length - 1]!.label.split(" ").pop()}`}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* Строка «Время встречи»: что выбрано — и свернуть/раскрыть выбор под ней. */}
+      <button
+        type="button"
+        className="pp-time-head"
+        aria-expanded={timeOpen}
+        aria-controls="pp-time"
+        onClick={toggleTime}
+      >
+        <span className="pp-time-text">
+          <span className="label">{labels.time}</span>
+          <span className={`pp-chosen${chosen ? "" : " muted"}`} aria-live="polite">
+            {chosen ? `${chosen.day.label} · ${fmtInterval([chosen.start, chosen.start + duration])}` : labels.choose}
+          </span>
+        </span>
+        <IconChevronRight size={18} className="pp-time-icon" />
+      </button>
+
+      <div className="pp-time" id="pp-time" hidden={!timeOpen} data-enter={touched ? "up" : undefined}>
+      {weeks.length > 1 && (
+        <div className="field">
+          <span className="label" id="pp-week">
+            {labels.week}
+          </span>
+          <div className="seg" role="radiogroup" aria-labelledby="pp-week" ref={weeksRef}>
+            {weeks.map((part, index) => (
+              <button
+                key={part[0]!.day}
+                type="button"
+                role="radio"
+                aria-checked={index === week}
+                className={index === week ? "active" : undefined}
+                onClick={() => setWeek(index)}
+              >
+                {`${part[0]!.label.split(" ").pop()}–${part[part.length - 1]!.label.split(" ").pop()}`}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {suggestions.length > 0 && (
         <div className="field pp-suggest">
@@ -273,7 +334,7 @@ export function PairPlanner({
                 aria-checked={selected}
                 disabled={disabled}
                 className="pp-day"
-                onClick={() => pick(entry.day, null)}
+                onClick={() => pickDay(entry.day)}
               >
                 <span className="fr-day">{entry.label}</span>
                 {/* Полоска дня 8–22: синим — оба свободны, розовым — ваши встречи, контуром — выбранное. */}
@@ -290,7 +351,7 @@ export function PairPlanner({
                 </span>
                 <span className={disabled ? "fr-day-times muted" : "fr-day-times"}>{times}</span>
               </button>
-              {selected && !disabled && (
+              {selected && dayOpen && !disabled && (
                 <div className="pp-starts" role="radiogroup" aria-label={`${labels.start}: ${entry.label}`} data-enter="up">
                   {entry.starts.map((minutes) => (
                     <button
@@ -299,7 +360,7 @@ export function PairPlanner({
                       role="radio"
                       aria-checked={start === minutes}
                       className={`daychip${start === minutes ? " active" : ""}`}
-                      onClick={() => setStart(minutes)}
+                      onClick={() => pickStart(minutes)}
                     >
                       {fmtMinutes(minutes)}
                     </button>
@@ -310,10 +371,7 @@ export function PairPlanner({
           );
         })}
       </div>
-
-      <p className={`pp-chosen${chosen ? "" : " muted"}`} aria-live="polite">
-        {chosen ? `${chosen.day.label} · ${fmtInterval([chosen.start, chosen.start + duration])}` : labels.choose}
-      </p>
+      </div>
 
       <div className="pp-fields">
         <div className="field">
