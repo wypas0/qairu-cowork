@@ -89,14 +89,18 @@ export function LandingShell({
         className="sidebar"
         id="sidebar"
         aria-label={labels.groups}
-        // Панель профиля открывается внутри сайдбара, поэтому мышь над ней
-        // сайдбар не сворачивает.
+        // Шторка профиля открывается из сайдбара. Она в <body> (Layer), но
+        // наведение React считает по дереву компонентов: мышь над шторкой —
+        // всё ещё «внутри», и сайдбар не сворачивается.
         onPointerEnter={(event) => onHover(event, true)}
         onPointerLeave={(event) => onHover(event, false)}
         // Свёрнутая полоса целиком — кнопка «развернуть» (для сенсорного экрана,
         // мышь раскрывает её раньше): знак группы сначала раскрывает сайдбар,
         // а не уводит со страницы. Профиль внизу работает как есть.
         onClickCapture={(event) => {
+          // Шторка профиля живёт в <body> (Layer), но её клики всплывают по
+          // дереву React сюда же — их не перехватываем.
+          if (!event.currentTarget.contains(event.target as Node)) return;
           if (open || (event.target as Element).closest(".sidebar-foot")) return;
           event.preventDefault();
           event.stopPropagation();

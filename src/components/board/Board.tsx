@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { fmtMinutes } from "@/core/intervals";
 import { BEST_COOKIE, WINDOWS_COOKIE, setViewCookie } from "@/lib/cookies";
 import type { BoardPayload } from "@/lib/group";
+import { Layer } from "../Layer";
 import { useExit } from "../motion";
 import { pickMeeting } from "../pick";
 import { BestTime } from "./BestTime";
@@ -266,22 +267,29 @@ export function Board({
         onPick={pick}
       />
 
-      {hover && !activeCell && <CellTooltip hover={hover} total={payload.total} labels={labels} />}
+      {/* Подсказка и окно клетки — в <body>: вкладка, въезжающая сбоку, не сдвигает их. */}
+      {hover && !activeCell && (
+        <Layer>
+          <CellTooltip hover={hover} total={payload.total} labels={labels} />
+        </Layer>
+      )}
 
       {popover.shown && (
-        <CellPopover
-          detail={popover.shown}
-          total={payload.total}
-          labels={labels}
-          leaving={popover.leaving}
-          onClose={() => setActiveCell(null)}
-          onPick={() => {
-            const cell = popover.shown;
-            if (!cell) return;
-            pick(cell.date, cell.start, cell.end, `${cell.dayLabel} · ${fmtMinutes(cell.start)}–${fmtMinutes(cell.end)}`);
-            setActiveCell(null);
-          }}
-        />
+        <Layer>
+          <CellPopover
+            detail={popover.shown}
+            total={payload.total}
+            labels={labels}
+            leaving={popover.leaving}
+            onClose={() => setActiveCell(null)}
+            onPick={() => {
+              const cell = popover.shown;
+              if (!cell) return;
+              pick(cell.date, cell.start, cell.end, `${cell.dayLabel} · ${fmtMinutes(cell.start)}–${fmtMinutes(cell.end)}`);
+              setActiveCell(null);
+            }}
+          />
+        </Layer>
       )}
     </div>
   );

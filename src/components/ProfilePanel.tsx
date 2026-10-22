@@ -13,6 +13,7 @@ import {
 } from "@/app/profile/actions";
 import type { Theme } from "@/lib/theme";
 import { BrandMark, IconCheck, IconChevronLeft, IconChevronRight, IconClose, IconFriends } from "./icons";
+import { Layer } from "./Layer";
 import { slideIn, useExit } from "./motion";
 import { ThemeSwitch } from "./ThemeSwitch";
 
@@ -340,283 +341,286 @@ export function ProfilePanel({ user, groups, theme, botEnabled, friendsBadge = 0
         )}
       </button>
 
+      {/* Шторка — в <body> (Layer): внутри шапки её зажимало размытие шапки. */}
       {panelShown && (
-        <div className="profile-overlay" data-leaving={leaving || undefined} inert={leaving} onClick={close}>
-          <div
-            className="profile-panel"
-            role="dialog"
-            aria-modal="true"
-            aria-label={view === "account" ? labels.account : labels.profile}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="pp-view" ref={viewRef}>
-              {view === "account" && user ? (
-                /* ======================== экран аккаунта ======================== */
-                <>
-                  <div className="pp-head">
-                    <button
-                      type="button"
-                      className="pp-close"
-                      aria-label={labels.back}
-                      onClick={() => go("main")}
-                    >
-                      <IconChevronLeft size={18} />
-                    </button>
-                    <div className="pp-who">
-                      <b>{labels.account}</b>
-                    </div>
-                    <button type="button" className="pp-close" aria-label={labels.close} onClick={close}>
-                      <IconClose size={18} />
-                    </button>
-                  </div>
-
-                  <section className="pp-section pp-photo">
-                    <Avatar name={user.name} url={avatarUrl} className="pp-avatar pp-avatar-lg" />
-                    <b className="pp-photo-name">{user.name}</b>
-                    {subtitle && <span className="small muted">{subtitle}</span>}
-                    <input
-                      ref={fileRef}
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      hidden
-                      onChange={(event) => {
-                        const file = event.target.files?.[0];
-                        if (file) void uploadPhoto(file);
-                      }}
-                    />
-                    <div className="pp-photo-actions">
+        <Layer>
+          <div className="profile-overlay" data-leaving={leaving || undefined} inert={leaving} onClick={close}>
+            <div
+              className="profile-panel"
+              role="dialog"
+              aria-modal="true"
+              aria-label={view === "account" ? labels.account : labels.profile}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="pp-view" ref={viewRef}>
+                {view === "account" && user ? (
+                  /* ======================== экран аккаунта ======================== */
+                  <>
+                    <div className="pp-head">
                       <button
                         type="button"
-                        className="btn btn-sm"
-                        disabled={busy}
-                        onClick={() => fileRef.current?.click()}
+                        className="pp-close"
+                        aria-label={labels.back}
+                        onClick={() => go("main")}
                       >
-                        {labels.changePhoto}
+                        <IconChevronLeft size={18} />
                       </button>
-                      {avatarUrl && (
+                      <div className="pp-who">
+                        <b>{labels.account}</b>
+                      </div>
+                      <button type="button" className="pp-close" aria-label={labels.close} onClick={close}>
+                        <IconClose size={18} />
+                      </button>
+                    </div>
+
+                    <section className="pp-section pp-photo">
+                      <Avatar name={user.name} url={avatarUrl} className="pp-avatar pp-avatar-lg" />
+                      <b className="pp-photo-name">{user.name}</b>
+                      {subtitle && <span className="small muted">{subtitle}</span>}
+                      <input
+                        ref={fileRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        hidden
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (file) void uploadPhoto(file);
+                        }}
+                      />
+                      <div className="pp-photo-actions">
                         <button
                           type="button"
-                          className="btn btn-sm btn-quiet btn-danger"
+                          className="btn btn-sm"
                           disabled={busy}
-                          onClick={() => void removePhoto()}
+                          onClick={() => fileRef.current?.click()}
                         >
-                          {labels.removePhoto}
+                          {labels.changePhoto}
                         </button>
-                      )}
-                    </div>
-                    {photoError && (
-                      <p className="small" role="alert" style={{ color: "var(--danger)", margin: 0 }}>
-                        {photoError}
-                      </p>
-                    )}
-                  </section>
-
-                  <section className="pp-section">
-                    <h3 className="pp-title">
-                      <label htmlFor="pp-real-name">{labels.realName}</label>
-                    </h3>
-                    <form action={saveName} className="pp-name-form">
-                      <input
-                        id="pp-real-name"
-                        name="real_name"
-                        type="text"
-                        maxLength={60}
-                        autoComplete="name"
-                        defaultValue={user.realName ?? ""}
-                        placeholder={labels.realNamePh}
-                      />
-                      <button className="btn btn-sm" type="submit" disabled={savingName}>
-                        {labels.realNameSave}
-                      </button>
-                    </form>
-                    <p className="small muted" style={{ margin: "6px 0 0" }} role="status">
-                      {nameState.status === "saved"
-                        ? labels.realNameSaved
-                        : nameState.status === "cleared"
-                          ? labels.realNameCleared
-                          : labels.realNameHint}
-                    </p>
-                  </section>
-
-                  {themeSwitch}
-
-                  <nav className="pp-menu" aria-label={labels.account}>
-                    {user.telegramLinked ? (
-                      <div className="pp-menu-item pp-static">
-                        <span>
-                          Telegram
-                          <span className="small muted pp-menu-sub">
-                            {user.telegram
-                              ? labels.telegramConnected.replace("{username}", user.telegram)
-                              : labels.telegramConnectedNoUsername}
-                          </span>
-                        </span>
-                        <span className="pp-ok">
-                          <IconCheck size={16} />
-                        </span>
-                      </div>
-                    ) : (
-                      botEnabled && (
-                        <form action={startTelegramLoginAction}>
-                          <input type="hidden" name="purpose" value="link" />
-                          {/* Вернуться туда же, откуда открыли панель. */}
-                          <input type="hidden" name="next" value={pathname || "/"} />
-                          <button type="submit" className="pp-menu-item">
-                            <span>
-                              {labels.connectTelegram}
-                              <span className="small muted pp-menu-sub">{labels.connectTelegramHint}</span>
-                            </span>
-                            <IconChevronRight className="muted" />
+                        {avatarUrl && (
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-quiet btn-danger"
+                            disabled={busy}
+                            onClick={() => void removePhoto()}
+                          >
+                            {labels.removePhoto}
                           </button>
-                        </form>
-                      )
-                    )}
-                    <Link className="pp-menu-item" href="/account" onClick={close}>
-                      <span>
-                        {labels.credentials}
-                        <span className="small muted pp-menu-sub">
-                          {user.login
-                            ? labels.credentialsSet.replace("{login}", user.login)
-                            : labels.credentialsUnset}
-                        </span>
-                      </span>
-                      <IconChevronRight className="muted" />
-                    </Link>
-                    <form action={logoutAction}>
-                      <button type="submit" className="pp-menu-item pp-danger">
-                        <span>{labels.logout}</span>
-                      </button>
-                    </form>
-                  </nav>
-                </>
-              ) : (
-                /* ======================== главный экран ======================== */
-                <>
-                  <div className="pp-head">
-                    {user ? (
-                      <button
-                        type="button"
-                        className="pp-me"
-                        onClick={() => go("account")}
-                        aria-label={labels.openAccount}
-                      >
-                        <Avatar name={user.name} url={avatarUrl} className="pp-avatar" />
-                        <span className="pp-who">
-                          <b>{user.name}</b>
-                          {subtitle && <span className="small muted">{subtitle}</span>}
-                        </span>
-                        <span className="pp-chevron">
-                          <IconChevronRight size={18} />
-                        </span>
-                      </button>
-                    ) : (
-                      <div className="pp-who">
-                        <b>{labels.profile}</b>
+                        )}
                       </div>
-                    )}
-                    <button type="button" className="pp-close" aria-label={labels.close} onClick={close}>
-                      <IconClose size={18} />
-                    </button>
-                  </div>
-
-                  {!user && (
-                    <section className="pp-section">
-                      <p className="muted small">{labels.anon}</p>
-                      <Link className="btn btn-primary pp-wide" href="/login" onClick={close}>
-                        {labels.login}
-                      </Link>
+                      {photoError && (
+                        <p className="small" role="alert" style={{ color: "var(--danger)", margin: 0 }}>
+                          {photoError}
+                        </p>
+                      )}
                     </section>
-                  )}
 
-                  {user && (
                     <section className="pp-section">
                       <h3 className="pp-title">
-                        {labels.myGroups} <span className="muted">{groups.length}</span>
+                        <label htmlFor="pp-real-name">{labels.realName}</label>
                       </h3>
-                      {groups.length === 0 ? (
-                        <p className="muted small">{labels.noGroups}</p>
-                      ) : (
-                        <ul className="pp-groups">
-                          {groups.map((group) => (
-                            <li key={group.chatId}>
-                              <Link className="pp-group" href={`/g/${group.slug}`} onClick={close}>
-                                <span className="pp-group-mark" aria-hidden="true">
-                                  <BrandMark size={18} />
-                                </span>
-                                <span className="pp-group-title">{group.title}</span>
-                                {group.pending ? <span className="count-badge">{group.pending}</span> : null}
-                              </Link>
-                              <form
-                                action={leaveGroupAction.bind(null, group.slug)}
-                                onSubmit={(event) => {
-                                  if (!window.confirm(labels.leaveConfirm.replace("{title}", group.title))) {
-                                    event.preventDefault();
-                                  }
-                                }}
-                              >
-                                <button
-                                  className="pp-leave"
-                                  type="submit"
-                                  aria-label={labels.leaveGroup.replace("{title}", group.title)}
-                                  title={labels.leaveGroup.replace("{title}", group.title)}
-                                >
-                                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                    <path
-                                      d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l5-5-5-5M15 12H4"
-                                      stroke="currentColor"
-                                      strokeWidth="2"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                    />
-                                  </svg>
-                                </button>
-                              </form>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
+                      <form action={saveName} className="pp-name-form">
+                        <input
+                          id="pp-real-name"
+                          name="real_name"
+                          type="text"
+                          maxLength={60}
+                          autoComplete="name"
+                          defaultValue={user.realName ?? ""}
+                          placeholder={labels.realNamePh}
+                        />
+                        <button className="btn btn-sm" type="submit" disabled={savingName}>
+                          {labels.realNameSave}
+                        </button>
+                      </form>
+                      <p className="small muted" style={{ margin: "6px 0 0" }} role="status">
+                        {nameState.status === "saved"
+                          ? labels.realNameSaved
+                          : nameState.status === "cleared"
+                            ? labels.realNameCleared
+                            : labels.realNameHint}
+                      </p>
                     </section>
-                  )}
 
-                  {user && (
-                    <nav className="pp-menu pp-section" aria-label={labels.friends}>
-                      <Link className="pp-menu-item" href="/friends" onClick={close}>
-                        <span className="pp-menu-label">
-                          <IconFriends size={18} />
-                          {labels.friends}
+                    {themeSwitch}
+
+                    <nav className="pp-menu" aria-label={labels.account}>
+                      {user.telegramLinked ? (
+                        <div className="pp-menu-item pp-static">
+                          <span>
+                            Telegram
+                            <span className="small muted pp-menu-sub">
+                              {user.telegram
+                                ? labels.telegramConnected.replace("{username}", user.telegram)
+                                : labels.telegramConnectedNoUsername}
+                            </span>
+                          </span>
+                          <span className="pp-ok">
+                            <IconCheck size={16} />
+                          </span>
+                        </div>
+                      ) : (
+                        botEnabled && (
+                          <form action={startTelegramLoginAction}>
+                            <input type="hidden" name="purpose" value="link" />
+                            {/* Вернуться туда же, откуда открыли панель. */}
+                            <input type="hidden" name="next" value={pathname || "/"} />
+                            <button type="submit" className="pp-menu-item">
+                              <span>
+                                {labels.connectTelegram}
+                                <span className="small muted pp-menu-sub">{labels.connectTelegramHint}</span>
+                              </span>
+                              <IconChevronRight className="muted" />
+                            </button>
+                          </form>
+                        )
+                      )}
+                      <Link className="pp-menu-item" href="/account" onClick={close}>
+                        <span>
+                          {labels.credentials}
+                          <span className="small muted pp-menu-sub">
+                            {user.login
+                              ? labels.credentialsSet.replace("{login}", user.login)
+                              : labels.credentialsUnset}
+                          </span>
                         </span>
-                        <span className="pp-menu-end">
-                          {friendsBadge > 0 && <span className="count-badge">{friendsBadge}</span>}
-                          <IconChevronRight className="muted" />
-                        </span>
+                        <IconChevronRight className="muted" />
                       </Link>
+                      <form action={logoutAction}>
+                        <button type="submit" className="pp-menu-item pp-danger">
+                          <span>{labels.logout}</span>
+                        </button>
+                      </form>
                     </nav>
-                  )}
-
-                  {themeSwitch}
-
-                  <section className="pp-section">
-                    <form action={joinByLinkAction} className="pp-join">
-                      <input
-                        type="text"
-                        name="link"
-                        placeholder={labels.joinPh}
-                        aria-label={labels.joinPh}
-                        required
-                      />
-                      <button className="btn btn-sm" type="submit">
-                        {labels.joinBtn}
+                  </>
+                ) : (
+                  /* ======================== главный экран ======================== */
+                  <>
+                    <div className="pp-head">
+                      {user ? (
+                        <button
+                          type="button"
+                          className="pp-me"
+                          onClick={() => go("account")}
+                          aria-label={labels.openAccount}
+                        >
+                          <Avatar name={user.name} url={avatarUrl} className="pp-avatar" />
+                          <span className="pp-who">
+                            <b>{user.name}</b>
+                            {subtitle && <span className="small muted">{subtitle}</span>}
+                          </span>
+                          <span className="pp-chevron">
+                            <IconChevronRight size={18} />
+                          </span>
+                        </button>
+                      ) : (
+                        <div className="pp-who">
+                          <b>{labels.profile}</b>
+                        </div>
+                      )}
+                      <button type="button" className="pp-close" aria-label={labels.close} onClick={close}>
+                        <IconClose size={18} />
                       </button>
-                    </form>
-                    <Link className="btn btn-sm btn-quiet pp-wide" href="/#create" onClick={close}>
-                      + {labels.createGroup}
-                    </Link>
-                  </section>
-                </>
-              )}
+                    </div>
+
+                    {!user && (
+                      <section className="pp-section">
+                        <p className="muted small">{labels.anon}</p>
+                        <Link className="btn btn-primary pp-wide" href="/login" onClick={close}>
+                          {labels.login}
+                        </Link>
+                      </section>
+                    )}
+
+                    {user && (
+                      <section className="pp-section">
+                        <h3 className="pp-title">
+                          {labels.myGroups} <span className="muted">{groups.length}</span>
+                        </h3>
+                        {groups.length === 0 ? (
+                          <p className="muted small">{labels.noGroups}</p>
+                        ) : (
+                          <ul className="pp-groups">
+                            {groups.map((group) => (
+                              <li key={group.chatId}>
+                                <Link className="pp-group" href={`/g/${group.slug}`} onClick={close}>
+                                  <span className="pp-group-mark" aria-hidden="true">
+                                    <BrandMark size={18} />
+                                  </span>
+                                  <span className="pp-group-title">{group.title}</span>
+                                  {group.pending ? <span className="count-badge">{group.pending}</span> : null}
+                                </Link>
+                                <form
+                                  action={leaveGroupAction.bind(null, group.slug)}
+                                  onSubmit={(event) => {
+                                    if (!window.confirm(labels.leaveConfirm.replace("{title}", group.title))) {
+                                      event.preventDefault();
+                                    }
+                                  }}
+                                >
+                                  <button
+                                    className="pp-leave"
+                                    type="submit"
+                                    aria-label={labels.leaveGroup.replace("{title}", group.title)}
+                                    title={labels.leaveGroup.replace("{title}", group.title)}
+                                  >
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                      <path
+                                        d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l5-5-5-5M15 12H4"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                      />
+                                    </svg>
+                                  </button>
+                                </form>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </section>
+                    )}
+
+                    {user && (
+                      <nav className="pp-menu pp-section" aria-label={labels.friends}>
+                        <Link className="pp-menu-item" href="/friends" onClick={close}>
+                          <span className="pp-menu-label">
+                            <IconFriends size={18} />
+                            {labels.friends}
+                          </span>
+                          <span className="pp-menu-end">
+                            {friendsBadge > 0 && <span className="count-badge">{friendsBadge}</span>}
+                            <IconChevronRight className="muted" />
+                          </span>
+                        </Link>
+                      </nav>
+                    )}
+
+                    {themeSwitch}
+
+                    <section className="pp-section">
+                      <form action={joinByLinkAction} className="pp-join">
+                        <input
+                          type="text"
+                          name="link"
+                          placeholder={labels.joinPh}
+                          aria-label={labels.joinPh}
+                          required
+                        />
+                        <button className="btn btn-sm" type="submit">
+                          {labels.joinBtn}
+                        </button>
+                      </form>
+                      <Link className="btn btn-sm btn-quiet pp-wide" href="/#create" onClick={close}>
+                        + {labels.createGroup}
+                      </Link>
+                    </section>
+                  </>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        </Layer>
       )}
     </>
   );

@@ -576,6 +576,84 @@ test.describe("витрина лендинга", () => {
   });
 });
 
+/**
+ * Предки слоя с position: fixed, которые зажимают его в себе (transform,
+ * filter, backdrop-filter…): слой встаёт от них, а не от окна, и обрезается.
+ */
+function fixedTraps(page: Page, selector: string): Promise<string[]> {
+  return page.locator(selector).evaluate((layer) => {
+    const traps: string[] = [];
+    for (let node = layer.parentElement; node; node = node.parentElement) {
+      const style = getComputedStyle(node);
+      const hit = (["transform", "translate", "scale", "rotate", "filter", "backdropFilter", "perspective", "contain"] as const)
+        .filter((key) => !["none", "auto", "normal", ""].includes(style[key] as string))
+        .map((key) => `${key}=${style[key]}`);
+      if (hit.length) traps.push(`${node.className || node.tagName}: ${hit.join(", ")}`);
+    }
+    return traps;
+  });
+}
+
+test("узкий телефон (360 px): подписи вкладок не вылезают за свои кнопки", async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  for (const path of [group(), "/friends"]) {
+    await page.goto(path);
+    const tabs = page.locator(".tabs").first();
+    await expect(tabs).toHaveAttribute("data-thumb", "live");
+    const clipped = await tabs.evaluate((list) =>
+      [...list.querySelectorAll<HTMLElement>(".tab")]
+        .filter((tab) => tab.scrollWidth > tab.clientWidth + 1)
+        .map((tab) => tab.textContent),
+    );
+    expect(clipped, path).toEqual([]);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
+  }
+});
+
+test.describe("панель профиля — на весь экран, откуда ни открой", () => {
+  test("из сайдбара на компьютере — шторка слева во всю высоту", async ({ page }) => {
+    await page.goto(group());
+    await page.locator(".sidebar-foot").getByRole("button", { name: "Профиль" }).click();
+    const panel = page.locator(".profile-panel");
+    await expect(panel).toBeVisible();
+    await expect.poll(async () => (await panel.boundingBox())?.height).toBe(900);
+    expect(await fixedTraps(page, ".profile-overlay")).toEqual([]);
+  });
+
+  test("из шапки (её размытие не зажимает шторку): друзья на компьютере и группа на телефоне", async ({ page }) => {
+    // Здесь шапка — с backdrop-filter, а сайдбара нет: шторка открывается из шапки.
+    await page.goto("/friends");
+    await page.locator(".topbar").getByRole("button", { name: "Профиль" }).click();
+    const panel = page.locator(".profile-panel");
+    await expect(panel).toBeVisible();
+    await expect.poll(async () => (await panel.boundingBox())?.height).toBe(900);
+    expect(await fixedTraps(page, ".profile-overlay")).toEqual([]);
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".profile-overlay")).toHaveCount(0);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(group());
+    await page.locator(".topbar").getByRole("button", { name: "Профиль" }).click();
+    await expect(panel).toBeVisible();
+    // Шторка снизу: во всю ширину и прижата к нижнему краю.
+    await expect
+      .poll(async () => {
+        const box = await panel.boundingBox();
+        return box ? [Math.round(box.width), Math.round(box.y + box.height)] : null;
+      })
+      .toEqual([390, 844]);
+  });
+
+  test("окно клетки карты встаёт по центру окна", async ({ page }) => {
+    await page.goto(group());
+    await page.locator("table.week.periods td.cell").nth(20).click();
+    await expect(page.locator(".cell-popover")).toBeVisible();
+    expect(await fixedTraps(page, ".cell-popover-overlay")).toEqual([]);
+    const overlay = (await page.locator(".cell-popover-overlay").boundingBox())!;
+    expect([overlay.width, overlay.height]).toEqual([1440, 900]);
+  });
+});
+
 test.describe("движение — только в ответ на действие", () => {
   test("при загрузке ничего не въезжает, подложка вкладки уже на месте", async ({ page }) => {
     await page.goto(group());
