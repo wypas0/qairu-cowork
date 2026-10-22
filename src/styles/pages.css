@@ -54,8 +54,9 @@
 .hero .demo {
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.18);
-  backdrop-filter: blur(8px);
+  /* Префикс первым: сборщик CSS оставляет последнее объявление, а Chrome понимает только обычное. */
   -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
 }
 
 /* Манифест сжатым капсом между витриной и шагами. */

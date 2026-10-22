@@ -19,8 +19,9 @@
   padding: 6px 8px calc(6px + var(--safe-bottom));
   background: color-mix(in srgb, var(--bg) 82%, transparent);
   border-top: 1px solid var(--border);
-  backdrop-filter: blur(12px);
+  /* Префикс первым: сборщик CSS оставляет последнее объявление, а Chrome понимает только обычное. */
   -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
 }
 .bottomnav-link {
   flex: 1;

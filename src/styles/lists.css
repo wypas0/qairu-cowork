@@ -571,8 +571,9 @@
   border-radius: var(--r-lg);
   /* Непрозрачная: вкладки прилипают к верху, и под ними едет карта. */
   background: color-mix(in srgb, var(--surface) 88%, transparent);
-  backdrop-filter: blur(12px);
+  /* Префикс первым: сборщик CSS оставляет последнее объявление, а Chrome понимает только обычное. */
   -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
   overflow-x: auto;
   scrollbar-width: none;
   position: sticky;
