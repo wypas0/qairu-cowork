@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { DatedTimeFields } from "./DatedTimeFields";
+import { useThumb } from "./motion";
 
 export type DatedQuickLabels = {
   day: string;
@@ -45,6 +46,8 @@ export function DatedQuickForm({
   const [other, setOther] = useState("");
   const [details, setDetails] = useState(false);
   const date = day === "today" ? today : day === "tomorrow" ? tomorrow : other;
+  const days = useRef<HTMLDivElement>(null);
+  useThumb(days, day);
 
   const choices = [
     ["today", labels.today],
@@ -58,7 +61,7 @@ export function DatedQuickForm({
       {/* Без подробностей — занят весь день: поля времени тогда не нужны. */}
       {!details && <input type="hidden" name="all_day" value="on" />}
 
-      <div className="daypicker" role="radiogroup" aria-label={labels.day}>
+      <div className="daypicker" role="radiogroup" aria-label={labels.day} ref={days}>
         {choices.map(([value, label]) => (
           <button
             key={value}
@@ -74,7 +77,7 @@ export function DatedQuickForm({
       </div>
 
       {day === "other" && (
-        <div className="field" style={{ marginTop: 12 }}>
+        <div className="field" style={{ marginTop: 12 }} data-enter="up">
           <input
             type="date"
             aria-label={labels.day}
@@ -87,7 +90,7 @@ export function DatedQuickForm({
       )}
 
       {details && (
-        <div className="dated-details">
+        <div className="dated-details" data-enter="up">
           <DatedTimeFields
             labels={{ allDay: labels.allDay, start: labels.start, end: labels.end, hint: labels.timeHint }}
           />

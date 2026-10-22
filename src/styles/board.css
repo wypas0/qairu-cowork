@@ -428,13 +428,17 @@
   font: inherit;
   font-size: 14px;
   cursor: pointer;
-  transition: border-color 150ms var(--ease);
+  transition:
+    border-color 150ms var(--ease),
+    background-color 150ms var(--ease),
+    scale var(--dur-fast) var(--ease);
 }
 .chipbtn b {
   font-weight: 600;
 }
 .chipbtn:hover {
   border-color: var(--ink);
+  background: var(--card-hover);
 }
 @media (pointer: coarse) {
   .chipbtn {
@@ -607,7 +611,11 @@
   color: var(--muted);
   font-size: 13px;
   font-weight: 600;
-  transition: background-color 150ms var(--ease), color 150ms var(--ease), box-shadow 150ms var(--ease);
+  transition:
+    background-color 150ms var(--ease),
+    color 150ms var(--ease),
+    box-shadow 150ms var(--ease),
+    scale var(--dur-base) var(--ease-spring);
 }
 .who-avatar.on {
   color: var(--text);
@@ -664,6 +672,13 @@
   font: inherit;
   font-size: 14px;
   cursor: pointer;
+  transition:
+    border-color 150ms var(--ease),
+    scale var(--dur-fast) var(--ease);
+}
+.who-picker-btn:hover,
+.who-picker-btn[aria-expanded="true"] {
+  border-color: var(--ink);
 }
 .who-picker-icon {
   transform: rotate(90deg);
@@ -737,7 +752,7 @@
   text-align: left;
   cursor: pointer;
 }
-.who-row-btn:hover,
+/* Наведение — «пятно» из motion.css; подсвеченный с карты человек — заливкой. */
 .who-row-btn.spotted {
   background: var(--hover);
 }
@@ -782,7 +797,8 @@
   border-radius: var(--r-full);
   background: var(--surface);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
-  transition: transform 150ms var(--ease);
+  /* Ручка переключателя доезжает с лёгким перелётом. */
+  transition: transform var(--dur-base) var(--ease-spring);
 }
 .who-row-btn[aria-checked="true"] .who-switch {
   background: var(--accent);

@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 
+import { slideIn, useThumb } from "./motion";
 import { PICK_EVENT } from "./pick";
 
 export type GroupTabKey = "time" | "meetings" | "members" | "settings";
@@ -52,16 +53,36 @@ export function GroupTabs({
   const hash = useSyncExternalStore(subscribeHash, () => window.location.hash, () => "");
   const active = chosen ?? tabFromHash(hash) ?? initial;
 
+  // Подложка выбранной вкладки скользит к новой, а содержимое приходит с той
+  // стороны, куда переключили. Только после действия человека: вкладка,
+  // открытая якорем при загрузке, появляется без движения.
+  const list = useRef<HTMLDivElement>(null);
+  const shown = useRef(active);
+  const enter = useRef<1 | -1 | null>(null);
+  useThumb(list, active);
+
+  function choose(key: GroupTabKey) {
+    if (key !== shown.current) enter.current = ORDER.indexOf(key) > ORDER.indexOf(shown.current) ? 1 : -1;
+    setChosen(key);
+  }
+
+  useLayoutEffect(() => {
+    shown.current = active;
+    const direction = enter.current;
+    enter.current = null;
+    if (direction !== null) slideIn(document.getElementById(`panel-${active}`), direction);
+  }, [active]);
+
   // «Назначить» подставляет время в форму встречи — её и показываем.
   useEffect(() => {
-    const open = () => setChosen("meetings");
+    const open = () => choose("meetings");
     window.addEventListener(PICK_EVENT, open);
     return () => window.removeEventListener(PICK_EVENT, open);
   }, []);
 
   return (
     <>
-      <div className="tabs" role="tablist">
+      <div className="tabs" role="tablist" ref={list}>
         {ORDER.map((key) => (
           <button
             key={key}
@@ -71,7 +92,7 @@ export function GroupTabs({
             aria-selected={active === key}
             aria-controls={`panel-${key}`}
             className={`tab${active === key ? " active" : ""}`}
-            onClick={() => setChosen(key)}
+            onClick={() => choose(key)}
           >
             {labels[key]}
             {badges[key] ? <span className="count-badge">{badges[key]}</span> : null}

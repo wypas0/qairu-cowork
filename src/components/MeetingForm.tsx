@@ -101,7 +101,9 @@ export function MeetingForm({
   }
 
   return (
-    <form ref={formRef} action={action} className="meeting-form">
+    // Раскрытая нажатием (или выбором времени на карте) форма приходит снизу;
+    // раскрытая сразу на широком экране стоит на месте.
+    <form ref={formRef} action={action} className="meeting-form" data-enter={chosen ? "up" : undefined}>
       <h3>{labels.newMeeting}</h3>
       <input type="hidden" name="when" value={picked ? picked.value : typed} />
       <div className="field">

@@ -46,11 +46,25 @@
   box-shadow: var(--shadow-float);
   opacity: 0;
   pointer-events: none;
-  transition: opacity 150ms var(--ease);
+  /* Приходит снизу с лёгким перелётом, уходит быстрее и вниз. Масштаб — от
+     нижнего края по центру: тост поставлен на место через translateX(-50%). */
+  translate: 0 12px;
+  scale: 0.96;
+  transform-origin: 0 100%;
+  transition:
+    opacity var(--dur-exit) var(--ease-in),
+    translate var(--dur-exit) var(--ease-in),
+    scale var(--dur-exit) var(--ease-in);
   z-index: 80;
 }
 .toast.show {
   opacity: 1;
+  translate: 0 0;
+  scale: 1;
+  transition:
+    opacity var(--dur-base) var(--ease),
+    translate var(--dur-slow) var(--ease-spring),
+    scale var(--dur-slow) var(--ease-spring);
 }
 .toast.error {
   background: var(--danger);
@@ -63,11 +77,17 @@
   }
 }
 
+/* «Меньше движения»: ни переходов, ни анимаций — включая motion.css и
+   фон окна. Уходящие слои motion.ts при этом убирает сразу. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     transition: none !important;
     animation: none !important;
+  }
+  /* Отдельным правилом: браузер, не знающий ::backdrop, отбросил бы весь список. */
+  ::backdrop {
+    transition: none !important;
   }
 }

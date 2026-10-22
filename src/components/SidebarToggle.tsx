@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { SIDEBAR_COOKIE, setViewCookie } from "@/lib/cookies";
 import { IconSidebar } from "./icons";
+import { calm, EXIT_MS } from "./motion";
 
 /**
  * Свернуть и развернуть левую панель. Свёрнутая панель не пропадает, а
@@ -40,10 +41,9 @@ export function SidebarToggle({
   const current = useRef(initialClosed);
   const button = useRef<HTMLButtonElement>(null);
   const hoverTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const leaveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  function peek(on: boolean) {
-    const shell = button.current?.closest(".shell");
-    if (!shell) return;
+  function setPeek(shell: Element, on: boolean) {
     // Узкая страница: полосу держит CSS, мы только раскрываем её поверх.
     if (isNarrow()) {
       shell.classList.toggle("sidebar-peek", on);
@@ -54,17 +54,36 @@ export function SidebarToggle({
     shell.classList.toggle("sidebar-peek", on);
   }
 
+  function peek(on: boolean) {
+    const shell = button.current?.closest(".shell");
+    if (!shell) return;
+    clearTimeout(leaveTimer.current);
+    shell.classList.remove("sidebar-leaving");
+    // Раскрытая поверх панель не пропадает, а сворачивается обратно в полосу
+    // (sidebar-leaving, motion.css) и только потом снова становится полосой.
+    if (!on && shell.classList.contains("sidebar-peek") && !calm()) {
+      shell.classList.add("sidebar-leaving");
+      leaveTimer.current = setTimeout(() => {
+        shell.classList.remove("sidebar-leaving");
+        setPeek(shell, false);
+      }, EXIT_MS);
+      return;
+    }
+    setPeek(shell, on);
+  }
+
   function apply(next: boolean) {
     clearTimeout(hoverTimer.current);
     if (isNarrow()) {
       const shell = button.current?.closest(".shell");
-      peek(!shell?.classList.contains("sidebar-peek"));
+      peek(!shell?.classList.contains("sidebar-peek") || shell.classList.contains("sidebar-leaving"));
       return;
     }
+    clearTimeout(leaveTimer.current);
     current.current = next;
     setClosed(next);
     const shell = button.current?.closest(".shell");
-    shell?.classList.remove("sidebar-peek");
+    shell?.classList.remove("sidebar-peek", "sidebar-leaving");
     shell?.classList.toggle("sidebar-closed", next);
     setViewCookie(SIDEBAR_COOKIE, next ? "closed" : null);
   }
@@ -95,6 +114,7 @@ export function SidebarToggle({
     sidebar?.addEventListener("pointerleave", onHover as EventListener);
     return () => {
       clearTimeout(hoverTimer.current);
+      clearTimeout(leaveTimer.current);
       window.removeEventListener("keydown", onKey);
       sidebar?.removeEventListener("pointerenter", onHover as EventListener);
       sidebar?.removeEventListener("pointerleave", onHover as EventListener);

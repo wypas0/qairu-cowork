@@ -1,11 +1,12 @@
 "use client";
 
-import { type MouseEvent, useRef, useState } from "react";
+import { type MouseEvent, useLayoutEffect, useRef, useState } from "react";
 
 import { fmtMinutes } from "@/core/intervals";
 import type { BoardPayload } from "@/lib/group";
 import { moveFocusByArrow } from "../gridKeys";
 import { IconChevronLeft, IconChevronRight, IconMeeting } from "../icons";
+import { slideIn, useThumb } from "../motion";
 import { PauseTime, PeriodTime } from "../PeriodRow";
 import { type AgendaItem, agendaRuns } from "./agenda";
 import type { CellDetail, Hover } from "./CellDetails";
@@ -209,10 +210,39 @@ export function HeatMap({
   );
   const heatDay = payload.days[dayIndex];
   const swipe = useRef<{ x: number; y: number } | null>(null);
-  const stepDay = (delta: number) => {
-    const next = payload.days[dayIndex + delta];
-    if (next) setMobileDay(next.date);
+  // Куда переключили день на телефоне: новый приходит с той стороны.
+  const dayEnter = useRef<1 | -1 | null>(null);
+  const goDay = (index: number) => {
+    const next = payload.days[index];
+    if (!next || index === dayIndex) return;
+    dayEnter.current = index > dayIndex ? 1 : -1;
+    setMobileDay(next.date);
   };
+  const stepDay = (delta: number) => goDay(dayIndex + delta);
+
+  // ---------- движение ----------
+  // Другая неделя приходит с той стороны, куда листали, — карта, строки дня
+  // и подпись недели; другой день на телефоне — так же. Только после нажатия:
+  // при загрузке карта стоит на месте. Подложка выбранного дня скользит.
+  const gridRef = useRef<HTMLDivElement>(null);
+  const agendaRef = useRef<HTMLUListElement>(null);
+  const daysRef = useRef<HTMLDivElement>(null);
+  const weekLabelRef = useRef<HTMLSpanElement>(null);
+  const shownWeek = useRef(payload.week);
+  useLayoutEffect(() => {
+    const direction = Math.sign(payload.week - shownWeek.current);
+    shownWeek.current = payload.week;
+    if (direction === 0) return;
+    for (const node of [gridRef.current, agendaRef.current, weekLabelRef.current]) {
+      slideIn(node, direction > 0 ? 1 : -1);
+    }
+  }, [payload.week]);
+  useThumb(daysRef, heatDay?.date);
+  useLayoutEffect(() => {
+    const direction = dayEnter.current;
+    dayEnter.current = null;
+    if (direction !== null) slideIn(agendaRef.current, direction);
+  }, [heatDay?.date]);
   // Раскрытые склейки одинаковых пар: «день-начало первой пары».
   const [openRuns, setOpenRuns] = useState<Set<string>>(() => new Set());
   const toggleRun = (key: string) =>
@@ -361,7 +391,9 @@ export function HeatMap({
           >
             <IconChevronLeft size={18} />
           </button>
-          <span className="small">{payload.weekLabel}</span>
+          <span className="small" ref={weekLabelRef}>
+            {payload.weekLabel}
+          </span>
           <button
             type="button"
             className="btn btn-sm btn-quiet"
@@ -382,7 +414,7 @@ export function HeatMap({
       <p className="small muted heat-mobile">{labels.heatHintMobile}</p>
 
       {/* ============ широкий экран: вся неделя ============ */}
-      <div className="gridwrap heat-desktop">
+      <div className="gridwrap heat-desktop" ref={gridRef}>
         <table className={`week periods${select.drag ? " dragging" : ""}${spot !== null ? " spotting" : ""}`}>
           <thead>
             <tr>
@@ -449,15 +481,15 @@ export function HeatMap({
       {/* ============ телефон: один день ============ */}
       {heatDay && (
         <div className="heat-mobile">
-          <div className="heat-days" role="tablist" aria-label={labels.day}>
-            {payload.days.map((entry) => (
+          <div className="heat-days" role="tablist" aria-label={labels.day} ref={daysRef}>
+            {payload.days.map((entry, index) => (
               <button
                 key={entry.date}
                 type="button"
                 role="tab"
                 aria-selected={entry.date === heatDay.date}
                 className={`daychip${entry.date === heatDay.date ? " active" : ""}${entry.date === today ? " today" : ""}`}
-                onClick={() => setMobileDay(entry.date)}
+                onClick={() => goDay(index)}
               >
                 <span>{entry.short}</span>
                 <span className="daychip-date">{entry.dm}</span>
@@ -465,6 +497,7 @@ export function HeatMap({
             ))}
           </div>
           <ul
+            ref={agendaRef}
             className="agenda"
             onTouchStart={(event) => {
               const touch = event.touches[0];

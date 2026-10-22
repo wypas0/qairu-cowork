@@ -1,0 +1,456 @@
+/* Движение интерфейса: открыть, закрыть, переключить, навести.
+
+   Правило дизайн-кода — движение только в ответ на действие человека: при
+   загрузке страницы ничего не въезжает. Анимируется то, что человек открыл,
+   закрыл, переключил или навёл мышью. Приёмы — по образцам refero.design:
+   окно вырастает из 96% со сдвигом снизу, меню — из 96% от своей кнопки,
+   подложка выбранной вкладки скользит к новой, подсветка строки
+   «наливается» из центра, аккордеон раскрывается по высоте.
+
+   Уход быстрее появления (--dur-exit) и с ускорением (--ease-in): слой не
+   задерживает человека. Код — в src/components/motion.ts: useExit держит
+   уходящий слой (data-leaving), useThumb меряет подложку, slideIn
+   сдвигает новое содержимое. При prefers-reduced-motion всё это выключает
+   feedback.css, а motion.ts убирает слои сразу. Только opacity, transform
+   и clip-path — макет во время движения не пересчитывается. */
+
+/* --- ключевые кадры ---
+   Отдельные свойства scale и translate складываются с transform, которым
+   слой уже поставлен на место (подсказка, тост), а не затирают его. */
+/* Затемнение под окном и шторкой темнеет само по себе: прозрачность всего
+   слоя сделала бы полупрозрачной и панель внутри него. */
+@keyframes scrim-in {
+  from {
+    background-color: transparent;
+  }
+}
+@keyframes scrim-out {
+  to {
+    background-color: transparent;
+  }
+}
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    scale: 0.96;
+    translate: 0 8px;
+  }
+}
+@keyframes pop-out {
+  to {
+    opacity: 0;
+    scale: 0.97;
+    translate: 0 6px;
+  }
+}
+@keyframes drop-in {
+  from {
+    opacity: 0;
+    scale: 0.96;
+    translate: 0 -6px;
+  }
+}
+@keyframes drop-out {
+  to {
+    opacity: 0;
+    scale: 0.97;
+    translate: 0 -4px;
+  }
+}
+@keyframes enter-up {
+  from {
+    opacity: 0;
+    translate: 0 8px;
+  }
+}
+@keyframes fold-out {
+  to {
+    opacity: 0;
+    scale: 0.98;
+  }
+}
+@keyframes tip-in {
+  from {
+    opacity: 0;
+    scale: 0.94;
+  }
+}
+@keyframes sheet-up {
+  from {
+    translate: 0 100%;
+  }
+}
+@keyframes sheet-down {
+  to {
+    translate: 0 100%;
+  }
+}
+@keyframes drawer-in {
+  from {
+    translate: -100% 0;
+  }
+}
+@keyframes drawer-out {
+  to {
+    translate: -100% 0;
+  }
+}
+/* Свёрнутая полоса сайдбара (68 px) раскрывается вправо, а не выезжает
+   заново: знаки групп остаются на месте. Край обрезки с запасом в 64 px —
+   тень панели не срезается в конце. */
+@keyframes strip-reveal {
+  from {
+    clip-path: inset(0 calc(100% - 68px) 0 0);
+  }
+  to {
+    clip-path: inset(-64px -64px -64px 0);
+  }
+}
+@keyframes strip-hide {
+  from {
+    clip-path: inset(-64px -64px -64px 0);
+  }
+  to {
+    clip-path: inset(0 calc(100% - 68px) 0 0);
+  }
+}
+
+/* Смена темы: вся страница перетекает в новую (ThemeSwitch, View Transitions). */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: var(--dur-slow);
+  animation-timing-function: var(--ease);
+}
+
+/* --- подложка выбранного сегмента скользит к новому ---
+   Вкладки группы, длительность, тема, кисть, дни. useThumb пишет место
+   выбранной кнопки в --thumb-*; пока замера нет (разметка с сервера),
+   выбранная кнопка залита сама. Кнопки рисуются поверх подложки. */
+.seg,
+.pp-theme,
+.brush,
+.heat-days,
+.editor-days,
+.daypicker {
+  position: relative;
+}
+[data-thumb] {
+  isolation: isolate;
+}
+[data-thumb]::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: -1;
+  width: var(--thumb-w, 0);
+  height: var(--thumb-h, 0);
+  translate: var(--thumb-x, 0) var(--thumb-y, 0);
+  border-radius: var(--thumb-r, var(--r-md));
+  background: var(--ink);
+  pointer-events: none;
+}
+[data-thumb="live"]::before {
+  transition:
+    translate var(--dur-slow) var(--ease),
+    width var(--dur-slow) var(--ease),
+    height var(--dur-slow) var(--ease);
+}
+[data-thumb] > button:is(.active, [aria-checked="true"], [aria-selected="true"]) {
+  background: transparent;
+  border-color: transparent;
+}
+/* Надпись светлеет вместе с подъезжающей подложкой, а не раньше неё. */
+[data-thumb="live"] > button {
+  transition-property: color, background-color, border-color, transform, scale;
+  transition-duration: var(--dur-slow), var(--dur-fast), var(--dur-fast), var(--dur-fast), var(--dur-fast);
+  transition-timing-function: var(--ease);
+}
+
+/* --- наведение: подсветка строки «наливается» из центра --- */
+.sidebar-link,
+.sidebar-today a,
+.pp-groups li,
+.pp-me,
+.pp-menu-item,
+.who-row-btn,
+.your-week-row {
+  position: relative;
+  isolation: isolate;
+}
+.sidebar-link::before,
+.sidebar-today a::before,
+.pp-groups li::before,
+.pp-me::before,
+.pp-menu-item::before,
+.who-row-btn::before,
+.your-week-row::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--blob, color-mix(in srgb, var(--hover) 60%, transparent));
+  opacity: 0;
+  scale: 0.94;
+  transition:
+    opacity var(--dur-fast) var(--ease),
+    scale var(--dur-base) var(--ease);
+  pointer-events: none;
+}
+.who-row-btn {
+  --blob: var(--hover);
+}
+.sidebar-link:hover::before,
+.sidebar-today a:hover::before,
+.pp-groups li:hover::before,
+.pp-me:hover::before,
+.pp-me:focus-visible::before,
+.pp-menu-item:hover::before,
+.pp-menu-item:focus-visible::before,
+.who-row-btn:not(:disabled):hover::before,
+.your-week-row:hover::before {
+  opacity: 1;
+  scale: 1;
+}
+/* Текущая группа уже выделена плашкой, «Telegram подключён» — не кнопка. */
+.sidebar-group.current::before,
+.pp-static::before {
+  display: none;
+}
+
+/* Нажатие: строка и кнопка чуть поддаются под пальцем. */
+:is(.sidebar-link, .pp-menu-item, .pp-me, .chipbtn, .who-picker-btn, .who-row-btn, .choose-row):not(.pp-static):active,
+:is(.seg, .pp-theme, .brush) > button:active {
+  scale: 0.97;
+}
+
+/* Знак группы и кружок человека откликаются на наведение — с лёгким перелётом. */
+.sidebar-mark,
+.pp-group-mark {
+  transition: scale var(--dur-base) var(--ease-spring);
+}
+.sidebar-link:hover .sidebar-mark,
+.pp-groups li:hover .pp-group-mark {
+  scale: 1.08;
+}
+.who-avatar:not(.off):hover .who-avatar-mark {
+  scale: 1.06;
+}
+.who-avatar:not(.off):active .who-avatar-mark {
+  scale: 0.94;
+}
+
+/* Крестик поворачивается — «закрыть»; шеврон делает шаг туда, куда ведёт. */
+.icon-close {
+  transition: rotate var(--dur-base) var(--ease);
+}
+:is(.icon-btn, .pp-close, .btn):hover > .icon-close {
+  rotate: 90deg;
+}
+.icon-chevron-right,
+.icon-chevron-left {
+  transition: translate var(--dur-fast) var(--ease);
+}
+:is(.pp-menu-item, .pp-me, .choose-row, .btn, .pp-close):not(:disabled):hover .icon-chevron-right {
+  translate: 2px 0;
+}
+:is(.btn, .pp-close):not(:disabled):hover .icon-chevron-left {
+  translate: -2px 0;
+}
+
+/* --- окно «Создать группу» (<dialog>) ---
+   Вырастает из 96% со сдвигом снизу, фон темнеет. Уход доигрывается, пока
+   окно ещё в верхнем слое (overlay и display — allow-discrete). Браузер, не
+   знающий этого, берёт первое объявление transition и закрывает сразу. */
+.create-dialog {
+  opacity: 0;
+  scale: 0.96;
+  translate: 0 8px;
+  transition:
+    opacity var(--dur-exit) var(--ease-in),
+    scale var(--dur-exit) var(--ease-in),
+    translate var(--dur-exit) var(--ease-in);
+  transition:
+    opacity var(--dur-exit) var(--ease-in),
+    scale var(--dur-exit) var(--ease-in),
+    translate var(--dur-exit) var(--ease-in),
+    overlay var(--dur-exit) allow-discrete,
+    display var(--dur-exit) allow-discrete;
+}
+.create-dialog[open] {
+  opacity: 1;
+  scale: 1;
+  translate: 0 0;
+  transition-duration: var(--dur-slow);
+  transition-timing-function: var(--ease);
+}
+.create-dialog::backdrop {
+  transition: background-color var(--dur-exit) var(--ease-in);
+  transition:
+    background-color var(--dur-exit) var(--ease-in),
+    overlay var(--dur-exit) allow-discrete,
+    display var(--dur-exit) allow-discrete;
+}
+.create-dialog:not([open])::backdrop {
+  background-color: transparent;
+}
+.create-dialog[open]::backdrop {
+  transition-duration: var(--dur-base);
+  transition-timing-function: var(--ease);
+}
+@starting-style {
+  .create-dialog[open] {
+    opacity: 0;
+    scale: 0.96;
+    translate: 0 8px;
+  }
+  .create-dialog[open]::backdrop {
+    background-color: transparent;
+  }
+}
+
+/* --- панель профиля: шторка снизу на телефоне, слева на компьютере --- */
+.profile-overlay {
+  animation: scrim-in var(--dur-base) var(--ease);
+}
+.profile-panel {
+  animation: sheet-up var(--dur-slow) var(--ease);
+}
+.profile-overlay[data-leaving] {
+  animation: scrim-out var(--dur-exit) var(--ease-in) forwards;
+}
+.profile-overlay[data-leaving] .profile-panel {
+  animation: sheet-down var(--dur-exit) var(--ease-in) forwards;
+}
+@media (min-width: 720px) {
+  .profile-panel {
+    animation-name: drawer-in;
+  }
+  .profile-overlay[data-leaving] .profile-panel {
+    animation-name: drawer-out;
+  }
+}
+/* Экран аккаунта и главный экран меняются сдвигом (slideIn), без скачка высоты. */
+.pp-view {
+  display: flex;
+  flex-direction: column;
+  flex: 1 0 auto;
+}
+
+/* --- окно клетки карты --- */
+.cell-popover-overlay {
+  animation: scrim-in var(--dur-base) var(--ease);
+}
+.cell-popover {
+  animation: pop-in var(--dur-slow) var(--ease);
+}
+.cell-popover-overlay[data-leaving] {
+  animation: scrim-out var(--dur-exit) var(--ease-in) forwards;
+}
+.cell-popover-overlay[data-leaving] .cell-popover {
+  animation: pop-out var(--dur-exit) var(--ease-in) forwards;
+}
+
+/* --- подсказка клетки: появляется у клетки и скользит за мышью ---
+   Подсказка поставлена на место через transform: translate(-50%, …), поэтому
+   масштаб считается от точки привязки (0 0), а не от центра коробки. */
+.cell-tooltip {
+  transform-origin: 0 0;
+  animation: tip-in var(--dur-fast) var(--ease);
+  transition:
+    left 90ms var(--ease),
+    top 90ms var(--ease);
+}
+
+/* --- меню: список людей, подсказка «?» — из-под своей кнопки --- */
+.who-panel {
+  transform-origin: 16px 0;
+  animation: drop-in var(--dur-base) var(--ease);
+}
+.who-panel[data-leaving] {
+  animation: drop-out var(--dur-exit) var(--ease-in) forwards;
+}
+.who-picker-icon {
+  transition: rotate var(--dur-base) var(--ease);
+}
+.who-picker-btn[aria-expanded="true"] .who-picker-icon {
+  rotate: 180deg;
+}
+.pick-help:not([open]) > p {
+  display: none;
+}
+.pick-help[open] > p {
+  transform-origin: 16px 0;
+  animation: drop-in var(--dur-base) var(--ease);
+}
+
+/* --- сайдбар групп ---
+   На компьютере свёрнутая полоса раскрывается вправо и сворачивается
+   обратно (наведение на полосу, нажатие); на телефоне шторка выезжает
+   слева. Уход — класс sidebar-leaving / landing-leaving (SidebarToggle,
+   LandingShell). */
+.landing-open > .sidebar {
+  animation: drawer-in var(--dur-slow) var(--ease);
+}
+.landing-leaving > .sidebar {
+  animation: drawer-out var(--dur-exit) var(--ease-in) forwards;
+}
+.landing-scrim {
+  animation: scrim-in var(--dur-base) var(--ease);
+}
+.landing-leaving > .landing-scrim {
+  animation: scrim-out var(--dur-exit) var(--ease-in) forwards;
+}
+@media (min-width: 1024px) {
+  .landing-open > .sidebar,
+  .sidebar-peek > .sidebar {
+    animation: strip-reveal var(--dur-slow) var(--ease);
+  }
+  .landing-leaving > .sidebar,
+  .sidebar-leaving > .sidebar {
+    animation: strip-hide var(--dur-exit) var(--ease-in) forwards;
+  }
+}
+
+/* --- аккордеоны (<details>): содержимое раскрывается по высоте ---
+   ::details-content и анимация до height: auto есть не везде; где их нет,
+   раскрытие мгновенное, как раньше. «?» в полосе подбора — не аккордеон,
+   а всплывающая подсказка (см. выше). */
+@supports selector(::details-content) {
+  :root {
+    interpolate-size: allow-keywords;
+  }
+  details:not(.pick-help)::details-content {
+    block-size: 0;
+    opacity: 0;
+    overflow: clip;
+    overflow-clip-margin: 4px; /* кольцо фокуса у края не срезается */
+    transition:
+      block-size var(--dur-slow) var(--ease),
+      opacity var(--dur-base) var(--ease),
+      content-visibility var(--dur-slow) allow-discrete;
+  }
+  details:not(.pick-help)[open]::details-content {
+    block-size: auto;
+    opacity: 1;
+  }
+}
+
+/* --- раскрытие на месте по нажатию ---
+   data-enter ставит код только тому, что человек сейчас открыл, — при
+   загрузке страницы этого атрибута нет ни у кого. */
+[data-enter="up"] {
+  animation: enter-up var(--dur-slow) var(--ease);
+}
+[data-enter="pop"] {
+  animation: pop-in var(--dur-base) var(--ease);
+}
+.board-rail > [data-leaving] {
+  animation: fold-out var(--dur-exit) var(--ease-in) forwards;
+}
+@media (max-width: 899px), (max-height: 560px) {
+  .pick-bar.open .pick-body {
+    animation: enter-up var(--dur-base) var(--ease);
+  }
+}

@@ -1,7 +1,7 @@
 "use client";
 
 import { fmtMinutes } from "@/core/intervals";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import type { Period, WeeklySlot } from "@/core/grid";
@@ -10,6 +10,7 @@ import { CAMPUS_TARGET, LATEST_EXTENSION, PAGE_SOURCE, campusScheduleUrl, olderV
 import { haptic, webApp, whenReady } from "@/lib/telegram";
 import { moveFocusByArrow } from "./gridKeys";
 import { IconArrowDown, IconCheck, IconChevronRight, IconGrid } from "./icons";
+import { slideIn, useThumb } from "./motion";
 import { BreakRow, PeriodTime } from "./PeriodRow";
 import { TelegramMainButton } from "./TelegramButtons";
 import { toast } from "./toast";
@@ -189,6 +190,24 @@ export function ScheduleEditor({
   const pending = useRef<{ key: string; x: number; y: number; pointerId: number } | null>(null);
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Подложка кисти и выбранного дня скользит к новому, а клетки другого дня
+  // приходят с той стороны, куда переключили. Сетка появляется только после
+  // первого экрана «Как внести пары?» — поэтому в ключе и режим.
+  const brushBox = useRef<HTMLDivElement>(null);
+  const daysBox = useRef<HTMLDivElement>(null);
+  const dayTable = useRef<HTMLTableElement>(null);
+  const dayEnter = useRef<1 | -1 | null>(null);
+  useThumb(brushBox, `${mode}:${brush}`);
+  useThumb(daysBox, `${mode}:${day}`);
+  useLayoutEffect(() => {
+    const direction = dayEnter.current;
+    dayEnter.current = null;
+    if (direction !== null) slideIn(dayTable.current, direction);
+  }, [day]);
+  function chooseDay(next: number) {
+    if (next !== day) dayEnter.current = next > day ? 1 : -1;
+    setDay(next);
+  }
 
   // Текущая сетка для обработчиков, которым нужно её значение, а не перерисовка.
   const busyRef = useRef(busy);
@@ -628,7 +647,7 @@ export function ScheduleEditor({
           полэкрана над сеткой. Кисть: «занят» — пары и работа, «неудобно» —
           могу, но лучше не надо; такие окна группа предложит последними. */}
       <div className="editor-toolbar">
-        <div className="brush" role="radiogroup" aria-label={labels.brushLabel}>
+        <div className="brush" role="radiogroup" aria-label={labels.brushLabel} ref={brushBox}>
           {(["busy", "soft"] as const).map((kind) => (
             <button
               key={kind}
@@ -733,7 +752,7 @@ export function ScheduleEditor({
         {/* Телефон: один день крупными клетками. Семь колонок на 375px дают
             клетку ~39px — меньше цели нажатия в 44px. */}
         <div className="editor-day">
-          <div className="editor-days" role="tablist" aria-label={labels.dayPick}>
+          <div className="editor-days" role="tablist" aria-label={labels.dayPick} ref={daysBox}>
             {weekdayShort.map((short, weekday) => {
               const taken = periods.filter((period) => busy.has(cellKey(weekday, period.start))).length;
               return (
@@ -744,7 +763,7 @@ export function ScheduleEditor({
                   aria-selected={weekday === day}
                   aria-label={weekdayNames[weekday]}
                   className={`daychip${weekday === day ? " active" : ""}`}
-                  onClick={() => setDay(weekday)}
+                  onClick={() => chooseDay(weekday)}
                 >
                   <span>{short}</span>
                   {taken > 0 && <span className="count">{taken}</span>}
@@ -752,7 +771,7 @@ export function ScheduleEditor({
               );
             })}
           </div>
-          <table className="week editor periods day">
+          <table className="week editor periods day" ref={dayTable}>
             <tbody>
               {periods.map((period) => {
                 const key = cellKey(day, period.start);

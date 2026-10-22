@@ -1,6 +1,43 @@
+import type { Page } from "@playwright/test";
+
 import { expect, state, test } from "./fixtures";
 
 const group = () => `/g/${state().slug}`;
+
+/**
+ * Конечные анимации и переходы, которые идут сейчас: «имя @ класс элемента».
+ * Бесконечные (бегущая полоса пересчёта, скелетон) не в счёт — это загрузка.
+ */
+function running(page: Page): Promise<string[]> {
+  return page.evaluate(() =>
+    document
+      .getAnimations()
+      .filter((animation) => animation.playState === "running" && animation.effect?.getComputedTiming().iterations !== Infinity)
+      .map((animation) => {
+        const effect = animation.effect as KeyframeEffect | null;
+        const name =
+          animation instanceof CSSAnimation
+            ? animation.animationName
+            : animation instanceof CSSTransition
+              ? animation.transitionProperty
+              : "script";
+        const target = effect?.target as Element | null;
+        return `${name} @ ${target?.className || target?.tagName}${effect?.pseudoElement ?? ""}`;
+      }),
+  );
+}
+
+/** Дождаться, пока доиграет движение: координаты клеток для мыши — после сдвига новой недели. */
+function settle(page: Page): Promise<unknown> {
+  return page.evaluate(() =>
+    Promise.allSettled(
+      document
+        .getAnimations()
+        .filter((animation) => animation.effect?.getComputedTiming().iterations !== Infinity)
+        .map((animation) => animation.finished),
+    ),
+  );
+}
 
 test.describe("доска группы", () => {
   test("оживает: вкладки переключаются, подсказка у клетки — таблица «Свободны | Заняты»", async ({ page }) => {
@@ -29,6 +66,7 @@ test.describe("доска группы", () => {
     await expect(page.getByRole("button", { name: "Эта неделя" })).toBeVisible();
     await loaded;
     await expect(page.locator(".heatmap")).toHaveAttribute("aria-busy", "false");
+    await settle(page);
 
     const rows = page.locator("table.week.periods tbody tr:not(.break-row)");
     // Карта теперь под полосой подбора и «Лучшим временем» — прокручиваем к ней: мышь ходит по экрану.
@@ -52,6 +90,7 @@ test.describe("доска группы", () => {
     await page.getByRole("button", { name: "Следующая неделя" }).click();
     await loaded;
     await expect(page.locator(".heatmap")).toHaveAttribute("aria-busy", "false");
+    await settle(page);
 
     // Встреч на перерыве нет — ряд одной ячейкой через всю неделю.
     const strip = page.locator("table.week.periods tr.pause-row").first().locator("td");
@@ -534,5 +573,75 @@ test.describe("витрина лендинга", () => {
     await expect(page.locator("#sidebar")).toContainText("ИС-21");
     await page.locator(".landing-scrim").click({ position: { x: 370, y: 400 } });
     await expect(page.locator("#sidebar")).toBeHidden();
+  });
+});
+
+test.describe("движение — только в ответ на действие", () => {
+  test("при загрузке ничего не въезжает, подложка вкладки уже на месте", async ({ page }) => {
+    await page.goto(group());
+    const tabs = page.locator(".tabs");
+    await expect(tabs).toHaveAttribute("data-thumb", "live");
+    expect(await running(page)).toEqual([]);
+    // Подложка стоит под выбранной вкладкой, а залита теперь не сама кнопка.
+    const placed = await tabs.evaluate((list) => {
+      const active = list.querySelector<HTMLElement>('[aria-selected="true"]')!;
+      return {
+        x: getComputedStyle(list, "::before").translate.split(" ")[0],
+        left: `${active.offsetLeft}px`,
+        fill: getComputedStyle(active).backgroundColor,
+      };
+    });
+    expect(placed.x).toBe(placed.left);
+    expect(placed.fill).toBe("rgba(0, 0, 0, 0)");
+  });
+
+  test("вкладки: подложка переезжает, содержимое приходит сбоку", async ({ page }) => {
+    await page.goto(group());
+    const tabs = page.locator(".tabs");
+    await expect(tabs).toHaveAttribute("data-thumb", "live");
+    await page.getByRole("tab", { name: /Встречи/ }).click();
+    const moving = await running(page);
+    expect(moving).toContain("translate @ tabs::before");
+    expect(moving.some((entry) => entry.startsWith("script @"))).toBe(true);
+    // Доехала ровно под новую вкладку.
+    await expect
+      .poll(() =>
+        tabs.evaluate((list) => {
+          const active = list.querySelector<HTMLElement>('[aria-selected="true"]')!;
+          return getComputedStyle(list, "::before").translate.split(" ")[0] === `${active.offsetLeft}px`;
+        }),
+      )
+      .toBe(true);
+    await expect(page.locator("#panel-meetings")).toBeVisible();
+  });
+
+  test("окно клетки и панель профиля доигрывают уход и уже не нажимаются", async ({ page }) => {
+    await page.goto(group());
+    await page.locator("table.week.periods td.cell").nth(20).click();
+    const overlay = page.locator(".cell-popover-overlay");
+    await expect(overlay).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(overlay).toHaveAttribute("data-leaving");
+    await expect(overlay).toHaveAttribute("inert");
+    await expect(overlay).toHaveCount(0);
+
+    await page.locator(".sidebar-foot").getByRole("button", { name: "Профиль" }).click();
+    const panel = page.locator(".profile-overlay");
+    await expect(panel).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(panel).toHaveAttribute("data-leaving");
+    await expect(panel).toHaveCount(0);
+  });
+
+  test("«меньше движения»: ни анимаций, ни задержки ухода", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto(group());
+    await page.getByRole("tab", { name: /Встречи/ }).click();
+    await page.getByRole("tab", { name: /Время/ }).click();
+    await page.locator("table.week.periods td.cell").nth(20).click();
+    await expect(page.locator(".cell-popover")).toBeVisible();
+    expect(await running(page)).toEqual([]);
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".cell-popover-overlay")).toHaveCount(0);
   });
 });

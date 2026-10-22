@@ -1,9 +1,12 @@
 "use client";
 
+import { useLayoutEffect, useRef } from "react";
+
 import { fmtMinutes } from "@/core/intervals";
 import type { BoardPayload } from "@/lib/group";
 import { CopyButton } from "../CopyButton";
 import { IconClose } from "../icons";
+import { type CardMotion, cardMotion, slideIn, useThumb } from "../motion";
 import { type BoardLabels, durationText, whoText } from "./labels";
 
 type SlotDay = BoardPayload["slotDays"][number];
@@ -21,6 +24,7 @@ export function WindowsCard({
   selectedTotal,
   loading,
   labels,
+  motion,
   onPick,
   onHide,
 }: {
@@ -32,6 +36,8 @@ export function WindowsCard({
   selectedTotal: number;
   loading: boolean;
   labels: BoardLabels;
+  /** Только что открыли или закрыли — см. cardMotion. */
+  motion?: CardMotion;
   onPick: (date: string, start: number, end: number, text: string) => void;
   /** Закрыть карточку — как «Лучшее время»: остаётся кнопкой-сводкой. */
   onHide: () => void;
@@ -54,8 +60,26 @@ export function WindowsCard({
   ].join("\n");
   const hasWindows = slotDays.some((entry) => entry.items.length > 0);
 
+  // Подложка выбранного дня скользит к новому, варианты приходят с той
+  // стороны, куда переключили день.
+  const days = useRef<HTMLDivElement>(null);
+  const list = useRef<HTMLDivElement>(null);
+  const enter = useRef<1 | -1 | null>(null);
+  useThumb(days, day?.date);
+  useLayoutEffect(() => {
+    const direction = enter.current;
+    enter.current = null;
+    if (direction !== null) slideIn(list.current, direction);
+  }, [day?.date]);
+  function chooseDay(date: string) {
+    const from = slotDays.findIndex((entry) => entry.date === day?.date);
+    const to = slotDays.findIndex((entry) => entry.date === date);
+    if (to !== from) enter.current = to > from ? 1 : -1;
+    onDay(date);
+  }
+
   return (
-    <section className="card windows-card" aria-busy={loading}>
+    <section className="card windows-card" aria-busy={loading} {...cardMotion(motion)}>
       <div className="card-head best-head">
         <h2>{labels.windowsTitle}</h2>
         <button
@@ -73,7 +97,7 @@ export function WindowsCard({
         <span className="label" id="slot-day-label">
           {labels.day}
         </span>
-        <div className="daypicker" role="radiogroup" aria-labelledby="slot-day-label">
+        <div className="daypicker" role="radiogroup" aria-labelledby="slot-day-label" ref={days}>
           {slotDays.map((entry) => {
             const active = entry.date === day?.date;
             return (
@@ -83,7 +107,7 @@ export function WindowsCard({
                 role="radio"
                 aria-checked={active}
                 className={`daychip${active ? " active" : ""}${entry.items.length === 0 ? " empty" : ""}`}
-                onClick={() => onDay(entry.date)}
+                onClick={() => chooseDay(entry.date)}
                 title={entry.label}
               >
                 <span>{entry.short}</span>
@@ -100,7 +124,7 @@ export function WindowsCard({
         </p>
       )}
 
-      <div className="slotlist">
+      <div className="slotlist" ref={list}>
         {selectedTotal === 0 ? (
           <p className="muted small">{labels.windowsNoData}</p>
         ) : !day || day.items.length === 0 ? (

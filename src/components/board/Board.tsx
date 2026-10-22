@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { fmtMinutes } from "@/core/intervals";
 import { BEST_COOKIE, WINDOWS_COOKIE, setViewCookie } from "@/lib/cookies";
 import type { BoardPayload } from "@/lib/group";
+import { useExit } from "../motion";
 import { pickMeeting } from "../pick";
 import { BestTime } from "./BestTime";
 import { type CellDetail, CellPopover, CellTooltip, type Hover } from "./CellDetails";
@@ -64,6 +65,15 @@ export function Board({
   // Кого подсветить на карте: наведение на имя в «Кто должен прийти».
   const [spot, setSpot] = useState<number | null>(null);
   const now = useWallNow(payload.tz, payload.now);
+  // Закрытый ответ доигрывает уход и только потом становится кнопкой-сводкой;
+  // открытый нажатием приходит снизу, сводка — «выпрыгивает». Что открыли
+  // последним, знаем только после действия человека: при загрузке ничего не едет.
+  const bestCard = useExit(bestHidden ? null : true);
+  const windowsCard = useExit(windowsHidden ? null : true);
+  const [opened, setOpened] = useState<"best" | "best-chip" | "windows" | "windows-chip" | null>(null);
+  const railClosed = !bestCard.shown && !windowsCard.shown;
+  // Окно клетки тоже доигрывает уход.
+  const popover = useExit(activeCell);
   const requestId = useRef(0);
   // Для каких выбора, длительности и недели посчитаны данные на экране.
   // Сравнивать нужно с ними, а не с начальными значениями: иначе
@@ -139,11 +149,13 @@ export function Board({
 
   function toggleWindows(hide: boolean) {
     setWindowsHidden(hide);
+    setOpened(hide ? "windows-chip" : "windows");
     setViewCookie(WINDOWS_COOKIE, hide ? "hidden" : null);
   }
 
   function toggleBest(hide: boolean) {
     setBestHidden(hide);
+    setOpened(hide ? "best-chip" : "best");
     setViewCookie(BEST_COOKIE, hide ? "hidden" : null);
   }
 
@@ -169,7 +181,7 @@ export function Board({
   const day = slotDays.find((entry) => entry.date === selectedDay) ?? slotDays[0];
 
   return (
-    <div className={`board${bestHidden && windowsHidden ? " rail-closed" : ""}`}>
+    <div className={`board${railClosed ? " rail-closed" : ""}`}>
       <PickBar
         chosenDuration={duration}
         durationOptions={durationOptions}
@@ -184,17 +196,27 @@ export function Board({
       />
 
       {/* Ответы: открытые — карточками, закрытые — кнопками-сводками. */}
-      <div className={`board-rail${bestHidden && windowsHidden ? " rail-closed" : ""}`}>
-        {(bestHidden || windowsHidden) && (
+      <div className={`board-rail${railClosed ? " rail-closed" : ""}`}>
+        {(!bestCard.shown || !windowsCard.shown) && (
           <div className="board-chips">
-            {bestHidden && (
-              <button type="button" className="chipbtn best-collapsed" onClick={() => toggleBest(false)}>
+            {!bestCard.shown && (
+              <button
+                type="button"
+                className="chipbtn best-collapsed"
+                data-enter={opened === "best-chip" ? "pop" : undefined}
+                onClick={() => toggleBest(false)}
+              >
                 <b>{labels.bestTitle}</b>
                 <span className="muted">{labels.variantsTemplate.replace("{n}", String(best.length))}</span>
               </button>
             )}
-            {windowsHidden && (
-              <button type="button" className="chipbtn windows-collapsed" onClick={() => toggleWindows(false)}>
+            {!windowsCard.shown && (
+              <button
+                type="button"
+                className="chipbtn windows-collapsed"
+                data-enter={opened === "windows-chip" ? "pop" : undefined}
+                onClick={() => toggleWindows(false)}
+              >
                 <b>{labels.windowsTitle}</b>
                 <span className="muted">
                   {day ? `${day.short} · ${labels.variantsTemplate.replace("{n}", String(day.items.length))}` : ""}
@@ -203,19 +225,21 @@ export function Board({
             )}
           </div>
         )}
-        {!bestHidden && (
+        {bestCard.shown && (
           <BestTime
             best={best}
             total={payload.selectedTotal}
             hidden={false}
             loading={loading}
             labels={labels}
+            motion={bestCard.leaving ? "leaving" : opened === "best" ? "enter" : undefined}
             onToggle={toggleBest}
             onPick={pick}
           />
         )}
-        {!windowsHidden && (
+        {windowsCard.shown && (
           <WindowsCard
+            motion={windowsCard.leaving ? "leaving" : opened === "windows" ? "enter" : undefined}
             slotDays={slotDays}
             day={day}
             onDay={setSelectedDay}
@@ -244,19 +268,17 @@ export function Board({
 
       {hover && !activeCell && <CellTooltip hover={hover} total={payload.total} labels={labels} />}
 
-      {activeCell && (
+      {popover.shown && (
         <CellPopover
-          detail={activeCell}
+          detail={popover.shown}
           total={payload.total}
           labels={labels}
+          leaving={popover.leaving}
           onClose={() => setActiveCell(null)}
           onPick={() => {
-            pick(
-              activeCell.date,
-              activeCell.start,
-              activeCell.end,
-              `${activeCell.dayLabel} · ${fmtMinutes(activeCell.start)}–${fmtMinutes(activeCell.end)}`,
-            );
+            const cell = popover.shown;
+            if (!cell) return;
+            pick(cell.date, cell.start, cell.end, `${cell.dayLabel} · ${fmtMinutes(cell.start)}–${fmtMinutes(cell.end)}`);
             setActiveCell(null);
           }}
         />

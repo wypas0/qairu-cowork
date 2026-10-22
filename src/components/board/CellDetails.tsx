@@ -100,17 +100,20 @@ export function CellPopover({
   detail,
   total,
   labels,
+  leaving = false,
   onClose,
   onPick,
 }: {
   detail: CellDetail;
   total: number;
   labels: BoardLabels;
+  /** Окно закрыли — оно доигрывает уход (useExit) и уже не нажимается. */
+  leaving?: boolean;
   onClose: () => void;
   onPick: () => void;
 }) {
   return (
-    <div className="cell-popover-overlay" onClick={onClose}>
+    <div className="cell-popover-overlay" data-leaving={leaving || undefined} inert={leaving} onClick={onClose}>
       <div
         className="cell-popover"
         role="dialog"

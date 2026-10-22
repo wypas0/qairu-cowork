@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { BrandMark, IconClose } from "./icons";
+import { useExit } from "./motion";
 
 /** Событие «открой сайдбар групп» — его шлёт кнопка «Мои группы» в шапке телефона. */
 export const GROUPS_EVENT = "qairu:groups";
@@ -78,8 +79,12 @@ export function LandingShell({
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
 
+  // Закрытый сайдбар ещё доигрывает уход: на компьютере сворачивается
+  // обратно в полосу, на телефоне уезжает влево (motion.css).
+  const { shown, leaving } = useExit(open || null);
+
   return (
-    <div className={`shell landing-shell ${open ? "landing-open" : "sidebar-closed"}`}>
+    <div className={`shell landing-shell ${shown ? `landing-open${leaving ? " landing-leaving" : ""}` : "sidebar-closed"}`}>
       <aside
         className="sidebar"
         id="sidebar"
@@ -120,7 +125,7 @@ export function LandingShell({
         </div>
         {sidebar}
       </aside>
-      {open === "pinned" && <div className="landing-scrim" aria-hidden="true" onClick={() => setOpen(false)} />}
+      {shown === "pinned" && <div className="landing-scrim" aria-hidden="true" onClick={() => setOpen(false)} />}
       <div className="shell-main">
         {topbar}
         {children}

@@ -121,14 +121,11 @@
   margin: 0 -8px;
   padding: 0;
 }
+/* Подсветка строк панели при наведении — «пятно» из motion.css. */
 .pp-groups li {
   display: flex;
   align-items: center;
   border-radius: var(--r-lg);
-  transition: background-color 150ms var(--ease);
-}
-.pp-groups li:hover {
-  background: color-mix(in srgb, var(--hover) 60%, transparent);
 }
 .pp-group {
   display: flex;
@@ -218,11 +215,7 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: background-color 150ms var(--ease);
-}
-.pp-me:hover,
-.pp-me:focus-visible {
-  background: color-mix(in srgb, var(--hover) 60%, transparent);
+  transition: scale var(--dur-fast) var(--ease);
 }
 .pp-chevron {
   margin-left: auto;
@@ -283,11 +276,7 @@ img.pp-avatar {
   text-align: left;
   text-decoration: none;
   cursor: pointer;
-  transition: background-color 150ms var(--ease);
-}
-.pp-menu-item:hover,
-.pp-menu-item:focus-visible {
-  background: color-mix(in srgb, var(--hover) 60%, transparent);
+  transition: scale var(--dur-fast) var(--ease);
 }
 .pp-menu-sub {
   display: block;

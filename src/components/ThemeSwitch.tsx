@@ -1,6 +1,9 @@
 "use client";
 
+import { useRef } from "react";
+
 import { THEME_COOKIE, THEMES, type Theme } from "@/lib/theme";
+import { calm, useThumb } from "./motion";
 
 /**
  * Применить тему: атрибут data-theme на <html> меняется сразу, без
@@ -24,8 +27,10 @@ export function ThemeSwitch({
   onChange: (next: Theme) => void;
   labels: { title: string } & Record<Theme, string>;
 }) {
+  const box = useRef<HTMLDivElement>(null);
+  useThumb(box, value);
   return (
-    <div className="pp-theme" role="radiogroup" aria-label={labels.title}>
+    <div className="pp-theme" role="radiogroup" aria-label={labels.title} ref={box}>
       {THEMES.map((option) => (
         <button
           key={option}
@@ -33,7 +38,10 @@ export function ThemeSwitch({
           role="radio"
           aria-checked={value === option}
           onClick={() => {
-            applyTheme(option);
+            // Страница перетекает в новую тему, а не перекрашивается рывком.
+            const swap = () => applyTheme(option);
+            if (!calm() && typeof document.startViewTransition === "function") document.startViewTransition(swap);
+            else swap();
             onChange(option);
           }}
         >

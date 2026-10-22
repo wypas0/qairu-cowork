@@ -133,10 +133,16 @@ table.week.demo-week td.timecol.period {
   border: 1px solid var(--card-line);
   border-radius: var(--r-xl);
   background: var(--card);
-  transition: background-color 600ms var(--ease);
+  transition:
+    background-color 600ms var(--ease),
+    border-color var(--dur-base) var(--ease),
+    translate var(--dur-base) var(--ease);
 }
+/* Карточка чуть приподнимается — без тени: тени только у всплывающих слоёв. */
 .step:hover {
   background: var(--card-hover);
+  border-color: var(--hairline);
+  translate: 0 -2px;
 }
 .step-n {
   display: block;
@@ -188,9 +194,6 @@ table.week.demo-week td.timecol.period {
   min-height: 48px;
   padding: 10px 14px;
   color: var(--text);
-}
-.your-week-row:hover {
-  background: color-mix(in srgb, var(--hover) 60%, transparent);
 }
 .your-week-row .badge {
   margin-left: auto;
@@ -319,9 +322,6 @@ table.week.demo-week td.timecol.period {
 /* --- Telegram в экране аккаунта --- */
 .pp-static {
   cursor: default;
-}
-.pp-static:hover {
-  background: transparent;
 }
 .pp-ok {
   display: inline-flex;

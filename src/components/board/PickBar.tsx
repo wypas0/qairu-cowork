@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import type { BoardPayload } from "@/lib/group";
 import { IconChevronRight } from "../icons";
+import { useExit, useThumb } from "../motion";
 import { type BoardLabels, durationText } from "./labels";
 
 /** До стольких людей — кружки в ряд; больше — одна кнопка со списком и поиском. */
@@ -54,6 +55,8 @@ export function PickBar({
   labels: BoardLabels;
 }) {
   const [open, setOpen] = useState(false);
+  const durations = useRef<HTMLDivElement>(null);
+  useThumb(durations, chosenDuration);
   // Не заполнившие в расчёт не попадают — про них неизвестно, свободны ли они.
   const filledIds = people.filter((person) => person.filled).map((person) => person.id);
   const isOn = (id: number) => (selected === null ? filledIds.includes(id) : selected.includes(id));
@@ -84,7 +87,7 @@ export function PickBar({
           <span className="label" id="duration-label">
             {labels.duration}
           </span>
-          <div className="seg" role="radiogroup" aria-labelledby="duration-label">
+          <div className="seg" role="radiogroup" aria-labelledby="duration-label" ref={durations}>
             {durationOptions.map((value) => (
               <button
                 key={value}
@@ -219,6 +222,8 @@ function PeoplePicker({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const root = useRef<HTMLDivElement>(null);
+  // Список выпадает из-под кнопки и так же уходит под неё.
+  const panel = useExit(open ? true : null);
 
   useEffect(() => {
     if (!open) return;
@@ -250,8 +255,8 @@ function PeoplePicker({
         <span>{chosenCount === total ? labels.whoEveryone : `${chosenCount} / ${total}`}</span>
         <IconChevronRight size={16} className="who-picker-icon" />
       </button>
-      {open && (
-        <div className="who-panel">
+      {panel.shown && (
+        <div className="who-panel" data-leaving={panel.leaving || undefined} inert={panel.leaving}>
           <input
             type="search"
             id="who-search"

@@ -57,25 +57,28 @@ export function IconCheck(props: IconProps) {
   );
 }
 
-export function IconClose(props: IconProps) {
+/** Свой класс у крестика и шевронов — по нему motion.css поворачивает и сдвигает их при наведении. */
+const withClass = (own: string, className?: string) => (className ? `${own} ${className}` : own);
+
+export function IconClose({ className, ...props }: IconProps) {
   return (
-    <Icon {...props}>
+    <Icon {...props} className={withClass("icon-close", className)}>
       <path d="M18 6 6 18M6 6l12 12" />
     </Icon>
   );
 }
 
-export function IconChevronRight(props: IconProps) {
+export function IconChevronRight({ className, ...props }: IconProps) {
   return (
-    <Icon {...props}>
+    <Icon {...props} className={withClass("icon-chevron-right", className)}>
       <path d="m9 18 6-6-6-6" />
     </Icon>
   );
 }
 
-export function IconChevronLeft(props: IconProps) {
+export function IconChevronLeft({ className, ...props }: IconProps) {
   return (
-    <Icon {...props}>
+    <Icon {...props} className={withClass("icon-chevron-left", className)}>
       <path d="m15 18-6-6 6-6" />
     </Icon>
   );

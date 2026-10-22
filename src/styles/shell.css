@@ -119,10 +119,11 @@
   font-size: 14px;
   font-weight: 500;
   text-decoration: none;
-  transition: background-color 150ms var(--ease), color 150ms var(--ease);
-}
-.sidebar-link:hover {
-  background: color-mix(in srgb, var(--hover) 60%, transparent);
+  /* Подсветка наведения — «пятно» из motion.css. */
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    scale var(--dur-fast) var(--ease);
 }
 .sidebar-link.active {
   background: var(--seg-fill);
@@ -152,9 +153,6 @@
 }
 .sidebar-group.current {
   font-weight: 600;
-}
-.sidebar-group.current:hover {
-  background: transparent;
 }
 .sidebar-group.current .sidebar-mark {
   background: var(--accent);
@@ -236,9 +234,6 @@
   font-size: 13px;
   line-height: 18px;
   color: var(--text);
-}
-.sidebar-today a:hover {
-  background: color-mix(in srgb, var(--hover) 60%, transparent);
 }
 .sidebar-today .icon {
   flex: none;
@@ -416,7 +411,8 @@
   }
 
   /* Мышь на свёрнутой полосе: панель раскрыта поверх страницы, а место под
-     полосой остаётся прежним — доска не сдвигается (см. SidebarToggle). */
+     полосой остаётся прежним — доска не сдвигается (см. SidebarToggle).
+     Раскрытие и уход — motion.css. */
   .shell.sidebar-peek {
     grid-template-columns: 68px minmax(0, 1fr);
   }
@@ -431,7 +427,6 @@
     background: var(--popover);
     border-radius: 0 var(--r-3xl) var(--r-3xl) 0;
     box-shadow: var(--shadow-float);
-    animation: landing-slide 200ms var(--ease);
   }
 }
 /* Увеличение 125% и больше (страница 1024–1179 px): панель сама становится
@@ -493,11 +488,6 @@
   }
 
 }
-@media (min-width: 1024px) and (prefers-reduced-motion: reduce) {
-  .sidebar-peek > .sidebar {
-    animation: none;
-  }
-}
 
 /* --- лендинг вошедшего: сайдбар групп выезжает поверх витрины ---
    На компьютере сайдбар свёрнут в полосу со знаками групп (те же правила
@@ -534,18 +524,6 @@
   border-radius: 0 var(--r-3xl) var(--r-3xl) 0;
   box-shadow: var(--shadow-float);
   overflow-y: auto;
-  animation: landing-slide 200ms var(--ease);
-}
-@keyframes landing-slide {
-  from {
-    transform: translateX(-24px);
-    opacity: 0;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .landing-open > .sidebar {
-    animation: none;
-  }
 }
 .sidebar-empty {
   margin: 4px 8px;

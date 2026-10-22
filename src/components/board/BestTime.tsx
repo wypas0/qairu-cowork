@@ -2,6 +2,7 @@
 
 import type { BoardBest } from "@/lib/group";
 import { IconClose } from "../icons";
+import { type CardMotion, cardMotion } from "../motion";
 import { type BoardLabels, daysText, whoText } from "./labels";
 
 /**
@@ -15,6 +16,7 @@ export function BestTime({
   hidden,
   loading,
   labels,
+  motion,
   onToggle,
   onPick,
 }: {
@@ -23,6 +25,8 @@ export function BestTime({
   hidden: boolean;
   loading: boolean;
   labels: BoardLabels;
+  /** Только что открыли или закрыли — см. cardMotion. */
+  motion?: CardMotion;
   onToggle: (hide: boolean) => void;
   onPick: (date: string, start: number, end: number, text: string) => void;
 }) {
@@ -40,7 +44,7 @@ export function BestTime({
   }
 
   return (
-    <section className="card" aria-busy={loading}>
+    <section className="card" aria-busy={loading} {...cardMotion(motion)}>
       <div className="card-head best-head">
         <h2>{labels.bestTitle}</h2>
         <button
