@@ -5,7 +5,7 @@ import * as repo from "@/db/repo";
 import { tn, translator, weekdayShort } from "@/i18n";
 import { currentUser } from "@/lib/auth";
 import { IconBell, IconCalendarUser, IconClock } from "./icons";
-import type { ProfileGroup } from "./ProfilePanel";
+import type { GroupNextMeeting, ProfileGroup } from "./ProfilePanel";
 
 /**
  * «Сегодня» внизу сайдбара — на месте пустоты между списком групп и профилем.
@@ -17,16 +17,19 @@ export async function SidebarToday({
   lang,
   slug,
   groups,
+  friendMeetings = [],
 }: {
   lang: string;
   slug: string;
   groups: ProfileGroup[];
+  /** Встречи вдвоём с друзьями — тоже «сегодня» и тоже ждут ответа. */
+  friendMeetings?: GroupNextMeeting[];
 }) {
   const user = await currentUser();
   if (!user) return null;
   const t = translator(lang);
 
-  const meetings = groups.flatMap((group) => (group.meetings ?? []).map((meeting) => ({ group, meeting })));
+  const meetings = [...groups.flatMap((group) => group.meetings ?? []), ...friendMeetings].map((meeting) => ({ meeting }));
   const today = meetings.filter(({ meeting }) => meeting.today);
   const awaiting = meetings.filter(({ meeting }) => meeting.awaiting);
   const updatedAt = (await repo.scheduleUpdatedAt([user.userId])).get(user.userId);
@@ -41,7 +44,7 @@ export async function SidebarToday({
       <ul>
         <li>
           {today.length > 0 ? (
-            <Link href={`/g/${today[0].group.slug}?at=meeting-${today[0].meeting.id}`}>
+            <Link href={today[0].meeting.href}>
               <IconClock size={14} />
               <span>{tn(lang, "w_today_meetings", today.length)}</span>
             </Link>
@@ -54,7 +57,7 @@ export async function SidebarToday({
         </li>
         {awaiting.length > 0 && (
           <li>
-            <Link href={`/g/${awaiting[0].group.slug}?at=meeting-${awaiting[0].meeting.id}`}>
+            <Link href={awaiting[0].meeting.href}>
               <IconBell size={14} />
               <span>{t("w_today_awaiting", { n: awaiting.length })}</span>
             </Link>

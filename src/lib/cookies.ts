@@ -37,6 +37,20 @@ export const BEST_COOKIE = "qairu_best";
 export const WINDOWS_COOKIE = "qairu_windows";
 export const VIEW_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
+/**
+ * Какие «Как это работает» раскрыты — их ключи через точку («board.friend»).
+ * По умолчанию все свёрнуты; раскрытое остаётся раскрытым на этом устройстве.
+ */
+export const HOWTO_COOKIE = "qairu_howto";
+
+/** Раскрытые описания из куки: только известный вид ключей. */
+export function parseHowto(value: string | undefined): string[] {
+  return (value ?? "")
+    .split(".")
+    .map((key) => key.trim())
+    .filter((key) => /^[a-z]{2,16}$/.test(key));
+}
+
 /** Записать куку вида из браузера. */
 export function setViewCookie(name: string, value: string | null): void {
   document.cookie =

@@ -235,7 +235,7 @@ export default async function LandingPage({
               {groups.map((group) => (
                 <div className="sidebar-item" key={group.chatId}>
                   <GroupLink group={group} pendingLabel={t("w_pending_label", { n: String(group.pending ?? 0) })} />
-                  <GroupMeetings group={group} open={false} labels={meetingLabels} />
+                  <GroupMeetings meetings={group.meetings} open={false} labels={meetingLabels} />
                 </div>
               ))}
             </nav>
@@ -252,6 +252,7 @@ export default async function LandingPage({
             count={panel.friendsBadge ?? 0}
             countLabel={t("w_fr_waiting_label", { n: String(panel.friendsBadge ?? 0) })}
           />
+          <GroupMeetings meetings={panel.friendMeetings} open={false} labels={meetingLabels} />
 
           <form action={joinByCodeAction} className="sidebar-join" id="join">
             <label className="eyebrow" htmlFor="join-code">

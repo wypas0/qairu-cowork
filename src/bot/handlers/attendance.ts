@@ -32,7 +32,8 @@ export async function askAttendance(now = new Date(), budget: Budget = UNLIMITED
   const candidates = await repo.attendanceCandidates(now, addDays(todayIn("UTC", now), -1));
   for (const meeting of candidates) {
     if (!budget.canStart()) break;
-    const chat = await repo.getChat(meeting.chatId);
+    // «Был ли ты» идёт в статистику группы — у встречи вдвоём группы нет, не спрашиваем.
+    const chat = meeting.chatId !== null ? await repo.getChat(meeting.chatId) : null;
     if (!chat) continue;
     const tz = chatTz(chat);
     const ended = justEnded(meeting, meetingDurationMin(meeting, tz), tz, now);
@@ -88,7 +89,7 @@ export async function onAttendanceButton(query: TgCallbackQuery): Promise<void> 
     await answerCallbackQuery({ callback_query_id: query.id });
     return;
   }
-  const chat = await repo.getChat(meeting.chatId);
+  const chat = meeting.chatId !== null ? await repo.getChat(meeting.chatId) : null;
   const lang = chat?.lang ?? "ru";
   if (!repo.inviteeIds(meeting).includes(query.from.id)) {
     await answerCallbackQuery({ callback_query_id: query.id, text: t(lang, "vote_not_invited"), show_alert: true });

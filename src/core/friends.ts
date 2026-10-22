@@ -19,6 +19,8 @@ export const FRIEND_LIMITS = {
   asksPerDay: 10,
   /** Смен личной ссылки в сутки. */
   codeRotationsPerDay: 5,
+  /** Встреч вдвоём, назначенных одним человеком за сутки. */
+  pairMeetingsPerDay: 20,
   maxFriends: 500,
   /** Сколько заявок может одновременно ждать ответа. */
   maxPendingOut: 50,

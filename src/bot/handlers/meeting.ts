@@ -7,6 +7,7 @@ import { buildIcs } from "@/core/calendar";
 import { reminderDelayS } from "@/core/metrics";
 import { fmtInterval, fmtMinutes } from "@/core/intervals";
 import { escapeHtml } from "@/core/textutils";
+import { PAIR_PLAN, pairPartner } from "@/core/pairPlan";
 import { nextOccurrence } from "@/core/recurrence";
 import {
   type DateStr,
@@ -18,11 +19,12 @@ import {
   zonedWallToUtc,
 } from "@/core/timeutils";
 import * as repo from "@/db/repo";
-import type { Chat, Meeting, User } from "@/db/schema";
+import { type Chat, type Meeting, type User, displayName } from "@/db/schema";
 import { formatDay, t } from "@/i18n";
 import { isGroupAdmin, isTelegramChat } from "@/lib/admin";
 import { type Budget, UNLIMITED } from "@/lib/budget";
-import { meetingEvent, normalizeDuration } from "@/lib/group";
+import { defaultTz, hasBot } from "@/lib/config";
+import { meetingDurationMin, meetingEvent, normalizeDuration, whenTextFor } from "@/lib/group";
 import { countReminderFailed, observeReminder } from "@/lib/metrics";
 import {
   FORCE_REPLY,
@@ -34,6 +36,7 @@ import {
   isPrivate,
   sendDocument,
   sendMessage,
+  type InlineButton,
   type InlineKeyboardMarkup,
   type TgCallbackQuery,
   type TgMessage,
@@ -348,6 +351,7 @@ export async function renderCard(
 ): Promise<{ text: string; markup: InlineKeyboardMarkup }> {
   const meeting = await repo.getMeeting(meetingId);
   if (!meeting) return { text: t(lang, "error_generic"), markup: keyboard([]) };
+  const pair = meeting.withUser !== null;
 
   const inviteeIds = repo.inviteeIds(meeting);
   const byId = await repo.usersByIds(inviteeIds);
@@ -361,7 +365,7 @@ export async function renderCard(
   const repeat = meeting.repeatUntil
     ? ` · ${t(lang, "repeat_suffix", { until: formatDM(meeting.repeatUntil as DateStr) })}`
     : "";
-  const when = (escapeHtml(meeting.whenText) || "—") + repeat;
+  const when = (escapeHtml(whenTextFor(meeting, lang)) || "—") + repeat;
   const goal = escapeHtml(meeting.goal) || "—";
 
   if (meeting.status === "cancelled") {
@@ -371,7 +375,7 @@ export async function renderCard(
     };
   }
 
-  let text = t(lang, "meeting_card", { place, when, goal, invitees: mentionList(ordered) });
+  let text = t(lang, pair ? "meeting_card_pair" : "meeting_card", { place, when, goal, invitees: mentionList(ordered) });
 
   const buckets: Record<string, User[]> = { yes: [], maybe: [], no: [], change: [] };
   const comments: string[] = [];
@@ -397,7 +401,7 @@ export async function renderCard(
     text += t(lang, "changes_block", { items: comments.slice(0, 10).join("\n") });
   }
 
-  const rows = [
+  const rows: InlineButton[][] = [
     [
       { text: `${t(lang, "btn_yes")} ${buckets.yes.length}`, callback_data: `vote:${meetingId}:yes` },
       {
@@ -416,8 +420,38 @@ export async function renderCard(
   }
   extra.push({ text: t(lang, "btn_cancel_meeting"), callback_data: `card:cancel:${meetingId}` });
   rows.push(extra);
+  // Встреча вдвоём: карточка лежит у друга — кнопка ведёт к карточке того, кто позвал.
+  const open = pair ? webAppButton(t(lang, "btn_open_friend"), `/friends/${meeting.initiatorId}`) : null;
+  if (open) rows.push([open]);
 
   return { text, markup: keyboard(rows) };
+}
+
+/** Язык карточки: у группы — язык группы, у встречи вдвоём — того, у кого она лежит (друга). */
+export async function cardLang(meeting: Meeting): Promise<string> {
+  if (meeting.chatId !== null) return (await repo.getChat(meeting.chatId))?.lang ?? "ru";
+  const owner = meeting.withUser !== null ? await repo.getUser(meeting.withUser) : null;
+  return owner?.lang || "ru";
+}
+
+/**
+ * Перерисовать общую карточку встречи там, где она лежит: в чате группы или
+ * (встреча вдвоём) в личке друга. `except` — сообщение, которое только что
+ * перерисовали на месте нажатия: дважды одно и то же не правим.
+ */
+export async function refreshCard(meeting: Meeting, except?: { chatId: number; messageId: number }): Promise<void> {
+  const where = meeting.chatId ?? meeting.withUser;
+  if (!meeting.chatMessageId || where === null || !hasBot()) return;
+  if (except && except.chatId === where && except.messageId === meeting.chatMessageId) return;
+  const card = await renderCard(meeting.id, await cardLang(meeting));
+  await editMessageText({
+    chat_id: where,
+    message_id: meeting.chatMessageId,
+    text: card.text,
+    parse_mode: "HTML",
+    reply_markup: card.markup,
+    link_preview_options: { is_disabled: true },
+  });
 }
 
 export async function onVote(query: TgCallbackQuery): Promise<void> {
@@ -431,8 +465,9 @@ export async function onVote(query: TgCallbackQuery): Promise<void> {
     await answerCallbackQuery({ callback_query_id: query.id });
     return;
   }
-  const chat = await repo.getChat(meeting.chatId);
-  const lang = chat?.lang ?? "ru";
+  // Встреча вдвоём — без группы: язык того, кто нажал (карточка у него в личке).
+  const chat = meeting.chatId !== null ? await repo.getChat(meeting.chatId) : null;
+  const lang = chat?.lang ?? (await repo.getUser(query.from.id))?.lang ?? "ru";
 
   if (!repo.inviteeIds(meeting).includes(query.from.id)) {
     await answerCallbackQuery({
@@ -467,25 +502,13 @@ export async function onVote(query: TgCallbackQuery): Promise<void> {
     link_preview_options: { is_disabled: true },
   });
 
-  // Голос из личной копии карточки: общая карточка в чате тоже должна его показать.
+  // Голос из личной копии карточки: общая карточка (в чате группы или в
+  // личке друга) тоже должна его показать.
   const fromPrivate = isPrivate(message.chat);
-  if (fromPrivate && meeting.chatMessageId) {
-    await editMessageText({
-      chat_id: meeting.chatId,
-      message_id: meeting.chatMessageId,
-      text: card.text,
-      parse_mode: "HTML",
-      reply_markup: card.markup,
-      link_preview_options: { is_disabled: true },
-    });
-  }
+  await refreshCard(meeting, { chatId: message.chat.id, messageId: message.message_id });
 
   // Организатору — короткий ответ в личку. Импорт ленивый: lib/notify сам импортирует этот модуль.
-  if (
-    (answer === "yes" || answer === "maybe" || answer === "no") &&
-    chat &&
-    query.from.id !== meeting.initiatorId
-  ) {
+  if ((answer === "yes" || answer === "maybe" || answer === "no") && query.from.id !== meeting.initiatorId) {
     const { notifyOrganizerAnswer } = await import("@/lib/notify");
     const voter = (await repo.getUser(query.from.id))!;
     await notifyOrganizerAnswer(chat, meeting, voter, answer);
@@ -525,14 +548,15 @@ export async function onCardButton(query: TgCallbackQuery): Promise<void> {
     await answerCallbackQuery({ callback_query_id: query.id });
     return;
   }
-  const chat = await repo.getChat(meeting.chatId);
-  const lang = chat?.lang ?? "ru";
+  const chat = meeting.chatId !== null ? await repo.getChat(meeting.chatId) : null;
+  const lang = chat?.lang ?? (await repo.getUser(query.from.id))?.lang ?? "ru";
 
   if (action === "cancel") {
+    // Встречу вдвоём отменяет тот, кто её назначил; отказаться другу — «Не смогу».
     if (query.from.id !== meeting.initiatorId && !(chat && (await isGroupAdmin(chat, query.from.id)))) {
       await answerCallbackQuery({
         callback_query_id: query.id,
-        text: t(lang, "cancel_only_initiator"),
+        text: t(lang, chat ? "cancel_only_initiator" : "cancel_only_pair"),
         show_alert: true,
       });
       return;
@@ -552,20 +576,9 @@ export async function onCardButton(query: TgCallbackQuery): Promise<void> {
       reply_markup: card.markup,
       link_preview_options: { is_disabled: true },
     });
-    // Отменили из личной копии карточки — общая карточка в чате тоже должна
+    // Отменили из личной копии карточки — общая карточка тоже должна
     // показать отмену, иначе в ней остаются кнопки голосования.
-    const isGroupCard =
-      message.chat.id === meeting.chatId && message.message_id === meeting.chatMessageId;
-    if (meeting.chatMessageId && !isGroupCard) {
-      await editMessageText({
-        chat_id: meeting.chatId,
-        message_id: meeting.chatMessageId,
-        text: card.text,
-        parse_mode: "HTML",
-        reply_markup: card.markup,
-        link_preview_options: { is_disabled: true },
-      });
-    }
+    await refreshCard({ ...meeting, status: "cancelled" }, { chatId: message.chat.id, messageId: message.message_id });
     return;
   }
 
@@ -577,7 +590,7 @@ export async function onCardButton(query: TgCallbackQuery): Promise<void> {
     filename: `qairu-meeting-${meetingId}.ics`,
     mime: "text/calendar",
     content: buildIcs(
-      meetingEvent({ ...meeting, whenStart: meeting.whenStart }, chatTz(chat), {
+      meetingEvent({ ...meeting, whenStart: meeting.whenStart }, chat ? chatTz(chat) : defaultTz(), {
         summary: meeting.goal || t(lang, "ics_default_summary"),
         description: meeting.goal,
       }),
@@ -601,8 +614,8 @@ export async function onChangeReply(message: TgMessage): Promise<boolean> {
   await repo.deleteBotState(key);
   if (!meeting) return true;
 
-  const chat = await repo.getChat(meeting.chatId);
-  const lang = chat?.lang ?? "ru";
+  const chat = meeting.chatId !== null ? await repo.getChat(meeting.chatId) : null;
+  const lang = chat?.lang ?? (await repo.getUser(from.id))?.lang ?? "ru";
   await repo.setResponse({
     meetingId: entry.meetingId,
     userId: from.id,
@@ -610,18 +623,9 @@ export async function onChangeReply(message: TgMessage): Promise<boolean> {
     comment: (message.text ?? "").trim().slice(0, 300),
   });
 
-  if (meeting.chatMessageId) {
-    const card = await renderCard(entry.meetingId, lang);
-    await editMessageText({
-      chat_id: meeting.chatId,
-      message_id: meeting.chatMessageId,
-      text: card.text,
-      parse_mode: "HTML",
-      reply_markup: card.markup,
-      link_preview_options: { is_disabled: true },
-    });
-  }
-  if (chat) {
+  await refreshCard(meeting);
+  // В группе с её удалённым чатом писать организатору незачем; встреча вдвоём — всегда.
+  if (chat || meeting.withUser !== null) {
     // Организатор получает предложение лично: в большом чате карточку легко пропустить.
     // Импорт ленивый: lib/notify сам импортирует этот модуль ради renderCard.
     const { notifyChangeProposal } = await import("@/lib/notify");
@@ -673,14 +677,33 @@ export async function sendDueReminders(
   const current = () => new Date(now.getTime() + (Date.now() - startedAt));
 
   // `start` — начало встречи или повтора: от него считается, насколько напоминание опоздало.
-  type Due = { meeting: Meeting; chat: Chat; when: string; start: Date; claim: () => Promise<boolean> };
+  // `chat` — null у встречи вдвоём: группы нет, напоминаем обоим в личку за PAIR_PLAN.reminderMin.
+  type Due = {
+    meeting: Meeting;
+    chat: Chat | null;
+    minutes: number;
+    when: string;
+    start: Date;
+    claim: () => Promise<boolean>;
+  };
   const due: Due[] = (await repo.meetingsDueForReminder(now)).map(({ meeting, chat }) => ({
     meeting,
     chat,
+    minutes: chat.reminderMin,
     when: meeting.whenText,
     start: meeting.whenStart!,
     claim: () => repo.claimReminder(meeting.id, current()),
   }));
+  for (const meeting of await repo.pairMeetingsDueForReminder(now, PAIR_PLAN.reminderMin)) {
+    due.push({
+      meeting,
+      chat: null,
+      minutes: PAIR_PLAN.reminderMin,
+      when: "",
+      start: meeting.whenStart!,
+      claim: () => repo.claimReminder(meeting.id, current()),
+    });
+  }
 
   // Серии: напоминаем перед ближайшим повтором, если до него осталось не больше
   // порога группы и о нём ещё не напоминали.
@@ -694,9 +717,24 @@ export async function sendDueReminders(
     due.push({
       meeting,
       chat,
+      minutes: chat.reminderMin,
       when: `${formatDay(chat.lang, wall.day)} · ${fmtMinutes(wall.minutes)}`,
       start: next,
       // Отмечаем именно этот повтор: следующий получит своё напоминание.
+      claim: async () => next > current() && repo.claimRecurringReminder(meeting.id, next),
+    });
+  }
+  // Серии вдвоём — так же, в поясе по умолчанию.
+  for (const meeting of await repo.pairRecurringCandidates(addDays(todayIn("UTC"), -1))) {
+    const next = nextOccurrence(meeting.whenStart!, meeting.repeatUntil as DateStr, defaultTz(), now);
+    if (!next || next.getTime() - now.getTime() > PAIR_PLAN.reminderMin * 60_000) continue;
+    if (meeting.remindedStart && meeting.remindedStart.getTime() === next.getTime()) continue;
+    due.push({
+      meeting,
+      chat: null,
+      minutes: PAIR_PLAN.reminderMin,
+      when: "",
+      start: next,
       claim: async () => next > current() && repo.claimRecurringReminder(meeting.id, next),
     });
   }
@@ -705,10 +743,10 @@ export async function sendDueReminders(
   if (tally) tally.due = due.length;
   // Для «Качества» в консоли: через сколько после срока напоминание ушло (по
   // первой доставке) — или что не дошло никому. Только числа, без встреч и людей.
-  const noteDelivery = (meeting: Meeting, chat: Chat, start: Date) =>
-    observeReminder(reminderDelayS(start, chat.reminderMin, meeting.createdAt, current()));
+  const noteDelivery = (meeting: Meeting, minutes: number, start: Date) =>
+    observeReminder(reminderDelayS(start, minutes, meeting.createdAt, current()));
 
-  for (const [index, { meeting, chat, when, start, claim }] of due.entries()) {
+  for (const [index, { meeting, chat, minutes, when, start, claim }] of due.entries()) {
     if (!budget.canStart()) {
       if (tally) tally.deferred = due.length - index;
       break;
@@ -721,6 +759,44 @@ export async function sendDueReminders(
     const targetIds = saidYes.length ? saidYes : repo.inviteeIds(meeting);
     const byId = await repo.usersByIds(targetIds);
     const ordered = targetIds.filter((id) => byId.has(id)).map((id) => byId.get(id)!);
+
+    // Встреча вдвоём: каждому — с кем встреча и время на его языке.
+    if (chat === null) {
+      const people = await repo.usersByIds(repo.inviteeIds(meeting));
+      let reached = 0;
+      let attempts = 0;
+      for (const user of ordered) {
+        if (!budget.canContinue()) break;
+        if (user.isWeb || user.userId <= 0) continue;
+        const partnerId = pairPartner(meeting, user.userId);
+        const partner = partnerId !== null ? people.get(partnerId) : undefined;
+        const lang = user.lang || "ru";
+        const wall = utcToZonedWall(start, defaultTz());
+        const button = partnerId !== null ? webAppButton(t(lang, "btn_open_friend"), `/friends/${partnerId}`) : null;
+        attempts += 1;
+        try {
+          await sendMessage({
+            chat_id: user.userId,
+            text: t(lang, "meeting_reminder_pair", {
+              minutes,
+              name: escapeHtml(partner ? displayName(partner) : "—"),
+              when: `${formatDay(lang, wall.day)} · ${fmtInterval([wall.minutes, wall.minutes + meetingDurationMin(meeting, defaultTz())])}`,
+              place: escapeHtml(meeting.place) || "—",
+              goal: escapeHtml(meeting.goal) || "—",
+            }),
+            parse_mode: "HTML",
+            reply_markup: button ? keyboard([[button]]) : undefined,
+          });
+          if (reached === 0) noteDelivery(meeting, minutes, start);
+          reached += 1;
+        } catch {
+          // Человек не запускал бота или заблокировал его.
+        }
+      }
+      if (reached > 0) sent += 1;
+      else if (attempts > 0) countReminderFailed();
+      continue;
+    }
 
     // Группа с сайта: общего чата нет — напоминаем каждому лично.
     if (!isTelegramChat(chat)) {
@@ -736,7 +812,7 @@ export async function sendDueReminders(
           await sendMessage({
             chat_id: user.userId,
             text: t(lang, "meeting_reminder_dm", {
-              minutes: chat.reminderMin,
+              minutes,
               chat: escapeHtml(chat.title) || "—",
               place: escapeHtml(meeting.place) || "—",
               when: escapeHtml(when) || "—",
@@ -745,7 +821,7 @@ export async function sendDueReminders(
             parse_mode: "HTML",
             reply_markup: button ? keyboard([[button]]) : undefined,
           });
-          if (reached === 0) noteDelivery(meeting, chat, start);
+          if (reached === 0) noteDelivery(meeting, minutes, start);
           reached += 1;
         } catch {
           // Человек не запускал бота или заблокировал его.
@@ -758,9 +834,9 @@ export async function sendDueReminders(
 
     try {
       await sendMessage({
-        chat_id: meeting.chatId,
+        chat_id: chat.chatId,
         text: t(chat.lang, "meeting_reminder", {
-          minutes: chat.reminderMin,
+          minutes,
           when: escapeHtml(when) || "—",
           place: escapeHtml(meeting.place) || "—",
           goal: escapeHtml(meeting.goal) || "—",
@@ -768,7 +844,7 @@ export async function sendDueReminders(
         }),
         parse_mode: "HTML",
       });
-      noteDelivery(meeting, chat, start);
+      noteDelivery(meeting, minutes, start);
       sent += 1;
     } catch {
       // Чат мог быть удалён или бота выгнали — молча пропускаем (в консоли — «не дошло»).

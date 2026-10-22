@@ -432,3 +432,62 @@
     opacity: 0.55;
   }
 }
+
+/* --- «Как это работает»: тихая строка над разделом ---
+   Свёрнута, пока её не откроют, и не спорит с содержимым: мелкий серый
+   текст без рамки и заливки. Раскрытая — короткий нумерованный список. */
+.howto {
+  margin: 0 0 14px;
+  max-width: 76ch;
+}
+.howto-head {
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 2px 8px;
+  margin-left: -8px;
+  border-radius: var(--r-md);
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 18px;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 150ms var(--ease), color 150ms var(--ease);
+}
+.howto-head::-webkit-details-marker {
+  display: none;
+}
+.howto-head:hover,
+.howto[open] > .howto-head {
+  color: var(--text);
+}
+.howto-head:hover {
+  background: var(--hover);
+}
+.howto-icon {
+  transition: rotate var(--dur-base) var(--ease);
+}
+.howto[open] .howto-icon {
+  rotate: 90deg;
+}
+.howto-steps {
+  display: grid;
+  gap: 4px;
+  margin: 6px 0 0;
+  padding: 0 0 0 22px;
+  list-style: decimal;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 19px;
+}
+.howto-steps li::marker {
+  font-variant-numeric: tabular-nums;
+}
+@media (pointer: coarse) {
+  .howto-head {
+    min-height: 44px;
+  }
+}
+

@@ -4,37 +4,43 @@ import { notFound, redirect } from "next/navigation";
 import { ConfirmSubmit } from "@/components/ConfirmSubmit";
 import { CopyButton } from "@/components/CopyButton";
 import { FlashToast } from "@/components/FlashToast";
+import { type PlanDayView, PairPlanner } from "@/components/friends/PairPlanner";
 import { PersonAvatar } from "@/components/friends/PersonAvatar";
-import { ShareButton } from "@/components/friends/ShareButton";
-import { IconChevronLeft, IconChevronRight, IconMore, IconSend, IconUserPlus } from "@/components/icons";
+import { HowToHint } from "@/components/HowToHint";
+import { IconChevronLeft, IconChevronRight, IconMore, IconUserPlus } from "@/components/icons";
+import { MeetingCard } from "@/components/MeetingCard";
 import { Menu } from "@/components/Menu";
+import { ScrollToAnchor } from "@/components/ScrollToAnchor";
 import { Topbar } from "@/components/Topbar";
-import { fmtInterval } from "@/core/intervals";
-import { type DateStr, formatDM, utcToZonedWall, weekdayOf } from "@/core/timeutils";
+import { type Interval, fmtInterval } from "@/core/intervals";
+import { planDays } from "@/core/pairPlan";
+import { occurrencesBetween } from "@/core/recurrence";
+import { type DateStr, addDays, formatDM, todayIn, utcToZonedWall, weekdayOf, zonedWallToUtc } from "@/core/timeutils";
 import * as repo from "@/db/repo";
 import { displayName } from "@/db/schema";
 import { tn, translator, weekdayShort } from "@/i18n";
 import { defaultTz } from "@/lib/config";
 import * as friends from "@/lib/friends";
 import { loginUrl, pageUser } from "@/lib/gate";
-import { baseUrl } from "@/lib/url";
-import { askToJoinAction, blockUserAction, inviteFriendsAction, removeFriendAction } from "../actions";
+import { meetingDurationMin } from "@/lib/group";
+import {
+  askToJoinAction,
+  blockUserAction,
+  createPairMeetingAction,
+  inviteFriendsAction,
+  removeFriendAction,
+} from "../actions";
 import { friendFlash } from "../flash";
 
 export const dynamic = "force-dynamic";
 
-const SPAN = friends.TOGETHER.dayEnd - friends.TOGETHER.dayStart;
-/** Где на полоске дня стоит время: доля от 8:00 до 22:00. */
-const at = (minutes: number) => `${((minutes - friends.TOGETHER.dayStart) / SPAN) * 100}%`;
-/** Подписи шкалы над полосками. */
-const TICKS = [8, 12, 16, 20, 22];
-
 /**
- * Карточка друга. В шапке — главные действия: «Позвать в группу» (сразу
- * список групп) и «⋯» (удалить, заблокировать). Ниже — группы: общие (строка
- * ведёт в группу) и те, куда можно попроситься; рядом — когда вы оба
- * свободны, полосками дня. Не друг — «не найдено»: по адресу нельзя узнать,
- * есть ли такой человек.
+ * Карточка друга. В шапке — «Позвать в группу» (сразу список групп) и «⋯»
+ * (удалить, заблокировать). Главное ниже — встречи вдвоём: ваши ближайшие
+ * (ответить, отменить) и «Встреча с …» — выбор времени по общим окнам,
+ * приглашение уходит другу в Telegram карточкой с кнопками, как у встреч
+ * группы. Сбоку — группы: общие и те, куда можно попроситься. Не друг —
+ * «не найдено»: по адресу нельзя узнать, есть ли такой человек.
  */
 export default async function FriendPage({
   params,
@@ -58,15 +64,18 @@ export default async function FriendPage({
   const t = translator(lang);
   const tz = defaultTz();
   const now = new Date();
+  const today = todayIn(tz, now);
 
-  const [groups, free, shared, mine, avatar, list] = await Promise.all([
+  const [groups, free, shared, mine, avatar, list, together] = await Promise.all([
     friends.friendGroups(me, friend, rel),
     friends.freeTogether(me, friend, now, rel),
     repo.sharedGroups(me.userId, friend.userId),
     repo.groupsOfUser(me.userId),
     repo.avatarVersion(friend.userId),
     repo.friendsOf(me.userId),
+    repo.pairMeetingsBetween(me.userId, friend.userId, now, today),
   ]);
+  const answers = await repo.meetingResponsesForMany([...together.upcoming, ...together.past].map((meeting) => meeting.id));
   const since = list.find((entry) => entry.user.userId === friend.userId)?.since;
   // Куда можно позвать: мои группы без него; с живым приглашением — отдельно.
   const sharedIds = new Set(shared.map((group) => group.chatId));
@@ -79,19 +88,52 @@ export default async function FriendPage({
   }
   const others = groups.groups.filter((group) => !group.mine);
   const name = displayName(friend);
+  const names = new Map([
+    [me.userId, displayName(me)],
+    [friend.userId, name],
+  ]);
   const flash = friendFlash(t, query.fr);
   const dayLabel = (day: DateStr) => `${weekdayShort(lang, weekdayOf(day))} ${formatDM(day)}`;
-  const freeDays = free.status === "ok" ? free.days : [];
+
+  // План встречи: две недели по дням — общие окна (или «неизвестно») и уже
+  // назначенные встречи с ним, у серии — каждый повтор.
+  const planStart = zonedWallToUtc(today, 0, tz);
+  const planEnd = zonedWallToUtc(addDays(today, 14), 0, tz);
+  const booked = new Map<DateStr, Interval[]>();
+  for (const meeting of together.upcoming) {
+    if (!meeting.whenStart) continue;
+    const length = meetingDurationMin(meeting, tz);
+    for (const start of occurrencesBetween(meeting.whenStart, meeting.repeatUntil, tz, planStart, planEnd)) {
+      const { day, minutes } = utcToZonedWall(start, tz);
+      booked.set(day, [...(booked.get(day) ?? []), [minutes, Math.min(minutes + length, 24 * 60)]]);
+    }
+  }
+  const freeDays = new Map(free.status === "ok" ? free.days.map((entry) => [entry.day, entry.windows]) : []);
+  const planView: PlanDayView[] = planDays(today).map((day) => ({
+    day,
+    label: dayLabel(day),
+    windows: free.status === "ok" ? [...(freeDays.get(day) ?? [])] : null,
+    meetings: booked.get(day) ?? [],
+  }));
+  const freeNote =
+    free.status === "hidden"
+      ? t("w_fr_free_hidden")
+      : free.status === "missing"
+        ? free.me
+          ? t("w_fr_free_missing_me")
+          : t("w_fr_free_missing", { name })
+        : null;
   const freeText = [
     t("w_fr_free_copy_head", { name }),
-    ...freeDays
+    ...(free.status === "ok" ? free.days : [])
       .filter((entry) => entry.windows.length > 0)
       .map((entry) => `${dayLabel(entry.day)}: ${entry.windows.map((window) => fmtInterval(window)).join(", ")}`),
   ].join("\n");
-  const anyFree = freeDays.some((entry) => entry.windows.length > 0);
+  const anyFree = free.status === "ok" && free.days.some((entry) => entry.windows.length > 0);
 
   return (
     <>
+      <ScrollToAnchor id={typeof query.at === "string" ? query.at : null} />
       <Topbar lang={lang} />
       <main className="wrap fr-page">
         <Link className="btn btn-sm btn-quiet fr-back" href="/friends">
@@ -115,12 +157,13 @@ export default async function FriendPage({
             </div>
           </div>
           <div className="fr-head-actions">
+            {/* Главное действие страницы — встреча ниже, поэтому здесь кнопка вторичная. */}
             {invitable.length + pending.length > 0 ? (
               <Menu
                 label={t("w_fr_invite_menu")}
                 text={t("w_fr_invite_menu")}
                 icon={<IconUserPlus size={16} />}
-                className="btn btn-sm btn-primary"
+                className="btn btn-sm"
               >
                 <p className="menu-title small muted">{t("w_fr_invite_pick")}</p>
                 {invitable.map((group) => (
@@ -161,9 +204,89 @@ export default async function FriendPage({
           </div>
         </header>
         <FlashToast message={flash.message} tone={flash.tone} params={["fr"]} />
+        <HowToHint id="friend" lang={lang} />
 
         <div className="split">
-          <section className="card split-main">
+          <div className="split-main split-stack">
+            {(together.upcoming.length > 0 || together.past.length > 0) && (
+              <section className="card" id="meetings">
+                <h2>{t("w_pair_meetings")}</h2>
+                {together.upcoming.map((meeting) => (
+                  <MeetingCard
+                    key={meeting.id}
+                    target={{ friendId: friend.userId }}
+                    lang={lang}
+                    tz={tz}
+                    meeting={meeting}
+                    answers={answers.get(meeting.id) ?? []}
+                    names={names}
+                    invitees={repo.inviteeIds(meeting)}
+                    viewerId={me.userId}
+                    canManage={meeting.initiatorId === me.userId}
+                  />
+                ))}
+                {together.past.length > 0 && (
+                  <details className="past-meetings">
+                    <summary className="small muted">{t("w_past_meetings", { n: together.past.length })}</summary>
+                    {together.past.map((meeting) => (
+                      <MeetingCard
+                        key={meeting.id}
+                        target={{ friendId: friend.userId }}
+                        lang={lang}
+                        tz={tz}
+                        meeting={meeting}
+                        answers={answers.get(meeting.id) ?? []}
+                        names={names}
+                        invitees={repo.inviteeIds(meeting)}
+                        viewerId={me.userId}
+                        canManage={false}
+                        past
+                      />
+                    ))}
+                  </details>
+                )}
+              </section>
+            )}
+
+            <section className="card fr-free-card" id="plan">
+              <h2>{t("w_pair_title")}</h2>
+              <p className="small muted">{freeNote ?? t("w_pair_lead")}</p>
+              <PairPlanner
+                days={planView}
+                today={today}
+                todayFrom={utcToZonedWall(now, tz).minutes}
+                action={createPairMeetingAction.bind(null, friend.userId)}
+                extra={
+                  anyFree ? (
+                    <CopyButton value={freeText} label={t("w_fr_free_copy")} copiedLabel={t("w_copied")} small />
+                  ) : null
+                }
+                labels={{
+                  duration: t("w_duration"),
+                  week: t("w_pair_week"),
+                  suggest: t("w_pair_suggest"),
+                  day: t("w_pair_day"),
+                  start: t("w_pair_start"),
+                  choose: t("w_pair_choose"),
+                  dayNone: t("w_fr_free_day_none"),
+                  dayShort: t("w_pair_day_short"),
+                  anyTime: t("w_pair_any_time"),
+                  goal: t("w_goal"),
+                  goalPh: t("w_goal_ph"),
+                  place: t("w_place"),
+                  placePh: t("w_place_ph"),
+                  repeat: t("w_repeat"),
+                  repeatUntil: t("w_repeat_until"),
+                  submit: t("w_pair_submit"),
+                  durationTemplate: t("w_duration_hm", { h: "{h}", m: "{m}" }),
+                  hoursOnlyTemplate: t("w_duration_h", { h: "{h}" }),
+                  minutesTemplate: t("w_duration_m", { m: "{m}" }),
+                }}
+              />
+            </section>
+          </div>
+
+          <section className="card split-side">
             <h2>{t("w_fr_groups_of", { name })}</h2>
             {shared.length > 0 && (
               <>
@@ -224,61 +347,6 @@ export default async function FriendPage({
             ) : shared.length === 0 ? (
               <p className="small muted fr-sub-note">{t("w_fr_groups_none")}</p>
             ) : null}
-          </section>
-
-          <section className="card split-side fr-free-card">
-            <h2>{t("w_fr_free_title")}</h2>
-            <p className="small muted">{t("w_fr_free_lead")}</p>
-            {free.status === "hidden" ? (
-              <p className="small muted">{t("w_fr_free_hidden")}</p>
-            ) : free.status === "missing" ? (
-              <p className="small muted">{free.me ? t("w_fr_free_missing_me") : t("w_fr_free_missing", { name })}</p>
-            ) : (
-              <>
-                <div className="fr-axis" aria-hidden="true">
-                  {TICKS.map((hour) => (
-                    <span key={hour} style={{ left: at(hour * 60) }}>
-                      {hour}
-                    </span>
-                  ))}
-                </div>
-                <ul className="fr-days">
-                  {free.days.map((entry) => (
-                    <li key={entry.day}>
-                      <span className="fr-day">{dayLabel(entry.day)}</span>
-                      {/* Полоска дня 8–22: закрашено время, когда свободны оба. Числа — рядом. */}
-                      <span className="fr-strip" aria-hidden="true">
-                        {entry.windows.map(([start, end]) => (
-                          <i key={start} style={{ left: at(start), width: `${((end - start) / SPAN) * 100}%` }} />
-                        ))}
-                      </span>
-                      <span className={entry.windows.length ? "fr-day-times" : "fr-day-times muted"}>
-                        {entry.windows.length
-                          ? entry.windows.map((window) => fmtInterval(window)).join(", ")
-                          : t("w_fr_free_day_none")}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-                {anyFree ? (
-                  <div className="fr-free-actions">
-                    <ShareButton
-                      via="telegram"
-                      url={`${await baseUrl()}/friends/${me.userId}`}
-                      text={freeText}
-                      label={t("w_fr_free_tg")}
-                      copied={t("w_copied")}
-                      className="btn btn-sm"
-                    >
-                      <IconSend size={16} />
-                    </ShareButton>
-                    <CopyButton value={freeText} label={t("w_fr_free_copy")} copiedLabel={t("w_copied")} small />
-                  </div>
-                ) : (
-                  <p className="small muted">{t("w_fr_free_none")}</p>
-                )}
-              </>
-            )}
           </section>
         </div>
       </main>

@@ -7,6 +7,7 @@ import { AppShell } from "@/components/AppShell";
 import { Board } from "@/components/board/Board";
 import { ConfirmSubmit } from "@/components/ConfirmSubmit";
 import { FlashToast } from "@/components/FlashToast";
+import { HowToHint } from "@/components/HowToHint";
 import { GroupTabs, type GroupTabKey } from "@/components/GroupTabs";
 import { CopyButton } from "@/components/CopyButton";
 import { IconMore } from "@/components/icons";
@@ -322,6 +323,7 @@ export default async function GroupPage({
           panels={{
             time: (
               <>
+                <HowToHint id="board" lang={lang} />
                 <Board
                   slug={slug}
                   initial={payload}
@@ -392,6 +394,8 @@ export default async function GroupPage({
             meetings: (
               // Слева встречи, справа «Новая встреча» и календарь группы. На телефоне
               // одна колонка: сперва кнопка новой встречи, потом список, календарь в конце.
+              <>
+              <HowToHint id="meetings" lang={lang} />
               <div className="split meetings-split">
                 <section className="card split-new">
                   {/* На широком экране форма сразу раскрыта: место справа всё равно пустует. */}
@@ -428,7 +432,7 @@ export default async function GroupPage({
                   {upcomingMeetings.map((meeting) => (
                     <MeetingCard
                       key={meeting.id}
-                      slug={slug}
+                      target={{ slug }}
                       lang={lang}
                       tz={tz}
                       meeting={meeting}
@@ -449,7 +453,7 @@ export default async function GroupPage({
                       {archivedMeetings.map((meeting) => (
                         <MeetingCard
                           key={meeting.id}
-                          slug={slug}
+                          target={{ slug }}
                           lang={lang}
                           tz={tz}
                           meeting={meeting}
@@ -491,8 +495,11 @@ export default async function GroupPage({
                   </div>
                 </section>
               </div>
+              </>
             ),
             members: (
+              <>
+              <HowToHint id="members" lang={lang} />
               <div className="split">
                 {/* ============ участники ============ */}
                 <section className="card split-main" id="members">
@@ -746,8 +753,11 @@ export default async function GroupPage({
                   )}
                 </section>
               </div>
+              </>
             ),
             settings: (
+              <>
+              <HowToHint id="settings" lang={lang} />
               <div className="split">
                 {/* ============ настройки ============ */}
                 <section className="card split-main">
@@ -885,6 +895,7 @@ export default async function GroupPage({
                 </section>
               </div>
               </div>
+              </>
             ),
           }}
         />

@@ -35,6 +35,7 @@ import {
   requestVerdict,
 } from "@/core/friends";
 import type { Interval } from "@/core/intervals";
+import { PAIR_PLAN } from "@/core/pairPlan";
 import { type DateStr, todayIn, utcToZonedWall } from "@/core/timeutils";
 import * as repo from "@/db/repo";
 import type { Chat, User } from "@/db/schema";
@@ -207,18 +208,21 @@ export async function cancelRequest(me: User, requestId: number): Promise<"cance
   return (await repo.cancelFriendRequest(requestId, me.userId)) ? "cancelled" : "gone";
 }
 
-/** Удалить из друзей: заодно гаснут живые приглашения между ними. */
+/** Удалить из друзей: заодно гаснут живые приглашения и встречи вдвоём между ними. */
 export async function removeFriend(me: User, otherId: number): Promise<"removed" | "gone"> {
   return repo.transaction(async (tx) => {
     const removed = await repo.removeFriendship(me.userId, otherId, tx);
-    if (removed) await repo.cancelInvitesBetween(me.userId, otherId, tx);
+    if (removed) {
+      await repo.cancelInvitesBetween(me.userId, otherId, tx);
+      await repo.cancelPairMeetingsBetween(me.userId, otherId, tx);
+    }
     return removed ? "removed" : "gone";
   });
 }
 
 /**
- * Заблокировать: дружба рвётся, живые заявки и приглашения в обе стороны
- * гаснут. Заблокированному ничего не сообщается.
+ * Заблокировать: дружба рвётся, живые заявки, приглашения и встречи вдвоём в
+ * обе стороны гаснут. Заблокированному ничего не сообщается.
  */
 export async function blockUser(me: User, otherId: number): Promise<"blocked_done" | "self" | "gone"> {
   if (otherId === me.userId) return "self";
@@ -229,6 +233,7 @@ export async function blockUser(me: User, otherId: number): Promise<"blocked_don
     await repo.removeFriendship(me.userId, otherId, tx);
     await repo.cancelRequestsBetween(me.userId, otherId, tx);
     await repo.cancelInvitesBetween(me.userId, otherId, tx);
+    await repo.cancelPairMeetingsBetween(me.userId, otherId, tx);
   });
   return "blocked_done";
 }
@@ -491,13 +496,22 @@ export type FreeTogether =
   /** Все дни недели по порядку, и без общих окон: полоска дня показывает и пустые. */
   | { status: "ok"; tz: string; days: { day: DateStr; windows: Interval[] }[] };
 
-/** Сколько вперёд и какие окна предлагаем двоим: неделя, 8–22, от часа. */
-export const TOGETHER = { daysAhead: 7, dayStart: 8 * 60, dayEnd: 22 * 60, minSlot: 60 };
+/**
+ * Сколько вперёд и какие окна предлагаем двоим: две недели плана встречи
+ * (core/pairPlan), 8–22, от получаса — короче встречу не назначить.
+ */
+export const TOGETHER = {
+  daysAhead: PAIR_PLAN.daysAhead,
+  dayStart: PAIR_PLAN.dayStart,
+  dayEnd: PAIR_PLAN.dayEnd,
+  minSlot: Math.min(...PAIR_PLAN.durations),
+};
 
 /**
- * Когда оба свободны на неделе — то же ядро, что у групп, только на двоих и
- * в поясе по умолчанию (Asia/Almaty). Только для друзей и если оба не против
- * (friends_see_free). Занятость друга наружу не уходит — только общие окна.
+ * Когда оба свободны на две недели вперёд — то же ядро, что у групп, только
+ * на двоих и в поясе по умолчанию (Asia/Almaty). Только для друзей и если оба
+ * не против (friends_see_free). Занятость друга наружу не уходит — только
+ * общие окна.
  */
 export async function freeTogether(me: User, friend: User, now = new Date(), rel?: Relation): Promise<FreeTogether> {
   const relation = rel ?? (await relationOf(me.userId, friend.userId));

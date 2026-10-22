@@ -6,9 +6,13 @@ import { translator } from "@/i18n";
 import { currentUser } from "@/lib/auth";
 import { hasBot } from "@/lib/config";
 import { THEME_COOKIE, normalizeTheme } from "@/lib/theme";
-import type { ProfileGroup, ProfilePanelProps, ProfileUser } from "./ProfilePanel";
+import type { GroupNextMeeting, ProfileGroup, ProfilePanelProps, ProfileUser } from "./ProfilePanel";
 import { RECENT_COOKIE, parseRecent } from "@/lib/cookies";
-import { upcomingByChat } from "@/core/recurrence";
+import { defaultTz } from "@/lib/config";
+import { pairPartner } from "@/core/pairPlan";
+import { nextOccurrence, upcomingByChat } from "@/core/recurrence";
+import type { DateStr } from "@/core/timeutils";
+import { howtoOpen, howtoSteps } from "./HowToHint";
 import { addDays, chatTz, formatDM, startsSoon, todayIn, utcToZonedWall, weekdayOf } from "@/core/timeutils";
 import { fmtMinutes } from "@/core/intervals";
 import { weekdayShort } from "@/i18n";
@@ -25,14 +29,17 @@ export async function profilePanelProps(langOverride?: string): Promise<ProfileP
   let profile: ProfileUser | null = null;
   let groups: ProfileGroup[] = [];
   let friendsBadge = 0;
+  let pairs: GroupNextMeeting[] = [];
   if (user) {
-    const [credentials, avatar, userGroupList, waiting] = await Promise.all([
+    const [credentials, avatar, userGroupList, waiting, withFriends] = await Promise.all([
       repo.getCredentials(user.userId),
       repo.avatarVersion(user.userId),
       userGroups(user.userId, lang),
       user.isWeb ? Promise.resolve(0) : repo.friendBadge(user.userId, new Date()),
+      user.isWeb ? Promise.resolve([]) : friendMeetings(user.userId, lang),
     ]);
     friendsBadge = waiting;
+    pairs = withFriends;
     profile = {
       name: displayName(user),
       realName: user.realName,
@@ -52,6 +59,8 @@ export async function profilePanelProps(langOverride?: string): Promise<ProfileP
     theme,
     botEnabled: hasBot(),
     friendsBadge,
+    friendMeetings: pairs,
+    howto: user ? { title: t("w_howto"), steps: howtoSteps(lang, "profile"), open: await howtoOpen("profile") } : undefined,
     labels: {
     profile: t("w_profile"),
     close: t("w_close"),
@@ -139,6 +148,7 @@ export async function userGroups(userId: number, lang: string): Promise<ProfileG
           const soon = startsSoon(start, now);
           return {
             id: meeting.id,
+            href: `/g/${chat.slug}?at=meeting-${meeting.id}`,
             when: nextWhen(start, tzOf(chat.chatId), now, lang, t),
             soon: soon ? t(soon.unit === "min" ? "w_in_minutes" : "w_in_hours", { n: soon.n }) : null,
             about: [meeting.goal, meeting.place]
@@ -155,6 +165,55 @@ export async function userGroups(userId: number, lang: string): Promise<ProfileG
       };
     })
     .sort((a, b) => rank(a.slug) - rank(b.slug) || a.title.localeCompare(b.title, lang));
+}
+
+/**
+ * Предстоящие встречи вдвоём с друзьями, ближайшая первой: те же поля, что у
+ * встреч группы в сайдбаре, плюс «с Асель» в начале «о чём». Строка ведёт на
+ * карточку друга, к этой встрече.
+ */
+export async function friendMeetings(userId: number, lang: string): Promise<GroupNextMeeting[]> {
+  const now = new Date();
+  const tz = defaultTz();
+  const t = translator(lang);
+  const pairs = await repo.pairMeetingsOf(userId, now);
+  if (pairs.length === 0) return [];
+  const [answers, partners] = await Promise.all([
+    repo.meetingResponsesForMany(pairs.map((meeting) => meeting.id)),
+    repo.usersByIds(pairs.map((meeting) => pairPartner(meeting, userId) ?? 0)),
+  ]);
+  const rows: { start: Date; row: GroupNextMeeting }[] = [];
+  for (const meeting of pairs) {
+    if (!meeting.whenStart) continue;
+    const start = meeting.repeatUntil
+      ? nextOccurrence(meeting.whenStart, meeting.repeatUntil as DateStr, tz, now)
+      : meeting.whenStart > now
+        ? meeting.whenStart
+        : null;
+    const partnerId = pairPartner(meeting, userId);
+    const partner = partnerId !== null ? partners.get(partnerId) : undefined;
+    if (!start || !partner) continue;
+    const replies = answers.get(meeting.id) ?? [];
+    const soon = startsSoon(start, now);
+    rows.push({
+      start,
+      row: {
+        id: meeting.id,
+        href: `/friends/${partner.userId}?at=meeting-${meeting.id}`,
+        when: nextWhen(start, tz, now, lang, t),
+        soon: soon ? t(soon.unit === "min" ? "w_in_minutes" : "w_in_hours", { n: soon.n }) : null,
+        // Строка стоит под «Друзьями» — имя друга первым, без предлога: имена не склоняем.
+        about: [displayName(partner), meeting.goal.trim(), meeting.place.trim()]
+          .filter(Boolean)
+          .join(" · "),
+        going: replies.filter((reply) => reply.answer === "yes").length,
+        invited: 2,
+        awaiting: meeting.withUser === userId && !replies.some((reply) => reply.userId === userId),
+        today: utcToZonedWall(start, tz).day === todayIn(tz, now),
+      },
+    });
+  }
+  return rows.sort((a, b) => a.start.getTime() - b.start.getTime()).map(({ row }) => row);
 }
 
 /** «Сегодня, 15:00», «Завтра, 15:00» или «Чт 24.09, 15:00» — в поясе группы. */

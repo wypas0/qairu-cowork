@@ -100,7 +100,8 @@ export function weeklyRule(repeatUntil: DateStr, tz: string): string {
 /** Встреча в том виде, которого хватает, чтобы найти её ближайший повтор. */
 export type TimedMeeting = {
   id: number;
-  chatId: number;
+  /** null — встреча вдвоём с другом: под группами её нет. */
+  chatId: number | null;
   whenStart: Date | null;
   repeatUntil: DateStr | null;
 };
@@ -117,7 +118,7 @@ export function upcomingByChat<M extends TimedMeeting>(
 ): Map<number, { meeting: M; start: Date }[]> {
   const result = new Map<number, { meeting: M; start: Date }[]>();
   for (const meeting of meetings) {
-    if (!meeting.whenStart) continue;
+    if (!meeting.whenStart || meeting.chatId === null) continue;
     const start = meeting.repeatUntil
       ? nextOccurrence(meeting.whenStart, meeting.repeatUntil, tzOf(meeting.chatId), now)
       : meeting.whenStart > now

@@ -19,6 +19,12 @@ const GOOD = new Set([
   "joined",
   "approved",
   "restored",
+  "meeting_sent",
+  "meeting_site",
+  "answered",
+  "meeting_cancelled",
+  "pinged",
+  "ping_site",
 ]);
 
 /**

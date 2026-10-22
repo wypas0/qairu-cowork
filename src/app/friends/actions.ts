@@ -8,6 +8,7 @@ import * as repo from "@/db/repo";
 import type { User } from "@/db/schema";
 import { safeNext } from "@/lib/auth";
 import * as friends from "@/lib/friends";
+import * as pairMeetings from "@/lib/pairMeetings";
 import { requireTelegramUser } from "@/lib/gate";
 import { isSameOriginPost } from "@/lib/secFetch";
 
@@ -172,4 +173,56 @@ export async function askToJoinAction(formData: FormData): Promise<void> {
   const friendId = idOf(formData, "friend");
   const chatId = idOf(formData, "chat");
   done(back, friendId === null || chatId === null ? "gone" : await friends.askToJoin(me, friendId, chatId));
+}
+
+// --------------------------------------------------------------------------
+// Встреча вдвоём (lib/pairMeetings): назначить, ответить, отменить, напомнить
+// --------------------------------------------------------------------------
+
+/** Назад на карточку друга — к нужной встрече (`at`, см. ScrollToAnchor). */
+function toFriend(friendId: number, code: string, meetingId?: number): never {
+  const path = `/friends/${friendId}${meetingId ? `?at=meeting-${meetingId}` : ""}`;
+  done(path, code);
+}
+
+/** «Позвать <имя>» под выбором времени на карточке друга. */
+export async function createPairMeetingAction(friendId: number, formData: FormData): Promise<void> {
+  const me = await actor(`/friends/${friendId}`);
+  const outcome = await pairMeetings.createPairMeeting(me, friendId, {
+    when: String(formData.get("when") ?? ""),
+    goal: String(formData.get("goal") ?? ""),
+    place: String(formData.get("place") ?? ""),
+    repeat: formData.get("repeat") === "on",
+    repeatUntil: String(formData.get("repeat_until") ?? ""),
+  });
+  toFriend(friendId, outcome.code, "meeting" in outcome ? outcome.meeting.id : undefined);
+}
+
+export async function answerPairMeetingAction(friendId: number, meetingId: number, formData: FormData): Promise<void> {
+  const me = await actor(`/friends/${friendId}`);
+  const code = await pairMeetings.answerPairMeeting(
+    me,
+    meetingId,
+    String(formData.get("answer") ?? ""),
+    String(formData.get("comment") ?? ""),
+  );
+  toFriend(friendId, code, meetingId);
+}
+
+/** Ответ прямо из «Друзья → Заявки»: туда же и вернуться. */
+export async function answerPairInviteAction(formData: FormData): Promise<void> {
+  const back = "/friends?tab=requests";
+  const me = await actor(back);
+  const id = idOf(formData, "id");
+  done(back, id === null ? "gone" : await pairMeetings.answerPairMeeting(me, id, String(formData.get("answer") ?? ""), ""));
+}
+
+export async function cancelPairMeetingAction(friendId: number, meetingId: number): Promise<void> {
+  const me = await actor(`/friends/${friendId}`);
+  toFriend(friendId, await pairMeetings.cancelPairMeeting(me, meetingId), meetingId);
+}
+
+export async function pingPairMeetingAction(friendId: number, meetingId: number): Promise<void> {
+  const me = await actor(`/friends/${friendId}`);
+  toFriend(friendId, await pairMeetings.pingPairMeeting(me, meetingId), meetingId);
 }

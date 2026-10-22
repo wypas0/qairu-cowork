@@ -84,7 +84,7 @@ export async function AppShell({
             group.slug === slug ? (
               <div className="sidebar-current" key={group.chatId}>
                 <GroupLink group={group} current pendingLabel={t("w_pending_label", { n: String(group.pending ?? 0) })} />
-                <GroupMeetings group={group} open labels={meetingLabels} />
+                <GroupMeetings meetings={group.meetings} open labels={meetingLabels} />
                 <div className="sidebar-sub">
                   {links.map((link) => (
                     <Link
@@ -103,7 +103,7 @@ export async function AppShell({
             ) : (
               <div className="sidebar-item" key={group.chatId}>
                 <GroupLink group={group} pendingLabel={t("w_pending_label", { n: String(group.pending ?? 0) })} />
-                <GroupMeetings group={group} open={false} labels={meetingLabels} />
+                <GroupMeetings meetings={group.meetings} open={false} labels={meetingLabels} />
               </div>
             ),
           )}
@@ -114,14 +114,18 @@ export async function AppShell({
           <span className="sidebar-label">{t("w_pp_create")}</span>
         </Link>
         {panel.user && (
-          <FriendsLink
-            label={t("w_fr_title")}
-            count={panel.friendsBadge ?? 0}
-            countLabel={t("w_fr_waiting_label", { n: String(panel.friendsBadge ?? 0) })}
-          />
+          <>
+            <FriendsLink
+              label={t("w_fr_title")}
+              count={panel.friendsBadge ?? 0}
+              countLabel={t("w_fr_waiting_label", { n: String(panel.friendsBadge ?? 0) })}
+            />
+            {/* Встречи вдвоём с друзьями — под «Друзьями», тем же видом, что встречи групп. */}
+            <GroupMeetings meetings={panel.friendMeetings} open={false} labels={meetingLabels} />
+          </>
         )}
 
-        <SidebarToday lang={lang} slug={slug} groups={panel.groups} />
+        <SidebarToday lang={lang} slug={slug} groups={panel.groups} friendMeetings={panel.friendMeetings} />
 
         <div className="sidebar-foot">
           <ProfilePanel {...panel} />

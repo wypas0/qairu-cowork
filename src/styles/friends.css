@@ -406,11 +406,119 @@ img.fr-avatar {
   line-height: 18px;
   font-variant-numeric: tabular-nums;
 }
-.fr-free-actions {
+
+/* --- встреча вдвоём: длина, неделя, готовые варианты, день, начало ---
+   День — строка-кнопка с той же полоской 8–22; выбранная строка тихо
+   залита, под ней — кнопки начала. На полоске: синим — оба свободны,
+   розовым (--meeting) — ваши встречи, ink — выбранное время. */
+.pp-form {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+}
+.pp-form .field {
+  margin: 0;
+}
+.pp-form > .label {
+  margin: 0 0 -10px;
+}
+.pp-controls {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 16px;
+  gap: 12px 24px;
+}
+.pp-form .fr-axis {
+  margin: 0 10px -10px calc(var(--fr-day-w) + 22px);
+}
+.pp-days {
+  display: grid;
+  gap: 2px;
+}
+.pp-day-row {
+  border-radius: var(--r-lg);
+}
+.pp-day-row.selected {
+  background: var(--seg-fill);
+}
+.pp-day {
+  display: grid;
+  grid-template-columns: var(--fr-day-w) 1fr;
+  align-items: center;
+  gap: 4px 12px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--r-lg);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.pp-day:hover:not(:disabled) {
+  background: var(--hover);
+}
+.pp-day:disabled {
+  cursor: default;
+}
+.pp-day:disabled .fr-day,
+.pp-day:disabled .fr-strip {
+  opacity: 0.55;
+}
+.pp-day[aria-checked="true"] .fr-day {
+  color: var(--text);
+  font-weight: 600;
+}
+.fr-strip.unknown {
+  opacity: 0.6;
+}
+.fr-strip i.meet {
+  background: var(--meeting);
+}
+.fr-strip i.chosen {
+  background: var(--ink);
+}
+.pp-starts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 2px 10px 12px calc(var(--fr-day-w) + 22px);
+}
+.pp-starts .daychip {
+  height: 32px;
+  padding: 0 12px;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 520px) {
+  .pp-starts {
+    padding-left: 10px;
+  }
+}
+@media (pointer: coarse) {
+  .pp-day {
+    min-height: 44px;
+  }
+  .pp-starts .daychip {
+    height: 44px;
+  }
+}
+.pp-chosen {
+  margin: 0;
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.pp-chosen.muted {
+  font-weight: 500;
+}
+.pp-fields {
+  display: grid;
+  gap: 12px 16px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+.pp-form .dated-actions {
+  margin-top: 0;
 }
 
 /* --- страница группы: «⋯» у участника и «Позвать друзей» --- */

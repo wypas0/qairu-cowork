@@ -127,6 +127,63 @@ test.describe("друзья", () => {
     await expect(page).toHaveURL(new RegExp(`/friends/${ASEL}$`));
   });
 
+  test("встреча вдвоём: выбор кнопками, у Асель — в «Заявках», ответ и отмена", async ({ page, context }) => {
+    page.on("dialog", (dialog) => void dialog.accept());
+    await page.goto(`/friends/${ASEL}`);
+    const plan = page.locator("#plan");
+    await expect(plan.getByRole("heading", { name: "Встреча вдвоём" })).toBeVisible();
+    // Пока не выбрано время, звать нельзя — и выбранного ничего не показано.
+    const submit = plan.getByRole("button", { name: "Позвать на встречу" });
+    await expect(submit).toBeDisabled();
+    await plan.getByRole("radiogroup", { name: "Длительность встречи" }).getByRole("radio", { name: "30 мин", exact: true }).click();
+    // Вторая неделя: там точно нет «сегодня, уже поздно».
+    await plan.getByRole("radiogroup", { name: "Неделя" }).getByRole("radio").nth(1).click();
+    const day = plan.locator(".pp-day:not([disabled])").first();
+    await day.click();
+    await expect(day).toHaveAttribute("aria-checked", "true");
+    const start = plan.locator(".pp-starts").getByRole("radio").first();
+    const time = (await start.innerText()).trim();
+    await start.click();
+    await expect(plan.locator(".pp-chosen")).toContainText(time);
+    await plan.getByLabel("Цель").fill("Кофе и курсач");
+    await submit.click();
+    // В e2e бота нет — приглашение ждёт Асель на сайте.
+    await expect(page.locator(".toast")).toContainText("Встреча назначена");
+    const meetings = page.locator("#meetings");
+    await expect(meetings).toContainText("Кофе и курсач");
+    await expect(meetings).toContainText(time);
+
+    await as(context, "asel");
+    await page.goto("/friends");
+    await expect(page.getByRole("tab", { name: /^Заявки/ })).toHaveAttribute("aria-selected", "true");
+    const invite = page.locator(".fr-row", { hasText: "зовёт на встречу «Кофе и курсач»" });
+    await expect(invite).toContainText(time);
+    await invite.getByRole("button", { name: "Да" }).click();
+    await expect(page.locator(".toast")).toContainText("Ответ сохранён");
+    await expect(page.locator(".fr-row", { hasText: "Кофе и курсач" })).toHaveCount(0);
+    await page.goto(`/friends/${AMIR}`);
+    await expect(page.locator("#meetings .daychip.active")).toHaveText("Да");
+
+    await as(context, "amir");
+    await page.goto(`/friends/${ASEL}`);
+    await page.locator("#meetings").getByRole("button", { name: "Отменить встречу" }).click();
+    await expect(page.locator(".toast")).toContainText("Встреча отменена");
+  });
+
+  test("«Как это работает» свёрнуто, раскрывается и помнит это после перезагрузки", async ({ page }) => {
+    await page.goto(`/friends/${ASEL}`);
+    const howto = page.locator('details.howto[data-howto="friend"]');
+    await expect(howto).not.toHaveAttribute("open");
+    await expect(howto.locator(".howto-steps")).toBeHidden();
+    await howto.locator("summary").click();
+    await expect(howto.locator(".howto-steps li").first()).toBeVisible();
+    await page.reload();
+    await expect(page.locator('details.howto[data-howto="friend"]')).toHaveAttribute("open");
+    await page.locator('details.howto[data-howto="friend"] summary').click();
+    await page.reload();
+    await expect(page.locator('details.howto[data-howto="friend"]')).not.toHaveAttribute("open");
+  });
+
   test("блокировка рвёт дружбу; по личной ссылке — снова друзья", async ({ page, context }) => {
     page.on("dialog", (dialog) => void dialog.accept());
     await page.goto(`/friends/${ASEL}`);

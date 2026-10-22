@@ -84,6 +84,7 @@ export default ownerPage("system", async ({ t, fmt, now }) => {
         [t("w_owner_fr_link"), fmt.n(friendsDay.viaLink)],
         [t("w_owner_fr_invites"), fmt.n(friendsDay.invites + friendsDay.asks)],
         [t("w_owner_fr_joined"), fmt.n(friendsDay.joined)],
+        [t("w_owner_fr_pairs"), fmt.n(friendsDay.pairMeetings)],
         [t("w_owner_fr_blocks"), fmt.n(friendsDay.blocks)],
       ],
     },

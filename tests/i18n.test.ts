@@ -46,6 +46,31 @@ describe("переводы", () => {
   });
 });
 
+describe("«Как это работает»", () => {
+  // Каждое место, где стоит описание (HowToHint / панель профиля), — с шагами на всех языках.
+  const IDS = ["board", "meetings", "members", "settings", "schedule", "friend", "friends", "requests", "addfriend", "privacy", "profile"];
+
+  it("у каждого раздела 2–6 шагов на каждом языке и общий заголовок", async () => {
+    const { howtoSteps } = await import("@/components/HowToHint");
+    for (const lang of Object.keys(LANGS)) {
+      for (const id of IDS) {
+        const steps = howtoSteps(lang, id);
+        expect(steps.length, `${lang}.${id}`).toBeGreaterThanOrEqual(2);
+        expect(steps.length, `${lang}.${id}`).toBeLessThanOrEqual(6);
+        expect(steps.every((step) => !step.startsWith("w_howto_")), `${lang}.${id}`).toBe(true);
+      }
+      expect(LANGS[lang as keyof typeof LANGS].w_howto).toBeTruthy();
+    }
+  });
+
+  it("кука раскрытых описаний пропускает только знакомый вид ключей", async () => {
+    const { parseHowto } = await import("@/lib/cookies");
+    expect(parseHowto("board.friend")).toEqual(["board", "friend"]);
+    expect(parseHowto("board.<script>.x")).toEqual(["board"]);
+    expect(parseHowto(undefined)).toEqual([]);
+  });
+});
+
 describe("страница ошибки", () => {
   it("язык по коду браузера, незнакомый — русский", async () => {
     const { ERROR_TEXT, errorText } = await import("@/i18n/errorText");

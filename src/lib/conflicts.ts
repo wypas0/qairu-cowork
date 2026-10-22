@@ -5,7 +5,7 @@
  *
  * Проверка запускается после любого изменения занятости: сетка, разовая
  * занятость, календарь по ссылке. Об одном и том же повторе встречи
- * предупреждаем один раз.
+ * предупреждаем один раз. Встречи вдвоём с друзьями — тоже (пояс по умолчанию).
  */
 
 import "server-only";
@@ -14,7 +14,9 @@ import { fmtMinutes } from "@/core/intervals";
 import { occurrencesBetween } from "@/core/recurrence";
 import { chatTz } from "@/core/timeutils";
 import * as repo from "@/db/repo";
+import type { Chat } from "@/db/schema";
 import { formatDay } from "@/i18n";
+import { defaultTz } from "./config";
 import { meetingSpan, parityOfChat } from "./group";
 import { notifyConflict } from "./notify";
 
@@ -26,11 +28,11 @@ export async function checkConflicts(userId: number, now: Date = new Date()): Pr
   const user = await repo.getUser(userId);
   if (!user) return 0;
   const chats = await repo.userChats(userId);
-  if (chats.length === 0) return 0;
-
-  const meetings = (await repo.feedMeetings(chats.map((chat) => chat.chatId), now)).filter((meeting) =>
-    repo.inviteeIds(meeting).includes(userId),
-  );
+  const [inGroups, pairs] = await Promise.all([
+    chats.length ? repo.feedMeetings(chats.map((chat) => chat.chatId), now) : Promise.resolve([]),
+    repo.pairMeetingsOf(userId, now),
+  ]);
+  const meetings = [...inGroups, ...pairs].filter((meeting) => repo.inviteeIds(meeting).includes(userId));
   if (meetings.length === 0) return 0;
 
   const answers = await repo.meetingResponsesForMany(meetings.map((meeting) => meeting.id));
@@ -41,10 +43,11 @@ export async function checkConflicts(userId: number, now: Date = new Date()): Pr
   for (const meeting of meetings) {
     const answer = answers.get(meeting.id)?.find((row) => row.userId === userId)?.answer;
     if (answer !== "yes" && answer !== "maybe") continue;
-    const chat = chats.find((entry) => entry.chatId === meeting.chatId);
-    if (!chat || !meeting.whenStart) continue;
-    const tz = chatTz(chat);
-    const parityOf = parityOfChat(chat);
+    // Встреча вдвоём — без группы: пояс по умолчанию, чётность недель не учитывается.
+    const chat: Chat | null = meeting.chatId !== null ? (chats.find((entry) => entry.chatId === meeting.chatId) ?? null) : null;
+    if ((!chat && meeting.withUser === null) || !meeting.whenStart) continue;
+    const tz = chat ? chatTz(chat) : defaultTz();
+    const parityOf = chat ? parityOfChat(chat) : null;
 
     for (const start of occurrencesBetween(meeting.whenStart, meeting.repeatUntil, tz, now, horizon)) {
       const span = meetingSpan({ ...meeting, whenStart: start }, tz);
@@ -58,7 +61,7 @@ export async function checkConflicts(userId: number, now: Date = new Date()): Pr
       // пришлют одно предупреждение дважды.
       if (!(await repo.claimBotState(key, { at: now.getTime() }))) break;
 
-      const when = `${formatDay(chat.lang, span.date)} · ${fmtMinutes(span.start)}–${fmtMinutes(span.end)}`;
+      const when = `${formatDay(chat?.lang ?? (user.lang || "ru"), span.date)} · ${fmtMinutes(span.start)}–${fmtMinutes(span.end)}`;
       await notifyConflict(chat, meeting, user, when);
       warned += 1;
       break; // одного предупреждения на встречу достаточно

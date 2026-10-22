@@ -4,6 +4,7 @@ import { AppShell } from "@/components/AppShell";
 import { ConfirmSubmit } from "@/components/ConfirmSubmit";
 import { DatedQuickForm } from "@/components/DatedQuickForm";
 import { ExtensionHint } from "@/components/ExtensionHint";
+import { HowToHint } from "@/components/HowToHint";
 import { FlashToast } from "@/components/FlashToast";
 import { ScrollToAnchor } from "@/components/ScrollToAnchor";
 import { ScheduleEditor } from "@/components/ScheduleEditor";
@@ -130,7 +131,7 @@ export default async function MySchedulePage({
             </a>
           </div>
         </header>
-
+        <HowToHint id="schedule" lang={lang} />
 
         {validTo && (
           <p className="small muted period-note">{t("w_me_period_note", { date: formatDMY(validTo) })}</p>

@@ -7,7 +7,7 @@
 
 import "server-only";
 
-import { and, asc, desc, eq, gt, inArray, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNotNull, or, sql } from "drizzle-orm";
 
 import { pairOf } from "@/core/friends";
 import {
@@ -19,6 +19,7 @@ import {
   friendships,
   type GroupInvite,
   groupInvites,
+  meetings,
   memberships,
   type User,
   userBlocks,
@@ -653,7 +654,8 @@ export async function incomingInvites(
 
 /**
  * Сколько ждёт человека в «Друзьях»: заявки, приглашения в группы, просьбы
- * вступить — одним запросом (счётчик стоит на каждой странице).
+ * вступить, встречи вдвоём без ответа — одним запросом (счётчик стоит на
+ * каждой странице).
  */
 export async function friendBadge(userId: number, now: Date, exec?: Exec): Promise<number> {
   const at = now.toISOString();
@@ -670,6 +672,14 @@ export async function friendBadge(userId: number, now: Date, exec?: Exec): Promi
             and not exists (select 1 from user_blocks b where b.blocker = ${userId} and b.blocked = i.from_user)
             and exists (select 1 from memberships m
               where m.chat_id = i.chat_id and m.user_id = case when i.kind = 'invite' then i.from_user else i.to_user end))
+        +
+        -- Встречи вдвоём без моего ответа — те же условия, что у pendingPairInvites.
+        (select count(*)::int from meetings mt
+          where mt.with_user = ${userId} and mt.status = 'open'
+            and ((mt.repeat_until is not null and mt.repeat_until >= ${at.slice(0, 10)}::date)
+              or (mt.repeat_until is null and mt.when_start >= ${at}::timestamptz))
+            and not exists (select 1 from meeting_responses r where r.meeting_id = mt.id and r.user_id = ${userId})
+            and not exists (select 1 from user_blocks b where b.blocker = ${userId} and b.blocked = mt.initiator_id))
       )`,
     })
     .from(users)
@@ -689,6 +699,8 @@ export type FriendStats = {
   joined: number;
   asks: number;
   blocks: number;
+  /** Встреч вдвоём назначено. */
+  pairMeetings: number;
 };
 
 /** Что происходило с друзьями с момента `since`: только числа, без людей. */
@@ -714,6 +726,10 @@ export async function friendStats(since: Date, exec?: Exec): Promise<FriendStats
     .select({ n: sql<number>`count(*)::int` })
     .from(userBlocks)
     .where(gt(userBlocks.createdAt, since));
+  const [pairs] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(meetings)
+    .where(and(isNotNull(meetings.withUser), gt(meetings.createdAt, since)));
   return {
     requests: requests?.requests ?? 0,
     accepted: requests?.accepted ?? 0,
@@ -722,6 +738,7 @@ export async function friendStats(since: Date, exec?: Exec): Promise<FriendStats
     joined: invites?.joined ?? 0,
     asks: invites?.asks ?? 0,
     blocks: blocks?.n ?? 0,
+    pairMeetings: pairs?.n ?? 0,
   };
 }
 

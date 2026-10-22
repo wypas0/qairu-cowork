@@ -16,15 +16,11 @@ import "server-only";
 import { type InlineButton, keyboard, sendMessage, TelegramError } from "@/bot/api";
 import { webAppButton } from "@/bot/site";
 import { escapeHtml } from "@/core/textutils";
-import { type Chat, displayName, type User } from "@/db/schema";
+import type { Chat, User } from "@/db/schema";
 import { t } from "@/i18n";
-import { reachableByBot } from "./notify";
+import { reachableByBot, whoHtml } from "./notify";
 
-/** «<b>Асель</b> (@asel_n)» — имя, которое человек указал, и ник, по которому его узнать. */
-export function whoHtml(user: User): string {
-  const name = `<b>${escapeHtml(displayName(user))}</b>`;
-  return user.username ? `${name} (@${escapeHtml(user.username)})` : name;
-}
+export { whoHtml };
 
 async function direct(to: User, key: string, params: Record<string, string>, rows: (InlineButton | null)[][]): Promise<boolean> {
   if (!reachableByBot(to)) return false;

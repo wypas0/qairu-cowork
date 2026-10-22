@@ -5,14 +5,21 @@ import {
   saveSummaryAction,
   voteAction,
 } from "@/app/g/[slug]/actions";
+import {
+  answerPairMeetingAction,
+  cancelPairMeetingAction,
+  pingPairMeetingAction,
+} from "@/app/friends/actions";
 import type { Meeting, MeetingResponse } from "@/db/schema";
 import { translator } from "@/i18n";
 import { nextOccurrence, weeklyRule } from "@/core/recurrence";
 import { type DateStr, formatDM, startsSoon, utcToZonedWall, weekdayOf } from "@/core/timeutils";
 import { weekdayShort } from "@/i18n";
 import { fmtMinutes } from "@/core/intervals";
-import { meetingDurationMin, meetingSpan } from "@/lib/group";
+import { meetingDurationMin, meetingSpan, whenTextFor } from "@/lib/group";
 import { ConfirmSubmit } from "./ConfirmSubmit";
+// Две буквы, а не одна: Амир и Асель на встрече вдвоём иначе оба «А».
+import { initials } from "./friends/initials";
 import { RepeatMeetingButton } from "./RepeatMeetingButton";
 import { repeatDetail } from "@/lib/repeat";
 import {
@@ -29,11 +36,6 @@ import {
 
 /** Ответы, которые может дать участник. «change» — это комментарий, а не явка. */
 const ANSWERS = ["yes", "maybe", "no"] as const;
-
-/** Первая буква имени — метка человека там, где фото не нужно. */
-function initial(name: string): string {
-  return (name.trim()[0] ?? "?").toUpperCase();
-}
 
 /**
  * Ссылка «добавить в Google Календарь». Файл .ics понимают не все телефоны
@@ -54,6 +56,27 @@ function googleCalendarUrl(meeting: Meeting, tz: string): string | null {
   return `https://calendar.google.com/calendar/render?${params}`;
 }
 
+/** Где живёт встреча: в группе (её код) или вдвоём с другом (его id) — от этого её действия и файл .ics. */
+export type MeetingTarget = { slug: string } | { friendId: number };
+
+/** Действия карточки для группы или для встречи вдвоём — разметка у них одна. */
+function actionsFor(target: MeetingTarget, meetingId: number) {
+  if ("slug" in target) {
+    return {
+      vote: voteAction.bind(null, target.slug, meetingId),
+      ping: pingNonRespondersAction.bind(null, target.slug, meetingId),
+      cancel: cancelMeetingAction.bind(null, target.slug, meetingId),
+      ics: `/g/${target.slug}/meetings/${meetingId}.ics`,
+    };
+  }
+  return {
+    vote: answerPairMeetingAction.bind(null, target.friendId, meetingId),
+    ping: pingPairMeetingAction.bind(null, target.friendId, meetingId),
+    cancel: cancelPairMeetingAction.bind(null, target.friendId, meetingId),
+    ics: `/friends/${target.friendId}/meetings/${meetingId}.ics`,
+  };
+}
+
 /**
  * Карточка встречи: кто идёт, кто нет, кто ещё молчит — и три кнопки ответа.
  *
@@ -61,9 +84,12 @@ function googleCalendarUrl(meeting: Meeting, tz: string): string | null {
  * имена видно сразу: каждая группа — строка с кружками-инициалами. Ответ
  * «может» существует, потому что в жизни он самый частый, а без него человек
  * либо врёт «приду», либо не отвечает вовсе.
+ *
+ * Одна и та же карточка — у встреч группы и у встреч вдвоём на карточке
+ * друга (`target`); итоги и «кто был» — только у группы.
  */
 export function MeetingCard({
-  slug,
+  target,
   lang,
   tz,
   meeting,
@@ -76,7 +102,7 @@ export function MeetingCard({
   past = false,
   attendance = null,
 }: {
-  slug: string;
+  target: MeetingTarget;
   lang: string;
   tz: string;
   meeting: Meeting;
@@ -92,6 +118,7 @@ export function MeetingCard({
   attendance?: { attended: number[]; missed: number[]; mine: boolean | null } | null;
 }) {
   const t = translator(lang);
+  const actions = actionsFor(target, meeting.id);
   const byUser = new Map(answers.map((answer) => [answer.userId, answer]));
   const cancelled = meeting.status === "cancelled";
   const mine = byUser.get(viewerId);
@@ -154,7 +181,7 @@ export function MeetingCard({
                 <span className="marks">
                   {group.ids.map((id) => (
                     <span className="mark" key={id} title={names.get(id) ?? "?"}>
-                      {initial(names.get(id) ?? "?")}
+                      {initials(names.get(id) ?? "?")}
                     </span>
                   ))}
                 </span>
@@ -177,7 +204,7 @@ export function MeetingCard({
             <>
               <div className="votes">
                 {ANSWERS.map((value) => (
-                  <form key={value} action={voteAction.bind(null, slug, meeting.id)}>
+                  <form key={value} action={actions.vote}>
                     <input type="hidden" name="answer" value={value} />
                     <button
                       className={`daychip${mine?.answer === value ? " active" : ""}`}
@@ -189,7 +216,7 @@ export function MeetingCard({
                   </form>
                 ))}
                 {meeting.whenStart && (
-                  <a className="btn btn-sm" href={`/g/${slug}/meetings/${meeting.id}.ics`}>
+                  <a className="btn btn-sm" href={actions.ics}>
                     <IconMeeting /> {t("w_ics")}
                   </a>
                 )}
@@ -202,7 +229,7 @@ export function MeetingCard({
 
               <details className="change-details">
                 <summary className="small">{t("w_change_open")}</summary>
-                <form action={voteAction.bind(null, slug, meeting.id)} className="change-form">
+                <form action={actions.vote} className="change-form">
                   <input type="hidden" name="answer" value="change" />
                   <input
                     type="text"
@@ -223,13 +250,13 @@ export function MeetingCard({
           {canManage && !past && (
             <div className="votes">
               {waiting.filter((id) => id !== viewerId).length > 0 && (
-                <form action={pingNonRespondersAction.bind(null, slug, meeting.id)}>
+                <form action={actions.ping}>
                   <button className="btn btn-sm" type="submit">
                     {t("w_ping", { n: waiting.filter((id) => id !== viewerId).length })}
                   </button>
                 </form>
               )}
-              <form action={cancelMeetingAction.bind(null, slug, meeting.id)}>
+              <form action={actions.cancel}>
                 <ConfirmSubmit
                   className="btn btn-sm btn-quiet btn-danger"
                   confirm={t("w_cancel_confirm")}
@@ -259,10 +286,10 @@ export function MeetingCard({
                     t("w_attend_missed", { names: attendance.missed.map((id) => names.get(id) ?? "—").join(", ") })}
                 </p>
               )}
-              {invited && (
+              {invited && "slug" in target && (
                 <div className="votes">
                   {([true, false] as const).map((value) => (
-                    <form key={String(value)} action={markAttendanceAction.bind(null, slug, meeting.id, value)}>
+                    <form key={String(value)} action={markAttendanceAction.bind(null, target.slug, meeting.id, value)}>
                       <button
                         className={`daychip${attendance.mine === value ? " active" : ""}`}
                         type="submit"
@@ -292,10 +319,10 @@ export function MeetingCard({
                   )}
                 </>
               )}
-              {canSummarize && (
+              {canSummarize && "slug" in target && (
                 <details className="summary-edit" open={!meeting.summary}>
                   {meeting.summary && <summary className="small">{t("w_summary_edit")}</summary>}
-                  <form action={saveSummaryAction.bind(null, slug, meeting.id)} className="summary-form">
+                  <form action={saveSummaryAction.bind(null, target.slug, meeting.id)} className="summary-form">
                     <textarea
                       name="summary"
                       rows={3}
@@ -333,7 +360,8 @@ function whenLabel(
   t: ReturnType<typeof translator>,
 ): string {
   const span = meeting.repeatUntil ? meetingSpan(meeting, tz) : null;
-  if (!span || !meeting.whenStart) return meeting.whenText;
+  // Встреча вдвоём — на языке того, кто смотрит: текст сохранён на языке создателя.
+  if (!span || !meeting.whenStart) return whenTextFor(meeting, lang, tz);
   const day = utcToZonedWall(meeting.whenStart, tz).day;
   return t("w_repeat_meta", {
     day: weekdayShort(lang, weekdayOf(day)),

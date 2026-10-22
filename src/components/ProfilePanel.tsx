@@ -12,7 +12,8 @@ import {
   saveRealNameAction,
 } from "@/app/profile/actions";
 import type { Theme } from "@/lib/theme";
-import { BrandMark, IconCheck, IconChevronLeft, IconChevronRight, IconClose, IconFriends } from "./icons";
+import { HowTo } from "./HowTo";
+import { BrandMark, IconCheck, IconChevronLeft, IconChevronRight, IconClock, IconClose, IconFriends } from "./icons";
 import { Layer } from "./Layer";
 import { slideIn, useExit } from "./motion";
 import { ThemeSwitch } from "./ThemeSwitch";
@@ -29,6 +30,8 @@ export type ProfileGroup = {
 
 export type GroupNextMeeting = {
   id: number;
+  /** Куда ведёт строка: встреча во вкладке «Встречи» группы или на карточке друга. */
+  href: string;
   /** «Завтра, 15:00» / «Чт 24.09, 15:00» — в поясе группы. */
   when: string;
   /** Зачем и где, через точку; пусто, если ни того ни другого нет. */
@@ -170,12 +173,25 @@ export type ProfilePanelProps = {
   theme: Theme;
   /** Бот настроен — подключить Telegram можно. */
   botEnabled: boolean;
-  /** Сколько ждёт в «Друзьях»: заявки, приглашения в группы, просьбы вступить. */
+  /** Сколько ждёт в «Друзьях»: заявки, приглашения в группы, просьбы вступить, встречи вдвоём. */
   friendsBadge?: number;
+  /** Предстоящие встречи вдвоём с друзьями — тем же видом, что встречи групп. */
+  friendMeetings?: GroupNextMeeting[];
+  /** «Как это работает» внизу панели: шаги и раскрыто ли (кука). */
+  howto?: { title: string; steps: string[]; open: boolean };
   labels: ProfileLabels;
 };
 
-export function ProfilePanel({ user, groups, theme, botEnabled, friendsBadge = 0, labels }: ProfilePanelProps) {
+export function ProfilePanel({
+  user,
+  groups,
+  theme,
+  botEnabled,
+  friendsBadge = 0,
+  friendMeetings = [],
+  howto,
+  labels,
+}: ProfilePanelProps) {
   const pathname = usePathname();
   const [nameState, saveName, savingName] = useActionState<RealNameState, FormData>(
     saveRealNameAction,
@@ -593,6 +609,16 @@ export function ProfilePanel({ user, groups, theme, botEnabled, friendsBadge = 0
                             <IconChevronRight className="muted" />
                           </span>
                         </Link>
+                        {/* Ближайшие встречи вдвоём — строкой под «Друзьями», как встречи под группой в сайдбаре. */}
+                        {friendMeetings.slice(0, 3).map((meeting) => (
+                          <Link className="pp-next small" href={meeting.href} onClick={close} key={meeting.id}>
+                            {meeting.awaiting ? <span className="sidebar-dot" aria-hidden="true" /> : <IconClock size={14} />}
+                            <span>
+                              {meeting.when}
+                              {meeting.about && <span className="muted"> · {meeting.about}</span>}
+                            </span>
+                          </Link>
+                        ))}
                       </nav>
                     )}
 
@@ -615,6 +641,11 @@ export function ProfilePanel({ user, groups, theme, botEnabled, friendsBadge = 0
                         + {labels.createGroup}
                       </Link>
                     </section>
+                    {howto && (
+                      <section className="pp-section">
+                        <HowTo id="profile" title={howto.title} steps={howto.steps} initialOpen={howto.open} />
+                      </section>
+                    )}
                   </>
                 )}
               </div>

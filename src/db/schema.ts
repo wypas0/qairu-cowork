@@ -248,11 +248,18 @@ export const webSessions = pgTable(
   (table) => [index("ix_web_sessions_user_id").on(table.userId)],
 ).enableRLS();
 
+/**
+ * Встреча — в группе (chat_id) или вдвоём с другом (0013): тогда группы нет,
+ * а with_user — второй человек, не создатель. Одно из двух, не оба — это
+ * держит ck_meetings_pair. У встречи вдвоём chat_message_id — карточка в
+ * личке с другом: её перерисовывают ответы и отмена.
+ */
 export const meetings = pgTable(
   "meetings",
   {
     id: serial("id").primaryKey(),
-    chatId: bigint("chat_id", { mode: "number" }).notNull(),
+    chatId: bigint("chat_id", { mode: "number" }),
+    withUser: bigint("with_user", { mode: "number" }),
     initiatorId: bigint("initiator_id", { mode: "number" }).notNull(),
     place: varchar("place", { length: 256 }).notNull().default(""),
     whenText: varchar("when_text", { length: 256 }).notNull().default(""),
@@ -279,7 +286,13 @@ export const meetings = pgTable(
     summaryAt: timestamp("summary_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
-  (table) => [index("ix_meetings_chat_id").on(table.chatId)],
+  (table) => [
+    index("ix_meetings_chat_id").on(table.chatId),
+    // Встречи вдвоём ищутся по человеку: «я создал» или «меня позвали».
+    index("ix_meetings_with_user").on(table.withUser).where(sql`"with_user" is not null`),
+    index("ix_meetings_pair_initiator").on(table.initiatorId).where(sql`"with_user" is not null`),
+    check("ck_meetings_pair", sql`("chat_id" is null) = ("with_user" is not null)`),
+  ],
 ).enableRLS();
 
 export const meetingResponses = pgTable(

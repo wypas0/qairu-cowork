@@ -12,20 +12,21 @@ import "server-only";
 
 import {
   TelegramError,
-  editMessageText,
   keyboard,
   sendMessage,
   type InlineKeyboardMarkup,
 } from "@/bot/api";
 import { mentionList } from "@/bot/context";
-import { renderCard } from "@/bot/handlers/meeting";
+import { refreshCard, renderCard } from "@/bot/handlers/meeting";
 import { setupKeyboard } from "@/bot/handlers/registration";
 import { groupPath, webAppButton } from "@/bot/site";
+import { pairPartner } from "@/core/pairPlan";
 import { escapeHtml } from "@/core/textutils";
 import * as repo from "@/db/repo";
 import { type Chat, type Meeting, type User, displayName } from "@/db/schema";
 import { t } from "@/i18n";
 import { isTelegramChat } from "./admin";
+import { whenTextFor } from "./group";
 import { hasBot } from "./config";
 
 export type Delivery = { telegram: number; site: number };
@@ -68,6 +69,18 @@ function withSiteButton(markup: InlineKeyboardMarkup, chat: Chat, lang: string):
   if (!button) return markup;
   return keyboard([...markup.inline_keyboard, [button]]);
 }
+
+/**
+ * Кнопка сайта под сообщением о встрече: у группы — её страница, у встречи
+ * вдвоём (`chat` = null) — карточка второго человека для того, кому пишем.
+ */
+function meetingButton(chat: Chat | null, meeting: Meeting, to: number, lang: string) {
+  if (chat) return siteButton(chat, lang);
+  const partner = pairPartner(meeting, to);
+  return partner === null ? null : webAppButton(t(lang, "btn_open_friend"), `/friends/${partner}`);
+}
+
+const markupOf = (button: ReturnType<typeof meetingButton>) => (button ? keyboard([[button]]) : undefined);
 
 /**
  * Новая встреча, созданная на сайте.
@@ -136,30 +149,20 @@ export async function notifyMeetingCreated(chat: Chat, meeting: Meeting): Promis
 /**
  * Кто-то ответил на встречу с сайта.
  *
- * Карточка в Telegram-чате перерисовывается, чтобы голоса не расходились.
- * На «предложить изменения» организатор получает уведомление — иначе
- * предложение так и осталось бы незамеченным.
+ * Карточка в Telegram (в чате группы или, у встречи вдвоём, в личке друга)
+ * перерисовывается, чтобы голоса не расходились. На «предложить изменения»
+ * организатор получает уведомление — иначе предложение так и осталось бы
+ * незамеченным. `chat` = null — встреча вдвоём.
  */
 export async function notifyVote(
-  chat: Chat,
+  chat: Chat | null,
   meeting: Meeting,
   voter: User,
   answer: string,
   comment: string,
 ): Promise<void> {
   await repo.markMeetingNoticesRead(meeting.id, voter.userId);
-
-  if (meeting.chatMessageId && hasBot()) {
-    const card = await renderCard(meeting.id, chat.lang);
-    await editMessageText({
-      chat_id: meeting.chatId,
-      message_id: meeting.chatMessageId,
-      text: card.text,
-      parse_mode: "HTML",
-      reply_markup: card.markup,
-      link_preview_options: { is_disabled: true },
-    });
-  }
+  await refreshCard(meeting);
 
   if (voter.userId === meeting.initiatorId) return;
   if (answer === "change") await notifyChangeProposal(chat, meeting, voter, comment);
@@ -171,34 +174,44 @@ export async function notifyVote(
 /**
  * Обратная связь организатору: кто ответил «да» или «нет» и сколько уже
  * согласились. Только личным сообщением — баннеров на сайте на каждый голос
- * не создаём, там и так видна карточка встречи.
+ * не создаём, там и так видна карточка встречи. У встречи вдвоём (`chat` =
+ * null) счёт «из скольких» не нужен — там сразу видно, когда встреча.
  */
 export async function notifyOrganizerAnswer(
-  chat: Chat,
+  chat: Chat | null,
   meeting: Meeting,
   voter: Pick<User, "userId" | "fullName" | "username" | "realName">,
   answer: "yes" | "maybe" | "no",
 ): Promise<boolean> {
   if (voter.userId === meeting.initiatorId) return false;
+  // Группа, чей чат уже удалён, — писать не о чем.
+  if (!chat && meeting.withUser === null) return false;
   const initiator = await repo.getUser(meeting.initiatorId);
   if (!initiator) return false;
 
-  const responses = await repo.meetingResponsesFor(meeting.id);
-  const lang = initiator.lang || chat.lang;
-  const key =
-    answer === "yes" ? "notify_answer_yes" : answer === "maybe" ? "notify_answer_maybe" : "notify_answer_no";
-  const text = t(lang, key, {
-    name: escapeHtml(displayName(voter)),
-    goal: escapeHtml(meeting.goal || meeting.whenText || "—"),
-    yes: responses.filter((row) => row.answer === "yes").length,
-    total: repo.inviteeIds(meeting).length,
-  });
-  const button = siteButton(chat, lang);
-  return directMessage(initiator, text, button ? keyboard([[button]]) : undefined);
+  const lang = initiator.lang || chat?.lang || "ru";
+  const goal = escapeHtml(meeting.goal || whenTextFor(meeting, lang) || "—");
+  const name = escapeHtml(displayName(voter));
+  let text: string;
+  if (chat) {
+    const responses = await repo.meetingResponsesFor(meeting.id);
+    const key =
+      answer === "yes" ? "notify_answer_yes" : answer === "maybe" ? "notify_answer_maybe" : "notify_answer_no";
+    text = t(lang, key, {
+      name,
+      goal,
+      yes: responses.filter((row) => row.answer === "yes").length,
+      total: repo.inviteeIds(meeting).length,
+    });
+  } else {
+    const key = answer === "yes" ? "notify_pair_yes" : answer === "maybe" ? "notify_pair_maybe" : "notify_pair_no";
+    text = t(lang, key, { name, goal, when: escapeHtml(whenTextFor(meeting, lang)) });
+  }
+  return directMessage(initiator, text, markupOf(meetingButton(chat, meeting, initiator.userId, lang)));
 }
 
 export async function notifyChangeProposal(
-  chat: Chat,
+  chat: Chat | null,
   meeting: Meeting,
   voter: Pick<User, "userId" | "fullName" | "username">,
   comment: string,
@@ -206,13 +219,15 @@ export async function notifyChangeProposal(
   const initiator = await repo.getUser(meeting.initiatorId);
   if (!initiator || initiator.userId === voter.userId) return;
 
-  const text = t(chat.lang, "notify_change", {
+  const lang = chat?.lang ?? (initiator.lang || "ru");
+  const text = t(lang, "notify_change", {
     name: escapeHtml(displayName(voter)),
-    goal: escapeHtml(meeting.goal || meeting.whenText || "—"),
+    goal: escapeHtml(meeting.goal || whenTextFor(meeting, lang) || "—"),
     comment: escapeHtml(comment || "—"),
   });
-  const button = siteButton(chat, chat.lang);
-  if (await directMessage(initiator, text, button ? keyboard([[button]]) : undefined)) return;
+  if (await directMessage(initiator, text, markupOf(meetingButton(chat, meeting, initiator.userId, lang)))) return;
+  // Встреча вдвоём: баннеры живут в группах — предложение и так видно в карточке друга.
+  if (!chat) return;
 
   await repo.addNotices([
     {
@@ -274,15 +289,15 @@ export async function notifySummary(
 
 /**
  * Конфликт расписания: человек идёт на встречу, но теперь в это время занят.
- * Пишем ему самому и создателю встречи; кого не достать ботом — баннером.
+ * Пишем ему самому и создателю встречи; кого не достать ботом — баннером в
+ * группе. У встречи вдвоём (`chat` = null) баннера нет: группы нет.
  */
-export async function notifyConflict(chat: Chat, meeting: Meeting, user: User, when: string): Promise<void> {
-  const goal = escapeHtml(meeting.goal || meeting.whenText || "—");
-  const button = siteButton(chat, chat.lang);
-  const markup = button ? keyboard([[button]]) : undefined;
+export async function notifyConflict(chat: Chat | null, meeting: Meeting, user: User, when: string): Promise<void> {
+  const lang = chat?.lang ?? (user.lang || "ru");
+  const goal = escapeHtml(meeting.goal || whenTextFor(meeting, lang) || "—");
 
-  const self = t(chat.lang, "notify_conflict_self", { goal, when: escapeHtml(when) });
-  if (!(await directMessage(user, self, markup))) {
+  const self = t(lang, "notify_conflict_self", { goal, when: escapeHtml(when) });
+  if (!(await directMessage(user, self, markupOf(meetingButton(chat, meeting, user.userId, lang)))) && chat) {
     await repo.addNotices([
       { chatId: chat.chatId, userId: user.userId, kind: "conflict", meetingId: meeting.id, text: meeting.goal },
     ]);
@@ -291,12 +306,13 @@ export async function notifyConflict(chat: Chat, meeting: Meeting, user: User, w
   if (meeting.initiatorId === user.userId) return;
   const initiator = await repo.getUser(meeting.initiatorId);
   if (!initiator) return;
-  const other = t(chat.lang, "notify_conflict_other", {
+  const other = t(chat?.lang ?? (initiator.lang || "ru"), "notify_conflict_other", {
     name: escapeHtml(displayName(user)),
     goal,
     when: escapeHtml(when),
   });
-  if (await directMessage(initiator, other, markup)) return;
+  if (await directMessage(initiator, other, markupOf(meetingButton(chat, meeting, initiator.userId, lang)))) return;
+  if (!chat) return;
   await repo.addNotices([
     {
       chatId: chat.chatId,
@@ -309,9 +325,13 @@ export async function notifyConflict(chat: Chat, meeting: Meeting, user: User, w
   ]);
 }
 
-/** Напомнить приглашённым, которые ещё не ответили на встречу. */
+/**
+ * Напомнить приглашённым, которые ещё не ответили на встречу. Встреча вдвоём
+ * (`chat` = null): другу — та же карточка с кнопками; не достать ботом —
+ * приглашение и так ждёт его в «Друзьях».
+ */
 export async function notifyNonResponders(
-  chat: Chat,
+  chat: Chat | null,
   meeting: Meeting,
   from: User,
 ): Promise<Delivery> {
@@ -319,6 +339,17 @@ export async function notifyNonResponders(
   const answered = new Set((await repo.meetingResponsesFor(meeting.id)).map((row) => row.userId));
   const waiting = repo.inviteeIds(meeting).filter((id) => !answered.has(id) && id !== from.userId);
   if (waiting.length === 0) return delivery;
+
+  if (!chat) {
+    for (const user of (await repo.usersByIds(waiting)).values()) {
+      const lang = user.lang || "ru";
+      const card = await renderCard(meeting.id, lang);
+      const text = t(lang, "notify_pair_ping", { who: whoHtml(from) });
+      if (await directMessage(user, `${text}\n\n${card.text}`, card.markup)) delivery.telegram += 1;
+      else delivery.site += 1;
+    }
+    return delivery;
+  }
 
   const byId = await repo.usersByIds(waiting);
   const card = await renderCard(meeting.id, chat.lang);
@@ -349,6 +380,56 @@ export async function notifyNonResponders(
   await repo.addNotices(siteRows);
   delivery.site = siteRows.length;
   return delivery;
+}
+
+/** «<b>Асель</b> (@asel_n)» — имя, которое человек указал, и ник, по которому его узнать. */
+export function whoHtml(user: Pick<User, "fullName" | "username" | "userId" | "realName">): string {
+  const name = `<b>${escapeHtml(displayName(user))}</b>`;
+  return user.username ? `${name} (@${escapeHtml(user.username)})` : name;
+}
+
+/**
+ * Встреча вдвоём: другу — карточка с теми же кнопками, что у встреч группы
+ * («Приду / Не смогу / Может быть / Предложить другое», .ics) и кнопкой
+ * «Открыть». Сообщение запоминается — его перерисуют ответы и отмена. Не
+ * достать ботом — приглашение ждёт на сайте, в «Друзья → Заявки».
+ */
+export async function notifyPairMeetingCreated(meeting: Meeting, from: User, to: User): Promise<Delivery> {
+  if (!reachableByBot(to)) return { telegram: 0, site: 1 };
+  const lang = to.lang || "ru";
+  const card = await renderCard(meeting.id, lang);
+  try {
+    const sent = await sendMessage({
+      chat_id: to.userId,
+      text: `${t(lang, "notify_pair_new", { who: whoHtml(from) })}\n\n${card.text}`,
+      parse_mode: "HTML",
+      reply_markup: card.markup,
+      link_preview_options: { is_disabled: true },
+    });
+    await repo.updateMeeting(meeting.id, { chatMessageId: sent.message_id });
+    return { telegram: 1, site: 0 };
+  } catch (error) {
+    if (!(error instanceof TelegramError)) console.error("notify: pair card", error);
+    return { telegram: 0, site: 1 };
+  }
+}
+
+/**
+ * Встречу вдвоём отменили: карточка у друга перерисовывается на «отменена»,
+ * и ему — короткое сообщение (тихую правку старого сообщения легко не заметить).
+ */
+export async function notifyPairCancelled(meeting: Meeting, by: User, to: User): Promise<boolean> {
+  await refreshCard({ ...meeting, status: "cancelled" });
+  const lang = to.lang || "ru";
+  return directMessage(
+    to,
+    t(lang, "notify_pair_cancelled", {
+      who: whoHtml(by),
+      goal: escapeHtml(meeting.goal || "—"),
+      when: escapeHtml(whenTextFor(meeting, lang)),
+    }),
+    markupOf(meetingButton(null, meeting, to.userId, lang)),
+  );
 }
 
 /**

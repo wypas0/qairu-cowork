@@ -6,6 +6,7 @@ import { ConfirmSubmit } from "@/components/ConfirmSubmit";
 import { CopyButton } from "@/components/CopyButton";
 import { FlashToast } from "@/components/FlashToast";
 import { FriendsList } from "@/components/friends/FriendsList";
+import { HowToHint } from "@/components/HowToHint";
 import { initials } from "@/components/friends/initials";
 import { PersonAvatar } from "@/components/friends/PersonAvatar";
 import { PrivacyForm } from "@/components/friends/PrivacyForm";
@@ -20,9 +21,11 @@ import { tn, translator } from "@/i18n";
 import { defaultTz, hasBot } from "@/lib/config";
 import * as friends from "@/lib/friends";
 import { loginUrl, pageUser } from "@/lib/gate";
+import { whenTextFor } from "@/lib/group";
 import { baseUrl } from "@/lib/url";
 import {
   answerInviteAction,
+  answerPairInviteAction,
   answerRequestAction,
   cancelRequestAction,
   requestFriendAction,
@@ -56,7 +59,7 @@ export default async function FriendsPage({
   const now = new Date();
   const tz = defaultTz();
 
-  const [list, incoming, outgoing, invites, asks, code, myGroups, blocked] = await Promise.all([
+  const [list, incoming, outgoing, invites, asks, code, myGroups, blocked, pairInvites] = await Promise.all([
     repo.friendsOf(me.userId),
     repo.incomingRequests(me.userId),
     repo.outgoingRequests(me.userId),
@@ -65,7 +68,10 @@ export default async function FriendsPage({
     friends.friendCodeOf(me),
     repo.groupsOfUser(me.userId),
     repo.blockedUsersBy(me.userId),
+    repo.pendingPairInvites(me.userId, now),
   ]);
+  // Кто зовёт на встречу вдвоём: обычно друг из списка, но берём из базы — вдруг нет.
+  const inviters = await repo.usersByIds(pairInvites.map((meeting) => meeting.initiatorId));
   const q = typeof query.q === "string" ? query.q.slice(0, 64) : "";
   const search = q.trim() ? await friends.searchByUsername(me, q) : null;
 
@@ -76,6 +82,7 @@ export default async function FriendsPage({
     ...invites.map((entry) => entry.from),
     ...asks.map((entry) => entry.from),
     ...blocked,
+    ...inviters.values(),
     ...(search?.code === "found" ? [search.user] : []),
   ];
   const ids = [...new Set(people.map((person) => person.userId))];
@@ -96,7 +103,7 @@ export default async function FriendsPage({
   const linkUrl = `${base}/f/${code}`;
   const telegramLink = hasBot() ? await miniAppFriendLink(code).catch(() => null) : null;
 
-  const waiting = incoming.length + invites.length + asks.length;
+  const waiting = incoming.length + invites.length + asks.length + pairInvites.length;
   const requested = typeof query.tab === "string" ? query.tab : "";
   const initial = (TABS as readonly string[]).includes(requested) ? requested : waiting > 0 ? "requests" : "friends";
   const flash = friendFlash(t, query.fr);
@@ -138,6 +145,8 @@ export default async function FriendsPage({
   const group = (title: string) => <b>«{title}»</b>;
 
   const friendsPanel = (
+    <>
+    <HowToHint id="friends" lang={lang} />
     <section className="card">
       {list.length === 0 ? (
         <div className="empty">
@@ -166,9 +175,12 @@ export default async function FriendsPage({
         />
       )}
     </section>
+    </>
   );
 
   const requestsPanel = (
+    <>
+    <HowToHint id="requests" lang={lang} />
     <div className="split">
       <div className="split-main split-stack">
         {waiting === 0 && (
@@ -182,6 +194,43 @@ export default async function FriendsPage({
                 </TabLink>
               </div>
             </div>
+          </section>
+        )}
+        {/* Встречи вдвоём — первыми: у них есть срок. Ответ — здесь же, подробности — в карточке друга. */}
+        {pairInvites.length > 0 && (
+          <section className="card">
+            <h2>
+              {t("w_fr_sec_meetings")} <span className="small muted">{pairInvites.length}</span>
+            </h2>
+            <ul className="fr-list">
+              {pairInvites.map((meeting) => {
+                const from = inviters.get(meeting.initiatorId);
+                if (!from) return null;
+                return row(
+                  `m${meeting.id}`,
+                  from,
+                  rich(meeting.goal ? t("w_fr_line_meeting_goal") : t("w_fr_line_meeting"), {
+                    name: <b>{displayName(from)}</b>,
+                    goal: <b>«{meeting.goal}»</b>,
+                  }),
+                  meta(whenTextFor(meeting, lang, tz), meeting.place || null),
+                  <>
+                    {(["yes", "no"] as const).map((value) => (
+                      <form action={answerPairInviteAction} key={value}>
+                        <input type="hidden" name="id" value={meeting.id} />
+                        <input type="hidden" name="answer" value={value} />
+                        <button className={`btn btn-sm${value === "yes" ? " btn-primary" : " btn-quiet"}`} type="submit">
+                          {value === "yes" ? t("w_yes") : t("w_no")}
+                        </button>
+                      </form>
+                    ))}
+                    <Link className="btn btn-sm btn-quiet" href={`/friends/${from.userId}?at=meeting-${meeting.id}`}>
+                      {t("w_fr_meeting_open")}
+                    </Link>
+                  </>,
+                );
+              })}
+            </ul>
           </section>
         )}
         {incoming.length > 0 && (
@@ -264,6 +313,7 @@ export default async function FriendsPage({
         )}
       </section>
     </div>
+    </>
   );
 
   /** Найденный по нику человек и что с ним можно сделать. */
@@ -308,6 +358,8 @@ export default async function FriendsPage({
     ) : null;
 
   const addPanel = (
+    <>
+    <HowToHint id="addfriend" lang={lang} />
     <div className="split">
       <section className="card split-main">
         <h2>{t("w_fr_search_title")}</h2>
@@ -367,9 +419,12 @@ export default async function FriendsPage({
         </form>
       </section>
     </div>
+    </>
   );
 
   const privacyPanel = (
+    <>
+    <HowToHint id="privacy" lang={lang} />
     <div className="split">
       <section className="card split-main">
         <h2>{t("w_fr_privacy_title")}</h2>
@@ -415,6 +470,7 @@ export default async function FriendsPage({
         )}
       </section>
     </div>
+    </>
   );
 
   return (

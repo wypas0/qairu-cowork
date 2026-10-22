@@ -281,6 +281,24 @@ img.pp-avatar {
 .pp-menu-sub {
   display: block;
 }
+/* Ближайшие встречи вдвоём под «Друзьями» — тихие строки, как встречи под группой в сайдбаре. */
+.pp-next {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 36px;
+  border-radius: var(--r-lg);
+  color: var(--text);
+  text-decoration: none;
+}
+.pp-next:hover {
+  background: var(--hover);
+}
+.pp-next > .icon,
+.pp-next > .sidebar-dot {
+  flex: none;
+  color: var(--muted);
+}
 .pp-danger {
   color: var(--danger);
 }

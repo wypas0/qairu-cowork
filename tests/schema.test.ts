@@ -26,6 +26,8 @@ describe("проверка схемы перед сборкой", () => {
     expect(expected.get("busy_slots")?.get("start_min")).toBe("0000_init.sql");
     expect(expected.get("meetings")?.get("repeat_until")).toBe("0004_recurring_meetings.sql");
     expect(expected.get("owner_sessions")?.get("web_token_hash")).toBe("0010_owner_console.sql");
+    // 0013: встреча вдвоём — новая колонка; без неё сборка остановится до выкладки.
+    expect(expected.get("meetings")?.get("with_user")).toBe("0013_pair_meetings.sql");
     expect(expectedRls(await migrationFiles()).get("owner_login_codes")).toBe("0010_owner_console.sql");
   });
 

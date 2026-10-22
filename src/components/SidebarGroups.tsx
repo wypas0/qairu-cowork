@@ -49,23 +49,23 @@ export type MeetingLabels = {
 /**
  * Все предстоящие встречи группы под её названием, по времени: когда, о чём,
  * сколько идут и ждёт ли встреча твоего ответа. Нажатие открывает встречу во
- * вкладке «Встречи».
+ * вкладке «Встречи» (у встречи вдвоём — на карточке друга).
  *
  * Список текущей группы раскрыт, у остальных свёрнут в строку «3 встречи ·
  * Завтра, 16:00» — как рабочие пространства в Slack: при пяти группах со
- * встречами сайдбар иначе превращается в ленту.
+ * встречами сайдбар иначе превращается в ленту. Под «Друзьями» — так же
+ * встречи вдвоём.
  */
 export function GroupMeetings({
-  group,
+  meetings,
   open,
   labels,
 }: {
-  group: ProfileGroup;
+  meetings: GroupNextMeeting[] | undefined;
   open: boolean;
   labels: MeetingLabels;
 }) {
-  const meetings = group.meetings ?? [];
-  if (meetings.length === 0) return null;
+  if (!meetings || meetings.length === 0) return null;
   const awaiting = meetings.some((meeting) => meeting.awaiting);
   return (
     <details className="sidebar-fold" open={open}>
@@ -82,7 +82,7 @@ export function GroupMeetings({
           <li key={meeting.id}>
             <Link
               className="sidebar-next"
-              href={`/g/${group.slug}?at=meeting-${meeting.id}`}
+              href={meeting.href}
               aria-label={[
                 meeting.when,
                 meeting.soon,

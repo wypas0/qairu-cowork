@@ -35,7 +35,7 @@ import * as repo from "@/db/repo";
 import type { Chat, Meeting, MeetingResponse, User } from "@/db/schema";
 import { displayName } from "@/db/schema";
 import { formatDay, weekdayShort } from "@/i18n";
-import { DAYS_AHEAD, SLOT_STEP } from "./config";
+import { DAYS_AHEAD, SLOT_STEP, defaultTz } from "./config";
 
 export function parityOfChat(chat: Chat): ParityOf | null {
   return chat.semesterStart ? parityFromSemesterStart(chat.semesterStart) : null;
@@ -126,6 +126,17 @@ export function meetingSpan(
     end: Math.min(minutes + meetingDurationMin(meeting, tz), 24 * 60),
     title: meeting.goal || meeting.place || meeting.whenText,
   };
+}
+
+/**
+ * Когда встреча — словами на языке `lang`. У группы это сохранённый текст
+ * (он на языке группы), у встречи вдвоём — собирается заново: двое могут
+ * читать на разных языках.
+ */
+export function whenTextFor(meeting: Meeting, lang: string, tz: string = defaultTz()): string {
+  if (meeting.withUser === null || !meeting.whenStart) return meeting.whenText;
+  const { day, minutes } = utcToZonedWall(meeting.whenStart, tz);
+  return `${formatDay(lang, day)} · ${fmtInterval([minutes, minutes + meetingDurationMin(meeting, tz)])}`;
 }
 
 /** Встреча событием календаря — одинаково для файла .ics, ленты подписки и бота. */

@@ -148,8 +148,9 @@ postgresql://postgres.abcdefgh:ПАРОЛЬ@aws-0-eu-central-1.pooler.supabase.c
 [`drizzle/0008_session_token_hash.sql`](drizzle/0008_session_token_hash.sql),
 [`drizzle/0009_attendance_and_origin.sql`](drizzle/0009_attendance_and_origin.sql),
 [`drizzle/0010_owner_console.sql`](drizzle/0010_owner_console.sql),
-[`drizzle/0011_owner_users.sql`](drizzle/0011_owner_users.sql)
-и [`drizzle/0012_friends.sql`](drizzle/0012_friends.sql).
+[`drizzle/0011_owner_users.sql`](drizzle/0011_owner_users.sql),
+[`drizzle/0012_friends.sql`](drizzle/0012_friends.sql)
+и [`drizzle/0013_pair_meetings.sql`](drizzle/0013_pair_meetings.sql).
 
 Миграции выполняются **по порядку номеров** и **каждая один раз**. Если база уже
 работает на прошлой версии (`0000` выполнен давно), при обновлении нужно выполнить
@@ -184,7 +185,12 @@ Advisor** больше не ругается на «RLS disabled in public»,
 колонки `friends_see_groups`, `friends_see_free`, `findable` у `users` (по умолчанию `true`),
 `hidden_from_friends` у `memberships` (по умолчанию `false`) и индекс по нику без учёта регистра.
 Старые данные не меняет; без неё падает весь сайт: панель профиля на каждой странице считает,
-сколько ждёт в «Друзьях».
+сколько ждёт в «Друзьях»,
+`0013_pair_meetings.sql` — встречи вдвоём с другом: у `meetings` колонка `chat_id` становится
+необязательной (у встречи вдвоём группы нет), новая колонка `with_user` (второй человек), два
+частичных индекса и проверка `ck_meetings_pair` (встреча — либо в группе, либо вдвоём). Старые
+встречи не меняет — все они групповые и проверку проходят. Без неё падает весь сайт: панель
+профиля и счётчик «Друзей» на каждой странице читают `with_user`.
 
 > **Миграцию выполнять до того, как новый код попадёт на Vercel.** Код с новыми
 > колонками на старой базе падает на любой странице со встречами. Теперь это
@@ -552,6 +558,7 @@ DNS-записи, которые покажет Vercel. После этого д
 | `/admin` падает с ошибкой про `owner_login_codes`, `owner_sessions` или `owner_audit` | Не выполнена `0010_owner_console.sql`. Выполнить её в SQL Editor — остальной сайт от неё не зависит |
 | Карточки людей и групп в `/admin` или вкладка «Система» падают с ошибкой про `target_id` | Не выполнена `0011_owner_users.sql`. Выполнить её в SQL Editor (сборка с `DATABASE_URL` это и так поймает) |
 | Падает любая страница, в логах `friend_requests`, `group_invites`, `friends_see_groups` или `hidden_from_friends` | Не выполнена `0012_friends.sql`: код с друзьями уже на Vercel, а база старая. Выполнить её в SQL Editor — сайт оживёт без передеплоя |
+| Падает любая страница, в логах `with_user`; или «назначить встречу» другу падает с `chat_id` violates not-null | Не выполнена `0013_pair_meetings.sql`. Выполнить её в SQL Editor — сайт оживёт без передеплоя (сборка с `DATABASE_URL` это и так поймает) |
 | В `/admin` «не найдено», хотя вошёл | Твоего Telegram id нет ни в `ALERT_CHAT_ID`, ни в `OWNER_IDS` (id группы со знаком минус владельцем не считается), либо вход на сайт был не через Telegram. Добавить id в Vercel → Redeploy |
 | Код для консоли не приходит | Нет `BOT_TOKEN`, бот у тебя в личке не запущен (открой его, нажми Start) или исчерпан лимит: 3 кода за 15 минут, 10 неверных вводов за час закрывают вход до конца часа |
 | Вошёл в консоль, но по ссылке из Telegram она снова просит код | Кука консоли — SameSite=Strict: браузер не прикладывает её к переходу с чужого сайта. Обнови страницу |
@@ -614,7 +621,7 @@ Free засыпает после 7 дней без запросов — кажд
 
 - [ ] 0. `npm test` и `npm run build` локально — зелено
 - [ ] 1. `git init` → коммит → пуш на GitHub
-- [ ] 2. Supabase: проект → пулер-строка (6543) → выполнить `drizzle/0000_init.sql`, затем `0001_admin_login.sql`, `0002_avatars.sql`, `0003_real_name.sql`, `0004_recurring_meetings.sql`, `0005_calendar_and_summary.sql`, `0006_meeting_duration.sql`, `0007_row_level_security.sql`, `0008_session_token_hash.sql`, `0009_attendance_and_origin.sql`, `0010_owner_console.sql`, `0011_owner_users.sql` и `0012_friends.sql`
+- [ ] 2. Supabase: проект → пулер-строка (6543) → выполнить `drizzle/0000_init.sql`, затем `0001_admin_login.sql`, `0002_avatars.sql`, `0003_real_name.sql`, `0004_recurring_meetings.sql`, `0005_calendar_and_summary.sql`, `0006_meeting_duration.sql`, `0007_row_level_security.sql`, `0008_session_token_hash.sql`, `0009_attendance_and_origin.sql`, `0010_owner_console.sql`, `0011_owner_users.sql`, `0012_friends.sql` и `0013_pair_meetings.sql`
 - [ ] 3. Vercel: импорт репозитория → `DATABASE_URL` → Deploy
 - [ ] 4. Проверить `/api/healthz` и создание группы
 - [ ] 5. BotFather: `/newbot` → токен → `/setjoingroups` Enable

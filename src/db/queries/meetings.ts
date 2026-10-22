@@ -4,7 +4,7 @@ import "server-only";
 
 import { TIMELESS_MEETING_DAYS } from "@/core/recurrence";
 import type { DateStr } from "@/core/timeutils";
-import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, ne, not, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, lte, ne, not, or, sql } from "drizzle-orm";
 import { type Chat, chats, type Meeting, type MeetingResponse, meetingResponses, meetings, memberships, notices } from "../schema";
 import { type Exec, ex } from "./base";
 
@@ -96,7 +96,8 @@ export async function pendingCounts(userId: number, exec?: Exec): Promise<Map<nu
         ),
       );
     const done = new Set(answered.map((row) => row.meetingId));
-    for (const meeting of invited) if (!done.has(meeting.id)) bump(meeting.chatId);
+    // Встречи вдвоём сюда не попадают (они без группы) — их считает friendBadge.
+    for (const meeting of invited) if (!done.has(meeting.id) && meeting.chatId !== null) bump(meeting.chatId);
   }
 
   const unread = await unreadQuery;
@@ -422,6 +423,176 @@ export async function recurringReminderCandidates(
         isNotNull(meetings.repeatUntil),
         gte(meetings.repeatUntil, today),
         sql`${chats.reminderMin} > 0`,
+      ),
+    );
+}
+
+// --------------------------------------------------------------------------
+// Встречи вдвоём с другом (0013): группы нет, второй человек — with_user
+// --------------------------------------------------------------------------
+
+/** Встреча вдвоём: я создал или меня позвали. */
+const pairOf = (userId: number) =>
+  and(isNotNull(meetings.withUser), or(eq(meetings.initiatorId, userId), eq(meetings.withUser, userId)))!;
+
+/** Встреча вдвоём именно этих двоих — кто бы её ни создал. */
+const pairBetween = (a: number, b: number) =>
+  or(
+    and(eq(meetings.initiatorId, a), eq(meetings.withUser, b)),
+    and(eq(meetings.initiatorId, b), eq(meetings.withUser, a)),
+  )!;
+
+/** Ещё не прошла: то же условие, что у вкладки «Встречи» группы (у встреч вдвоём время есть всегда). */
+const pairUpcoming = (now: Date, today: DateStr) =>
+  or(
+    and(isNotNull(meetings.repeatUntil), gte(meetings.repeatUntil, today)),
+    and(isNull(meetings.repeatUntil), gte(meetings.whenStart, now)),
+  )!;
+
+/** Создать встречу вдвоём: приглашены оба, создатель — первым. */
+export async function createPairMeeting(
+  args: {
+    initiatorId: number;
+    withUser: number;
+    place: string;
+    whenText: string;
+    goal: string;
+    whenStart: Date;
+    durationMin: number;
+    repeatUntil?: DateStr | null;
+  },
+  exec?: Exec,
+): Promise<Meeting> {
+  const [row] = await ex(exec)
+    .insert(meetings)
+    .values({
+      chatId: null,
+      withUser: args.withUser,
+      initiatorId: args.initiatorId,
+      place: args.place.slice(0, 256),
+      whenText: args.whenText.slice(0, 256),
+      goal: args.goal,
+      invitees: `${args.initiatorId},${args.withUser}`,
+      whenStart: args.whenStart,
+      durationMin: args.durationMin,
+      repeatUntil: args.repeatUntil ?? null,
+    })
+    .returning();
+  return row;
+}
+
+/**
+ * Встречи двоих для карточки друга: все предстоящие (ближайшая первой) и
+ * `archive` последних прошедших или отменённых.
+ */
+export async function pairMeetingsBetween(
+  a: number,
+  b: number,
+  now: Date,
+  today: DateStr,
+  archive = 5,
+  exec?: Exec,
+): Promise<{ upcoming: Meeting[]; past: Meeting[] }> {
+  const live = and(ne(meetings.status, "cancelled"), pairUpcoming(now, today))!;
+  const [upcoming, past] = await Promise.all([
+    ex(exec)
+      .select()
+      .from(meetings)
+      .where(and(pairBetween(a, b), live))
+      .orderBy(asc(meetings.whenStart))
+      .limit(50),
+    ex(exec)
+      .select()
+      .from(meetings)
+      .where(and(pairBetween(a, b), not(live)))
+      .orderBy(desc(meetings.whenStart))
+      .limit(archive),
+  ]);
+  return { upcoming, past };
+}
+
+/**
+ * Открытые встречи вдвоём человека с точным временем, начиная с `since`, —
+ * для ленты календаря, сайдбара и проверки конфликтов.
+ */
+export async function pairMeetingsOf(userId: number, since: Date, exec?: Exec): Promise<Meeting[]> {
+  return ex(exec)
+    .select()
+    .from(meetings)
+    .where(
+      and(
+        pairOf(userId),
+        eq(meetings.status, "open"),
+        isNotNull(meetings.whenStart),
+        or(gte(meetings.whenStart, since), gte(meetings.repeatUntil, since.toISOString().slice(0, 10))),
+      ),
+    )
+    .orderBy(asc(meetings.whenStart))
+    .limit(200);
+}
+
+/**
+ * Куда меня позвали вдвоём и я ещё не ответил — «Друзья → Заявки» и счётчик.
+ * От того, кого я заблокировал, не показываем (встречи с ним и так отменены).
+ */
+export async function pendingPairInvites(userId: number, now: Date, exec?: Exec): Promise<Meeting[]> {
+  const today = now.toISOString().slice(0, 10);
+  return ex(exec)
+    .select()
+    .from(meetings)
+    .where(
+      and(
+        eq(meetings.withUser, userId),
+        eq(meetings.status, "open"),
+        pairUpcoming(now, today),
+        sql`not exists (select 1 from meeting_responses r where r.meeting_id = ${meetings.id} and r.user_id = ${userId})`,
+        sql`not exists (select 1 from user_blocks b where b.blocker = ${userId} and b.blocked = ${meetings.initiatorId})`,
+      ),
+    )
+    .orderBy(asc(meetings.whenStart))
+    .limit(50);
+}
+
+/** Отменить открытые встречи двоих — при удалении из друзей и блокировке. */
+export async function cancelPairMeetingsBetween(a: number, b: number, exec?: Exec): Promise<number> {
+  const rows = await ex(exec)
+    .update(meetings)
+    .set({ status: "cancelled" })
+    .where(and(pairBetween(a, b), eq(meetings.status, "open")))
+    .returning({ id: meetings.id });
+  return rows.length;
+}
+
+/** Разовые встречи вдвоём, о которых пора напомнить: до начала не больше `minutes`. */
+export async function pairMeetingsDueForReminder(now: Date, minutes: number, exec?: Exec): Promise<Meeting[]> {
+  return ex(exec)
+    .select()
+    .from(meetings)
+    .where(
+      and(
+        isNotNull(meetings.withUser),
+        eq(meetings.status, "open"),
+        eq(meetings.reminderSent, false),
+        isNotNull(meetings.whenStart),
+        isNull(meetings.repeatUntil),
+        gt(meetings.whenStart, now),
+        lte(meetings.whenStart, new Date(now.getTime() + minutes * 60_000)),
+      ),
+    );
+}
+
+/** Живые серии встреч вдвоём — ближайший повтор считает вызывающий. */
+export async function pairRecurringCandidates(today: DateStr, exec?: Exec): Promise<Meeting[]> {
+  return ex(exec)
+    .select()
+    .from(meetings)
+    .where(
+      and(
+        isNotNull(meetings.withUser),
+        eq(meetings.status, "open"),
+        isNotNull(meetings.whenStart),
+        isNotNull(meetings.repeatUntil),
+        gte(meetings.repeatUntil, today),
       ),
     );
 }
