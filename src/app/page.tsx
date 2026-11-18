@@ -1,22 +1,29 @@
+import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
 
 import { CreateGroupDialog } from "@/components/CreateGroupDialog";
 import { FriendsLink } from "@/components/friends/FriendsLink";
-import { IconBell, IconPhone, IconPlus, IconUser } from "@/components/icons";
+import { IconPlus } from "@/components/icons";
 import { GroupsButton, LandingShell } from "@/components/LandingShell";
-import { ProductDemo } from "@/components/ProductDemo";
+import { Bento } from "@/components/landing/Bento";
+import { Faq } from "@/components/landing/Faq";
+import { Hero } from "@/components/landing/Hero";
+import { Manifest } from "@/components/landing/Manifest";
+import { landingMetadata } from "@/components/landing/meta";
+import { StartBlock } from "@/components/landing/StartBlock";
+import { StoryScene } from "@/components/landing/StoryScene";
 import { ProfilePanel } from "@/components/ProfilePanel";
 import { GroupLink, GroupMeetings, type MeetingLabels } from "@/components/SidebarGroups";
 import { SiteFooter } from "@/components/SiteFooter";
 import { OpenLastGroup } from "@/components/TelegramHome";
 import { profilePanelProps } from "@/components/profilePanelProps";
-import { TelegramSignIn } from "@/components/TelegramSignIn";
 import { Topbar } from "@/components/Topbar";
 import { formatDM, utcToZonedWall, chatTz } from "@/core/timeutils";
 import * as repo from "@/db/repo";
 import { LANG_NAMES, normalizeLang, tn, translator } from "@/i18n";
-import { pageUser } from "@/lib/gate";
+import { currentUser } from "@/lib/auth";
+import { loginUrl, pageUser } from "@/lib/gate";
 import { createGroup, joinByCodeAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -30,17 +37,11 @@ const TIMEZONES = [
   ["UTC", "UTC"],
 ];
 
-/** Заголовок с одним акцентным словом рукописным шрифтом. */
-function withAccent(title: string, accent: string) {
-  const at = accent ? title.indexOf(accent) : -1;
-  if (at < 0) return title;
-  return (
-    <>
-      {title.slice(0, at)}
-      <i className="script-word">{accent}</i>
-      {title.slice(at + accent.length)}
-    </>
-  );
+/** Заголовок, описание и og:locale — на языке посетителя, как и сама страница. */
+export async function generateMetadata(): Promise<Metadata> {
+  const user = await currentUser();
+  const requestHeaders = await headers();
+  return landingMetadata(user?.lang ?? normalizeLang((requestHeaders.get("accept-language") ?? "").split(",")[0]));
 }
 
 export default async function LandingPage({
@@ -56,7 +57,7 @@ export default async function LandingPage({
   // Группы для страницы — те же, что в панели профиля: собираем их один раз.
   const panel = await profilePanelProps(lang);
   const groups = panel.groups;
-  // Для вошедшего вместо «Вход только через Telegram» (он уже вошёл) — его неделя.
+  // Для вошедшего под витриной — его неделя; гостю внизу — блок «Старт».
   const updatedAt = user ? (await repo.scheduleUpdatedAt([user.userId])).get(user.userId) : undefined;
   const joinError =
     query.join === "bad" ? "w_join_err_bad" : query.join === "notfound" ? "w_join_err_notfound" : null;
@@ -65,41 +66,10 @@ export default async function LandingPage({
   // ней логотипом. Свои группы у вошедшего — в сайдбаре, а не на странице.
   const showcase = (
     <>
-      {/* Небо витрины — самый крупный элемент первого экрана (LCP). Фоновую
-          картинку браузер находит только после разбора CSS; ссылка в разметке
-          отдаёт её сразу и с высоким приоритетом. */}
-      <link rel="preload" as="image" href="/hero-sky.jpg" fetchPriority="high" />
-      <section className="hero">
-        <div className="hero-text">
-          <h1 className="type-display">{withAccent(t("w_hero_title"), t("w_hero_accent"))}</h1>
-          <p className="lead">{t("w_hero_lead")}</p>
-        </div>
-        {/* Сразу показываем сам продукт, а не рассказ о нём. */}
-        <ProductDemo lang={lang} />
-      </section>
+      {/* «Создать группу»: вошедшему — окно на этой же странице, гостю — сначала вход. */}
+      <Hero lang={lang} signedIn={user !== null} createHref={user ? "#create" : loginUrl("/#create")} />
 
-      <p className="manifest display-caps" aria-hidden="true">
-        {t("w_manifest")
-          .split("|")
-          .map((line) => (
-            <span key={line}>{line}</span>
-          ))}
-      </p>
-
-      {/* Как это работает — три шага с крупным номером. */}
-      <ol className="steps">
-        {([1, 2, 3] as const).map((n) => (
-          <li className="step" key={n}>
-            <span className="step-n display-caps" aria-hidden="true">
-              0{n}
-            </span>
-            <h3>{t(`w_step${n}_t`)}</h3>
-            <p className="small muted">{t(`w_step${n}_d`)}</p>
-          </li>
-        ))}
-      </ol>
-
-      {user ? (
+      {user && (
         <section className="card your-week" aria-labelledby="your-week-title">
           <div className="card-head">
             <h2 id="your-week-title">{t("w_week_you_title")}</h2>
@@ -138,25 +108,16 @@ export default async function LandingPage({
             </ul>
           )}
         </section>
-      ) : (
-      <section className="card tg-only" aria-labelledby="tg-only-title">
-        <h2 id="tg-only-title">{t("w_tg_only_title")}</h2>
-        <ul className="tg-only-list">
-          <li>
-            <IconUser size={20} className="ico" />
-            <span>{t("w_tg_only_1")}</span>
-          </li>
-          <li>
-            <IconPhone size={20} className="ico" />
-            <span>{t("w_tg_only_2")}</span>
-          </li>
-          <li>
-            <IconBell size={20} className="ico" />
-            <span>{t("w_tg_only_3")}</span>
-          </li>
-        </ul>
-      </section>
       )}
+
+      {/* Как складывается неделя — сцена прокрутки вместо трёх карточек шагов. */}
+      <StoryScene lang={lang} />
+
+      <Manifest lines={t("w_manifest").split("|")} />
+
+      <Bento lang={lang} />
+
+      <Faq lang={lang} />
     </>
   );
 
@@ -169,41 +130,7 @@ export default async function LandingPage({
         <main className="wrap">
           {showcase}
 
-          <div className="card" id="join" style={{ scrollMarginTop: 72 }}>
-            <h2>{t("w_join_code_title")}</h2>
-            <p className="small muted">{t("w_join_code_lead")}</p>
-            {joinError && (
-              <div className="notice warn" role="alert">
-                {t(joinError)}
-              </div>
-            )}
-            <form action={joinByCodeAction} className="row join-code">
-              <input
-                type="text"
-                name="code"
-                required
-                maxLength={40}
-                autoComplete="off"
-                spellCheck={false}
-                placeholder={t("w_join_code_ph")}
-                aria-label={t("w_join_code_title")}
-              />
-              <button className="btn" type="submit">
-                {t("w_join_code_btn")}
-              </button>
-            </form>
-          </div>
-
-          <div className="card" id="create" style={{ scrollMarginTop: 72 }}>
-            <h2>{t("w_create")}</h2>
-            <div style={{ maxWidth: 420 }}>
-              <p className="small muted">{t("w_create_login_lead")}</p>
-              <TelegramSignIn lang={lang} next="/#create" />
-              <p className="small muted" style={{ marginTop: 10 }}>
-                {t("w_signin_hint")}
-              </p>
-            </div>
-          </div>
+          <StartBlock lang={lang} joinError={joinError} />
         </main>
       </>
     );

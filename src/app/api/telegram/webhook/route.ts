@@ -1,3 +1,5 @@
+import crypto from "node:crypto";
+
 import type { NextRequest } from "next/server";
 
 import type { TgUpdate } from "@/bot/api";
@@ -19,8 +21,9 @@ export const maxDuration = 30;
 export async function POST(request: NextRequest) {
   if (!hasBot()) return new Response("bot disabled", { status: 200 });
 
+  // Пустой секрет — не «пускать всех»: без него апдейт мог бы прислать кто угодно.
   const secret = webhookSecret();
-  if (request.headers.get("x-telegram-bot-api-secret-token") !== secret) {
+  if (!secret || !sameSecret(request.headers.get("x-telegram-bot-api-secret-token") ?? "", secret)) {
     return new Response("forbidden", { status: 401 });
   }
 
@@ -42,4 +45,10 @@ export async function POST(request: NextRequest) {
   }
   observeRoute("webhook", started, failed);
   return new Response("ok", { status: 200 });
+}
+
+/** Сравнение без утечки по времени ответа, как в cron: сравниваются хеши одинаковой длины. */
+function sameSecret(given: string, expected: string): boolean {
+  const digest = (value: string) => crypto.createHash("sha256").update(value).digest();
+  return crypto.timingSafeEqual(digest(given), digest(expected));
 }

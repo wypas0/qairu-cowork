@@ -87,8 +87,11 @@ p {
    Сам Caveat включает класс deco-fonts после load (DecoFonts.tsx), и он не
    стоит на пути первой отрисовки. До того — «Caveat Fallback»: его next/font
    подгоняет под метрики Caveat, поэтому подмена почти не сдвигает строку
-   (CLS 0,021 → 0,004 против системного рукописного). */
-.script-word {
+   (CLS 0,021 → 0,004 против системного рукописного). Невидимая копия
+   .script-sizer остаётся в запасном шрифте и держит перенос заголовка
+   (Hero.tsx). */
+.script-word,
+.script-sizer {
   font-family: "Caveat Fallback", cursive;
   font-style: normal;
   font-weight: 600;

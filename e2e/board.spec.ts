@@ -1,31 +1,8 @@
 import type { Page } from "@playwright/test";
 
-import { expect, state, test } from "./fixtures";
+import { expect, running, state, test } from "./fixtures";
 
 const group = () => `/g/${state().slug}`;
-
-/**
- * Конечные анимации и переходы, которые идут сейчас: «имя @ класс элемента».
- * Бесконечные (бегущая полоса пересчёта, скелетон) не в счёт — это загрузка.
- */
-function running(page: Page): Promise<string[]> {
-  return page.evaluate(() =>
-    document
-      .getAnimations()
-      .filter((animation) => animation.playState === "running" && animation.effect?.getComputedTiming().iterations !== Infinity)
-      .map((animation) => {
-        const effect = animation.effect as KeyframeEffect | null;
-        const name =
-          animation instanceof CSSAnimation
-            ? animation.animationName
-            : animation instanceof CSSTransition
-              ? animation.transitionProperty
-              : "script";
-        const target = effect?.target as Element | null;
-        return `${name} @ ${target?.className || target?.tagName}${effect?.pseudoElement ?? ""}`;
-      }),
-  );
-}
 
 /** Дождаться, пока доиграет движение: координаты клеток для мыши — после сдвига новой недели. */
 function settle(page: Page): Promise<unknown> {

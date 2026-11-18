@@ -1,0 +1,1014 @@
+/* Лендинг «Неделя складывается»: витрина, сцена прокрутки, манифест,
+   «Что внутри», вопросы и старт.
+
+   Движение — только отклик: прокрутка, наведение, нажатие и движение
+   указателя. Всё, что зависит от прокрутки, рисуется из --p (0…1), который
+   пишет useScrollProgress; на этих свойствах нет transition, поэтому при
+   загрузке ничего не едет. Только opacity, transform и clip-path. «Меньше
+   движения» показывает итог сразу (--p: 1) — содержимое остаётся полным. */
+
+/* Текст только для скринридера. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* --- панель «ночное небо»: витрина (Л1) и старт (Л6) ---
+   Панель всегда тёмная, в обеих темах: внутри — токены тёмной темы.
+   Космос, звёзды и горизонт планеты — одной картинкой (public/hero-sky.jpg,
+   11 КБ, рисует scripts/dev/hero-sky.mjs из цветов qairuhub), а не слоями
+   CSS-градиентов: их растеризация на телефоне стоила ~100–150 мс первой
+   отрисовки (Lighthouse 90 против 96–97). Картинка — на ::before с запасом
+   12 px со всех сторон: витрина сдвигает её за указателем (--mx/--my). */
+.sky-panel {
+  position: relative;
+  isolation: isolate;
+  border-radius: var(--r-3xl);
+  background: #05051d;
+  color: #ffffff;
+  overflow: hidden;
+  color-scheme: dark;
+  --text: #ffffff;
+  --muted: rgba(255, 255, 255, 0.78);
+  --card: rgba(255, 255, 255, 0.08);
+  --card-line: rgba(255, 255, 255, 0.18);
+  --surface: rgba(255, 255, 255, 0.08);
+  --border: rgba(255, 255, 255, 0.18);
+  --hairline: rgba(255, 255, 255, 0.3);
+  --text-glow: 0 2px 24px rgba(6, 18, 58, 0.45), 0 0 2px rgba(6, 18, 58, 0.25);
+  /* Кнопки, поля, фокус и данные — как в тёмной теме: в светлой теме
+     главная кнопка была бы тёмной на тёмном небе. */
+  --ink: #ffffff;
+  --ink-text: #1b1b1b;
+  --btn-line: rgba(255, 255, 255, 0.5);
+  --hover: rgba(255, 255, 255, 0.08);
+  --ring: rgba(255, 255, 255, 0.85);
+  --field: rgba(255, 255, 255, 0.06);
+  --field-line: rgba(255, 255, 255, 0.5);
+  --field-line-focus: rgba(255, 255, 255, 0.85);
+  --seg-fill: rgba(255, 255, 255, 0.1);
+  --accent: #6fa8ff;
+  --accent-text: #03040c;
+  --accent-soft: rgba(111, 168, 255, 0.16);
+  --danger: #ff8a99;
+  --warning: #ffc63d;
+  --success: #5bd27a;
+}
+.sky-panel::before {
+  content: "";
+  position: absolute;
+  inset: -12px;
+  z-index: -1;
+  background: url("/hero-sky.jpg") center bottom / cover no-repeat;
+  translate: var(--mx, 0px) var(--my, 0px);
+  pointer-events: none;
+}
+/* Небо догоняет указатель плавно — только когда он двигается. */
+.hero::before {
+  transition: translate var(--dur-slow) var(--ease);
+}
+
+/* --- Л1. Витрина --- */
+.hero {
+  margin: 8px 0 32px;
+  padding: 40px 24px;
+}
+.hero h1 {
+  max-width: 18ch;
+  color: var(--text);
+}
+.hero p.lead {
+  max-width: 62ch;
+  margin-top: 12px;
+}
+.hero-text {
+  min-width: 0;
+}
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 24px;
+}
+@media (max-width: 899px) {
+  .hero .demo {
+    margin-top: 28px;
+  }
+}
+@media (min-width: 900px) {
+  .hero {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap: 40px;
+    align-items: center;
+    padding: 64px 56px 72px;
+  }
+}
+/* Хвост заголовка с акцентным словом — неразрывный блок, ширину ему задаёт
+   невидимая копия в запасном шрифте; видимая лежит поверх (Hero.tsx, Р15). */
+.accent-line {
+  position: relative;
+  display: inline-block;
+  white-space: nowrap;
+}
+.accent-size {
+  visibility: hidden;
+}
+.accent-ink {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+/* --- окно продукта на витрине: живая карта недели (HeroDemo) --- */
+.demo {
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  background: var(--surface);
+  padding: 16px;
+}
+.hero .demo {
+  /* Ряд людей перестраивается по ширине самой карточки, а не окна. */
+  container-type: inline-size;
+  background: var(--card);
+  border-color: var(--card-line);
+  /* Префикс первым: сборщик CSS оставляет последнее объявление, а Chrome понимает только обычное. */
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+.demo-who {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 2px 4px;
+  margin: 0 0 12px;
+}
+.demo-who .who-avatar {
+  width: 100%;
+}
+.demo-who .who-avatar-name {
+  max-width: 100%;
+}
+@container (min-width: 400px) {
+  .demo-who {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+  }
+}
+.demo-best {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.demo-best .type-title-3 {
+  font-variant-numeric: tabular-nums;
+}
+.demo-map {
+  position: relative;
+}
+table.week.demo-week {
+  min-width: 0;
+}
+table.week.demo-week td.cell {
+  height: 28px;
+  cursor: default;
+  /* Цвет клетки меняется сразу; движется только прозрачность (подсветка человека). */
+  transition: opacity var(--dur-fast) var(--ease);
+}
+/* Время пары не прячется под кольцом лучшего окна. */
+table.week.demo-week td.timecol.period {
+  width: 58px;
+  min-width: 58px;
+}
+/* Липкая строка дней на телефоне (week-grid.css) — для длинной карты. Демо
+   короткое и стоит на тёмной витрине: светлый фон прилипания прятал белые
+   названия дней. */
+@media (max-width: 560px) {
+  table.week.demo-week thead th {
+    position: static;
+    background: transparent;
+  }
+}
+/* Кольцо лучшего окна. До гидратации его рисует сама клетка (обводка), после —
+   отдельный слой, который переезжает к новой клетке через translate. */
+.demo-map:not([data-ring]) td.best {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.demo-ring {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: calc(var(--ring-w, 0px) + 8px);
+  height: calc(var(--ring-h, 0px) + 8px);
+  border: 2px solid var(--ink);
+  border-radius: calc(var(--r-md) + 4px);
+  translate: calc(var(--ring-x, 0px) - 4px) calc(var(--ring-y, 0px) - 4px);
+  opacity: 0;
+  pointer-events: none;
+}
+.demo-map[data-ring] .demo-ring {
+  opacity: 1;
+}
+.demo-map[data-ring="live"] .demo-ring {
+  transition: translate var(--dur-slow) var(--ease);
+}
+.demo-hint {
+  margin: 10px 0 0;
+}
+
+/* --- Л3. Манифест сжатым капсом ---
+   Строка — тусклый слой и яркий поверх, обрезанный справа. --f строки n
+   растёт на своей трети прогресса --p (Manifest.tsx). */
+.manifest {
+  --p: 0;
+  margin: 8px 0 40px;
+  font-size: clamp(44px, 9.5vw, 128px);
+  text-align: center;
+  color: var(--text);
+}
+.manifest-line {
+  --f: clamp(0, calc(var(--p) * 3 - var(--n)), 1);
+  position: relative;
+  display: block;
+  width: fit-content;
+  margin: 0 auto;
+}
+.manifest-dim {
+  display: block;
+  opacity: 0.22;
+}
+.manifest-lit {
+  position: absolute;
+  inset: 0;
+  text-shadow: var(--text-glow);
+  /* Сверху, снизу и по краям — с запасом: хвосты букв (Д, Щ) выходят за
+     строку при line-height 0,92 и иначе торчали бы из-под яркого слоя. */
+  clip-path: inset(-0.3em calc((1 - var(--f)) * (100% + 0.2em) - 0.1em) -0.3em -0.1em);
+}
+@media (prefers-reduced-motion: reduce) {
+  .manifest {
+    --p: 1 !important;
+  }
+}
+
+/* --- Л2. Сцена «Как складывается неделя» ---
+   Секция в три экрана, внутри — липкая сцена под шапкой (--story-top пишет
+   ScrollStory). Фазы: --t1 — веер собирается в группу, --t2 — недели
+   сливаются в общую карту, --t3 — находится окно и встреча. */
+.story {
+  --p: 0;
+  --t1: clamp(0, calc(var(--p) * 3), 1);
+  --t2: clamp(0, calc(var(--p) * 3 - 1), 1);
+  --t3: clamp(0, calc(var(--p) * 3 - 2), 1);
+  /* Для подписей: x ∈ [0; 2,83], чтобы последняя подпись в конце была яркой. */
+  --x: min(calc(var(--p) * 3), 2.83);
+  position: relative;
+  height: 300vh;
+  margin: 0 0 32px;
+}
+.story-scene {
+  position: sticky;
+  top: var(--story-top, 0px);
+  height: calc(100svh - var(--story-top, 0px));
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  gap: 48px;
+  align-items: center;
+  padding: 24px 0;
+  /* Повёрнутые карточки веера не дают прокрутку вбок. */
+  overflow: clip;
+}
+.story-steps {
+  position: relative;
+  padding-left: 22px;
+}
+.story-title {
+  margin: 0 0 18px;
+}
+/* Полоса прогресса слева: заливка растёт сверху вниз. */
+.story-bar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  border-radius: var(--r-full);
+  background: var(--border);
+  overflow: hidden;
+}
+.story-bar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--accent);
+  transform-origin: 50% 0;
+  transform: scaleY(var(--p));
+}
+.story-list {
+  display: grid;
+  gap: 22px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* Активна подпись той фазы, что идёт; соседние — 0,4. Переход между ними —
+   короткое перетекание на последней шестой доле фазы. */
+.story-step {
+  --a: clamp(0, min(calc((var(--x) - var(--n) + 0.17) * 6), calc((var(--n) + 1 - var(--x)) * 6)), 1);
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  opacity: calc(0.4 + 0.6 * var(--a));
+}
+.story-step .step-n {
+  margin: 0;
+  font-size: 44px;
+  color: var(--muted);
+}
+.story-step h3 {
+  margin: 2px 0 4px;
+  font-size: 17px;
+  line-height: 22px;
+}
+.story-step p {
+  margin: 0;
+  max-width: 44ch;
+}
+
+.story-field {
+  position: relative;
+  min-width: 0;
+}
+.story-map {
+  opacity: var(--t2);
+  transform: scale(calc(0.94 + 0.06 * var(--t2)));
+}
+.story-map td.cell:not(.best) {
+  opacity: calc(1 - 0.55 * var(--t3));
+}
+/* Кольцо лучшего окна вырастает, на клетке появляется встреча. */
+.story-map td.best::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border: 2px solid var(--ink);
+  border-radius: calc(var(--r-md) + 4px);
+  opacity: var(--t3);
+  transform: scale(calc(0.6 + 0.4 * var(--t3)));
+  pointer-events: none;
+}
+.story-meet {
+  position: absolute;
+  inset: 3px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-sm);
+  background: var(--meeting);
+  color: var(--meeting-text);
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 600;
+  overflow: hidden;
+  opacity: var(--t3);
+}
+.story-result {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 14px;
+  padding: 12px 16px;
+  border: 1px solid var(--card-line);
+  border-radius: var(--r-xl);
+  background: var(--card);
+  opacity: var(--t3);
+  transform: translateY(calc((1 - var(--t3)) * 16px));
+}
+.story-result .type-title-3 {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Восемь недель: веер (--fx/--fy/--fr) → сетка 4 × 2 (--gx/--gy) → в центр и
+   гаснут. Места заданы в долях размера самой карточки (StoryScene). */
+.story-cards {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.story-card {
+  --x0: var(--fx);
+  --y0: var(--fy);
+  --r0: var(--fr);
+  position: absolute;
+  top: 44%;
+  left: 50%;
+  width: 21%;
+  padding: 8px;
+  border: 1px solid var(--card-line);
+  border-radius: var(--r-md);
+  background: var(--popover);
+  opacity: calc(1 - var(--t2));
+  transform: translate(
+      calc(-50% + (var(--x0) + (var(--gx) - var(--x0)) * var(--t1)) * (1 - var(--t2))),
+      calc(-50% + (var(--y0) + (var(--gy) - var(--y0)) * var(--t1)) * (1 - var(--t2)))
+    )
+    rotate(calc(var(--r0) * (1 - var(--t1))))
+    scale(calc(1 - 0.35 * var(--t2)));
+}
+.story[data-in-view] .story-card {
+  will-change: transform;
+}
+.story-card-name {
+  display: block;
+  margin-bottom: 6px;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.story-week {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 2px;
+}
+.story-week i {
+  aspect-ratio: 1.6;
+  border-radius: 2px;
+  background: var(--slot-free);
+}
+.story-week i.busy {
+  background: var(--slot-busy);
+}
+
+/* Телефон: подписи сверху, поле снизу, карточки сразу сеткой 4 × 2. */
+@media (max-width: 759px) {
+  .story-scene {
+    grid-template-columns: minmax(0, 1fr);
+    align-content: center;
+    gap: 16px;
+    padding: 12px 0;
+  }
+  .story-title {
+    margin-bottom: 10px;
+  }
+  .story-list {
+    gap: 10px;
+  }
+  .story-step {
+    grid-template-columns: 36px minmax(0, 1fr);
+    gap: 8px;
+  }
+  .story-step .step-n {
+    font-size: 26px;
+  }
+  .story-step h3 {
+    margin: 0 0 2px;
+    font-size: 15px;
+    line-height: 20px;
+  }
+  .story-card {
+    --x0: var(--gx);
+    --y0: var(--gy);
+    --r0: 0deg;
+    padding: 5px;
+  }
+  .story-card-name {
+    margin-bottom: 4px;
+    font-size: 11px;
+    line-height: 14px;
+  }
+  .story-result {
+    margin-top: 10px;
+    padding: 10px 14px;
+  }
+}
+
+/* Меньше движения: сцена не липкая и сразу в итоге — общая карта, окно и
+   встреча; три подписи списком. Прогресс не считается (calm()). */
+@media (prefers-reduced-motion: reduce) {
+  .story {
+    --p: 1 !important;
+    height: auto;
+  }
+  .story-scene {
+    position: static;
+    height: auto;
+    overflow: visible;
+  }
+  .story-cards,
+  .story-bar {
+    display: none;
+  }
+  .story-step {
+    opacity: 1;
+  }
+}
+
+/* --- Л4. «Что внутри»: шесть стеклянных плиток с живыми виджетами ---
+   3 колонки от 1000 px (плитки 1, 4 и 5 — двойной ширины, ряды чередуются
+   2+1 / 1+2 / 2+1), 2 колонки от 640 px, одна на телефоне. */
+.section-title {
+  margin: 0 0 16px;
+  font-size: 28px;
+  line-height: 34px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+.bento-section {
+  margin: 0 0 48px;
+}
+.bento {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+@media (min-width: 640px) {
+  .bento {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1000px) {
+  .bento {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .tile-wide {
+    grid-column: span 2;
+  }
+}
+.tile {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--card-line);
+  border-radius: var(--r-xl);
+  background: var(--card);
+  overflow: hidden;
+}
+.tile h3 {
+  margin: 0;
+  font-size: 17px;
+  line-height: 22px;
+}
+.tile p {
+  margin: 0;
+  max-width: 56ch;
+}
+.tile-widget {
+  margin-top: auto;
+  padding-top: 16px;
+}
+/* Пятно света за курсором: место пишет BentoGrid в --mx/--my плитки. */
+@media (hover: hover) {
+  .tile::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: -1;
+    width: 320px;
+    height: 320px;
+    margin: -160px 0 0 -160px;
+    border-radius: var(--r-full);
+    background: radial-gradient(closest-side, var(--accent-soft), transparent);
+    translate: var(--mx, 0px) var(--my, 0px);
+    opacity: 0;
+    transition: opacity var(--dur-base) var(--ease);
+    pointer-events: none;
+  }
+  .tile:hover::before {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tile::before {
+    display: none;
+  }
+}
+
+/* 1. Лучшее время: длина встречи и три окна. */
+.tile-list {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.tile-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px 12px;
+  padding: 8px 12px;
+  border-radius: var(--r-lg);
+  background: var(--seg-fill);
+}
+
+/* 2. Приглашение бота — пузырь сообщения с кнопками ответа. */
+.tg-msg {
+  max-width: 380px;
+  padding: 12px 14px 10px;
+  border-radius: var(--r-xl) var(--r-xl) var(--r-xl) var(--r-sm);
+  background: var(--seg-fill);
+}
+.tg-msg-text {
+  display: grid;
+  gap: 2px;
+}
+.tile .tg-msg-count {
+  margin: 6px 0 10px;
+  overflow: hidden;
+}
+.tg-count {
+  display: inline-block;
+  color: var(--accent);
+  font-weight: 600;
+}
+.tg-msg-btns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+.tg-msg-btns button {
+  min-height: 36px;
+  padding: 6px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  line-height: 16px;
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease);
+}
+.tg-msg-btns button:hover {
+  background: var(--hover);
+}
+.tg-msg-btns button.active {
+  background: var(--ink);
+  color: var(--ink-text);
+}
+.tg-msg-btns button:active {
+  transform: scale(0.97);
+}
+/* На тач-экранах цель нажатия — не меньше 44 px. */
+@media (pointer: coarse) {
+  .tg-msg-btns button {
+    min-height: 44px;
+  }
+}
+
+/* 3. Перенос из кампуса: клетки пар проявляются по очереди. */
+.tile-campus {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+.tile-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 26px);
+  gap: 3px;
+}
+.tile-grid i {
+  position: relative;
+  height: 16px;
+  border-radius: 3px;
+  background: var(--slot-free);
+  box-shadow: inset 0 0 0 1px var(--slot-free-border);
+}
+.tile-grid i.busy::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--slot-busy);
+  opacity: 0;
+  transition: opacity var(--dur-base) var(--ease) calc(var(--k) * 25ms);
+}
+.tile-grid.filled i.busy::after {
+  opacity: 1;
+}
+
+/* 4. Повторы: встреча проявляется в соседних неделях с лёгким перелётом. */
+.tile-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  cursor: pointer;
+}
+.tile-weeks {
+  display: grid;
+  grid-template-columns: auto repeat(5, minmax(0, 1fr));
+  align-items: center;
+  gap: 4px 6px;
+  margin-top: 8px;
+}
+.tile-weeks-row {
+  display: contents;
+}
+.tile-weeks-day {
+  font-size: 11px;
+  line-height: 14px;
+  text-align: center;
+  color: var(--muted);
+}
+.tile-weeks-label {
+  padding-right: 6px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.tile-weeks i {
+  position: relative;
+  height: 18px;
+  border-radius: var(--r-sm);
+  background: var(--slot-free);
+  box-shadow: inset 0 0 0 1px var(--slot-free-border);
+}
+.tile-weeks i.meet::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--meeting);
+}
+.tile-weeks i.later::after {
+  opacity: 0;
+  transform: scale(0.6);
+  transition:
+    opacity var(--dur-base) var(--ease) calc((var(--k) - 1) * 90ms),
+    transform var(--dur-slow) var(--ease-spring) calc((var(--k) - 1) * 90ms);
+}
+.tile-weeks.on i.later::after {
+  opacity: 1;
+  transform: none;
+}
+
+/* 5. Встреча вдвоём: полоска дня 8–22, синим — оба свободны. */
+.pair-people {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.pair-person {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.pair-person .who-avatar-mark {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-size: 12px;
+}
+.pair-day {
+  margin-left: auto;
+}
+.pair-axis {
+  position: relative;
+  height: 16px;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.pair-axis span {
+  position: absolute;
+  top: 0;
+  translate: -50% 0;
+}
+.pair-strip {
+  position: relative;
+  height: 10px;
+  margin: 8px 0;
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+}
+/* Цель нажатия — 44 px по высоте, сама полоска — 10 px. */
+.pair-free {
+  position: absolute;
+  top: -17px;
+  bottom: -17px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.pair-free::before {
+  content: "";
+  position: absolute;
+  top: 17px;
+  right: 0;
+  bottom: 17px;
+  left: 0;
+  border-radius: var(--r-full);
+  background: var(--accent);
+  transition: opacity var(--dur-fast) var(--ease);
+}
+.pair-free:hover::before {
+  opacity: 0.75;
+}
+.pair-free:focus-visible {
+  outline: none;
+}
+.pair-free:focus-visible::before {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.pair-chosen {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  border-radius: var(--r-full);
+  background: var(--ink);
+  pointer-events: none;
+}
+.tile .pair-result {
+  margin: 14px 0 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 6. Языки: текст плитки на выбранном языке. */
+.tile-lang h3 {
+  margin-bottom: 6px;
+}
+
+@media (max-width: 639px) {
+  .tile {
+    padding: 16px;
+  }
+  .section-title {
+    font-size: 24px;
+    line-height: 30px;
+  }
+}
+
+/* --- «Твоя неделя» у вошедшего: группы со встречами и ответами --- */
+.your-week-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+}
+.your-week-list li + li {
+  border-top: 1px solid var(--border);
+}
+.your-week-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  min-height: 48px;
+  padding: 10px 14px;
+  color: var(--text);
+}
+.your-week-row .badge {
+  margin-left: auto;
+}
+.your-week {
+  margin-bottom: 32px;
+}
+
+/* --- Л5. Вопросы: аккордеон, раскрытие — общее для <details> (motion.css) --- */
+.faq-section {
+  margin: 0 0 48px;
+}
+.faq {
+  max-width: 880px;
+  border-top: 1px solid var(--border);
+}
+.faq-item {
+  border-bottom: 1px solid var(--border);
+}
+.faq-item summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 56px;
+  padding: 14px 0;
+  font-size: 17px;
+  line-height: 24px;
+  list-style: none;
+  cursor: pointer;
+}
+.faq-item summary::-webkit-details-marker {
+  display: none;
+}
+/* Плюс поворачивается в крестик — только в ответ на нажатие. */
+.faq-item summary::after {
+  content: "";
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--muted);
+  background:
+    linear-gradient(currentColor, currentColor) center / 100% 2px no-repeat,
+    linear-gradient(currentColor, currentColor) center / 2px 100% no-repeat;
+  transition: rotate var(--dur-base) var(--ease);
+}
+.faq-item[open] > summary::after {
+  rotate: 45deg;
+}
+.faq-item p {
+  margin: 0 0 18px;
+  max-width: 68ch;
+}
+
+/* --- Л6. Старт (гость): вторая панель с небом, две колонки --- */
+.start {
+  margin: 0 0 16px;
+  padding: 40px 24px 32px;
+}
+.start-title {
+  margin: 0 0 28px;
+  font-size: clamp(40px, 7vw, 88px);
+  /* Свободнее, чем у капса по умолчанию (0,92): кратка «Й» не налезает на строку выше. */
+  line-height: 1;
+  color: var(--text);
+  text-shadow: var(--text-glow);
+}
+.start-title span {
+  display: block;
+}
+.start-cols {
+  display: grid;
+  gap: 28px;
+}
+.start-col {
+  min-width: 0;
+  /* Якоря #create и #join не уходят под липкую шапку. */
+  scroll-margin-top: 88px;
+}
+.start-col h3 {
+  margin: 0 0 6px;
+  font-size: 19px;
+  line-height: 24px;
+}
+.start-col .tg-signin {
+  max-width: 420px;
+}
+.start-hint {
+  margin: 10px 0 0;
+}
+.start-tg {
+  margin-top: 32px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.start-tg .eyebrow {
+  margin: 0 0 10px;
+}
+.tg-only-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tg-only-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.tg-only-list .ico {
+  flex: none;
+  margin-top: 1px;
+  color: var(--muted);
+}
+@media (min-width: 760px) {
+  .start {
+    padding: 56px 56px 40px;
+  }
+  .start-cols {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 48px;
+  }
+  .start-tg .tg-only-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+  }
+}

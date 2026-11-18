@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 
-import { test as base, expect } from "@playwright/test";
+import { type Page, test as base, expect } from "@playwright/test";
 
 /** Что записал e2e-server: код группы и токен входа Амира. */
 export function state(): { slug: string; token: string; tokenAsel: string; url: string } {
@@ -31,3 +31,26 @@ export const test = base.extend<{ errors: string[] }>({
 });
 
 export { expect };
+
+/**
+ * Конечные анимации и переходы, которые идут сейчас: «имя @ класс элемента».
+ * Бесконечные (бегущая полоса пересчёта, скелетон) не в счёт — это загрузка.
+ */
+export function running(page: Page): Promise<string[]> {
+  return page.evaluate(() =>
+    document
+      .getAnimations()
+      .filter((animation) => animation.playState === "running" && animation.effect?.getComputedTiming().iterations !== Infinity)
+      .map((animation) => {
+        const effect = animation.effect as KeyframeEffect | null;
+        const name =
+          animation instanceof CSSAnimation
+            ? animation.animationName
+            : animation instanceof CSSTransition
+              ? animation.transitionProperty
+              : "script";
+        const target = effect?.target as Element | null;
+        return `${name} @ ${target?.className || target?.tagName}${effect?.pseudoElement ?? ""}`;
+      }),
+  );
+}
