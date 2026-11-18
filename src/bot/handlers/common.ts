@@ -14,12 +14,12 @@ import {
   type TgCallbackQuery,
   type TgMessage,
 } from "../api";
+import { isTelegramChat } from "@/lib/admin";
 import { normalizeCode } from "@/lib/invite";
-import { isChatAdmin, resolveLang, syncUser } from "../context";
-import { groupPath, joinViaBotButton, sitePage, webAppButton } from "../site";
+import { isChatAdmin, resolveLang, syncUser, telegramMembership } from "../context";
+import { groupPath, joinViaBotButton, readChatLinkParam, sitePage, webAppButton } from "../site";
 import { startWebLogin } from "./weblogin";
 
-const DEEP_LINK_RE = /^c(-?\d+)$/;
 const LOGIN_LINK_RE = /^login_([A-Za-z0-9_-]{16,40})$/;
 
 function rows(...buttons: (InlineButton | null)[]) {
@@ -41,8 +41,20 @@ export async function cmdStart(message: TgMessage, args: string[]): Promise<void
   const user = await syncUser(from);
   const lang = user.lang;
 
-  const match = DEEP_LINK_RE.exec(args[0] ?? "");
-  const chat = match ? await repo.getChat(Number(match[1])) : null;
+  // Ссылку c<номер>_<подпись> даёт кнопка под сообщением бота в Telegram-группе
+  // (site.ts). Вступление — только в Telegram-группу. Подписанная ссылка
+  // пускает, если Telegram не сказал прямо, что человек вышел или исключён:
+  // не-админу бота Telegram про чужих людей может и не ответить. Старая
+  // ссылка без подписи — только если Telegram подтвердил членство: номер
+  // подставить может кто угодно. Иначе ответ как на обычный /start — по нему
+  // не понять, есть ли группа с таким номером.
+  const link = readChatLinkParam(args[0] ?? "");
+  const found = link ? await repo.getChat(link.chatId) : null;
+  let chat = null;
+  if (link && found && isTelegramChat(found)) {
+    const membership = await telegramMembership(found.chatId, from.id);
+    if (membership === "member" || (link.signed && membership === "unknown")) chat = found;
+  }
   if (chat) {
     await repo.addMembership(chat.chatId, from.id);
     const slug = await repo.ensureSlug(chat);
@@ -155,7 +167,12 @@ export async function cmdLang(message: TgMessage): Promise<void> {
 export async function onLangChoice(query: TgCallbackQuery): Promise<void> {
   const message = query.message;
   if (!message) return;
-  const newLang = (query.data ?? "").split(":")[1] ?? "ru";
+  const newLang = (query.data ?? "").split(":")[1] ?? "";
+  // Только языки из списка кнопок /lang; другое значение подставлено руками.
+  if (!Object.hasOwn(LANG_NAMES, newLang)) {
+    await answerCallbackQuery({ callback_query_id: query.id });
+    return;
+  }
 
   if (isGroup(message.chat) && !(await isChatAdmin(message.chat, query.from))) {
     const lang = await resolveLang(message.chat, query.from);

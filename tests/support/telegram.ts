@@ -19,6 +19,10 @@ export type TelegramStub = {
   reset: () => void;
   /** Статус, который вернёт getChatMember. */
   memberStatus: string;
+  /** Поле `is_member` в ответе getChatMember (у статуса `restricted`); undefined — поля нет. */
+  memberIsMember: boolean | undefined;
+  /** Ошибка, которой ответит getChatMember; null — ответить статусом. */
+  memberError: { code: number; description: string } | "network" | null;
   /** id администраторов, которых вернёт getChatAdministrators. */
   adminIds: number[];
   /** id пользователей, которым бот «не может написать первым» (403). */
@@ -52,6 +56,8 @@ export function installTelegramStub(): TelegramStub {
       stub.hang = false;
     },
     memberStatus: "creator",
+    memberIsMember: undefined,
+    memberError: null,
     adminIds: [],
     blockedIds: [],
     adminsError: null,
@@ -101,6 +107,17 @@ export function installTelegramStub(): TelegramStub {
       );
     }
 
+    const memberError = stub.memberError;
+    if (method === "getChatMember" && memberError === "network") {
+      throw new TypeError("fetch failed");
+    }
+    if (method === "getChatMember" && memberError && memberError !== "network") {
+      return new Response(
+        JSON.stringify({ ok: false, error_code: memberError.code, description: memberError.description }),
+        { status: memberError.code, headers: { "Content-Type": "application/json" } },
+      );
+    }
+
     const adminsError = stub.adminsError;
     if (method === "getChatAdministrators" && adminsError === "network") {
       throw new TypeError("fetch failed");
@@ -129,7 +146,9 @@ export function installTelegramStub(): TelegramStub {
             has_main_web_app: stub.hasMainWebApp,
           };
         case "getChatMember":
-          return { status: stub.memberStatus };
+          return stub.memberIsMember === undefined
+            ? { status: stub.memberStatus }
+            : { status: stub.memberStatus, is_member: stub.memberIsMember };
         case "getChatAdministrators":
           return stub.adminIds.map((id) => ({
             status: "administrator",

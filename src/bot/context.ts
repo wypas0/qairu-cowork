@@ -55,6 +55,19 @@ export async function isChatAdmin(chat: TgChat | undefined, user: TgUser | undef
   return member?.status === "creator" || member?.status === "administrator";
 }
 
+/**
+ * Состоит ли человек в Telegram-чате прямо сейчас — по словам самого Telegram.
+ * `unknown` — Telegram не ответил: бота нет в чате, сеть, или бот не админ
+ * (про чужих людей getChatMember гарантированно отвечает только админу чата).
+ */
+export async function telegramMembership(chatId: number, userId: number): Promise<"member" | "gone" | "unknown"> {
+  const member = await getChatMember({ chat_id: chatId, user_id: userId });
+  if (!member) return "unknown";
+  if (member.status === "creator" || member.status === "administrator" || member.status === "member") return "member";
+  if (member.status === "restricted") return member.is_member === true ? "member" : "gone";
+  return member.status === "left" || member.status === "kicked" ? "gone" : "unknown";
+}
+
 /** Записать/обновить пользователя из апдейта. Username меняется — обновляем всегда. */
 export async function syncUser(user: TgUser, exec?: repo.Exec): Promise<User> {
   return repo.upsertUser(

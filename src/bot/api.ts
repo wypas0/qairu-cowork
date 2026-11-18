@@ -211,11 +211,14 @@ export function answerCallbackQuery(payload: {
   return tryCall<boolean>("answerCallbackQuery", payload);
 }
 
+/** `is_member` приходит только у статуса `restricted`: ограниченный, но ещё в чате. */
+export type TgChatMember = { status: string; is_member?: boolean };
+
 export function getChatMember(payload: {
   chat_id: number;
   user_id: number;
-}): Promise<{ status: string } | null> {
-  return tryCall<{ status: string }>("getChatMember", payload);
+}): Promise<TgChatMember | null> {
+  return tryCall<TgChatMember>("getChatMember", payload);
 }
 
 /**

@@ -7,7 +7,7 @@ import type { Interval } from "@/core/intervals";
 import type { DateStr } from "@/core/timeutils";
 import { and, eq, inArray, isNotNull, isNull, ne, or } from "drizzle-orm";
 import { type BusySlot, busySlots, displayName, scheduleState, type User } from "../schema";
-import { type Exec, ex } from "./base";
+import { type Exec, ex, transaction } from "./base";
 import { markFillNoticesRead } from "./notices";
 
 // --------------------------------------------------------------------------
@@ -36,6 +36,10 @@ export const SOFT_KIND = "soft";
  * Удаляются все повторяющиеся слоты этих дней — обеих чётностей. Отметки
  * «неудобно» трогает только редактор сетки (`withSoft`): импорт текстом или
  * с фото приносит одни пары и не должен стирать то, что человек отметил сам.
+ *
+ * Удаление, вставка и отметка «заполнил» — одна транзакция: сбой посередине
+ * не должен оставить человека без расписания. Свою транзакцию вызывающий
+ * передаёт в `exec`, иначе она открывается здесь.
  */
 export async function replaceWeeklySlots(
   userId: number,
@@ -45,7 +49,10 @@ export async function replaceWeeklySlots(
   exec?: Exec,
   options: { withSoft?: boolean } = {},
 ): Promise<void> {
-  const db = ex(exec);
+  if (!exec) {
+    return transaction((tx) => replaceWeeklySlots(userId, weekdays, slots, source, tx, options));
+  }
+  const db = exec;
   if (weekdays.length) {
     await db
       .delete(busySlots)

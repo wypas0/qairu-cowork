@@ -116,8 +116,9 @@ describe("подключение чата и регистрация", () => {
     const markup = call.payload.reply_markup as {
       inline_keyboard: { text: string; url?: string }[][];
     };
-    expect(markup.inline_keyboard[0][0].url).toBe(
-      `https://t.me/${BOT_USERNAME}?start=c${GROUP_ID}`,
+    // Номер чата в ссылке подписан (site.ts, ревью Р1): чужую группу так не подставить.
+    expect(markup.inline_keyboard[0][0].url).toMatch(
+      new RegExp(`^https://t\\.me/${BOT_USERNAME}\\?start=c${GROUP_ID}_[A-Za-z0-9_-]{16}$`),
     );
 
     const repo = await import("@/db/repo");
@@ -151,7 +152,8 @@ describe("подключение чата и регистрация", () => {
   });
 
   it("deep-link /start привязывает человека к чату и ведёт на первый шаг в группе", async () => {
-    await handleUpdate(text(PRIVATE_ASEL, ASEL, `/start c${GROUP_ID}`));
+    const { chatLinkParam } = await import("@/bot/site");
+    await handleUpdate(text(PRIVATE_ASEL, ASEL, `/start ${chatLinkParam(GROUP_ID)}`));
     const call = stub.last("sendMessage")!;
     expect(String(call.payload.text)).toContain("Ты в группе");
     const markup = call.payload.reply_markup as { inline_keyboard: { web_app?: { url: string } }[][] };

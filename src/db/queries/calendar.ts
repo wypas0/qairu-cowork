@@ -5,7 +5,7 @@ import "server-only";
 import type { DateStr } from "@/core/timeutils";
 import { and, eq, gte, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import { busySlots, users } from "../schema";
-import { type Exec, ex } from "./base";
+import { type Exec, ex, transaction } from "./base";
 import { markFilled } from "./schedule";
 
 // --------------------------------------------------------------------------
@@ -41,14 +41,16 @@ export async function setCalendarStatus(
 
 /**
  * Заменить занятость из календаря целиком: календарь — источник правды,
- * удалённое там событие должно пропасть и здесь.
+ * удалённое там событие должно пропасть и здесь. Удаление и вставка — одна
+ * транзакция (своя у вызывающего — в `exec`): сбой не стирает прежнюю занятость.
  */
 export async function replaceCalendarSlots(
   userId: number,
   pieces: readonly { day: DateStr; start: number; end: number }[],
   exec?: Exec,
 ): Promise<void> {
-  const db = ex(exec);
+  if (!exec) return transaction((tx) => replaceCalendarSlots(userId, pieces, tx));
+  const db = exec;
   await db.delete(busySlots).where(and(eq(busySlots.userId, userId), eq(busySlots.source, CALENDAR_SOURCE)));
   if (pieces.length > 0) {
     await db.insert(busySlots).values(
@@ -85,7 +87,8 @@ export async function calendarSlotCount(userId: number, fromDay: DateStr, exec?:
 /**
  * Забрать календарь на обновление: отметка времени ставится, только если он
  * всё ещё устарел. Два одновременных прогона cron не скачивают и не
- * раскладывают один календарь дважды (замена слотов — не одна транзакция).
+ * раскладывают один календарь дважды (замена слотов — своя транзакция у
+ * каждого прогона, и без этой отметки два прогона дали бы дубли).
  * Итог попытки потом записывает `setCalendarStatus`.
  */
 export async function claimStaleCalendar(userId: number, before: Date, exec?: Exec): Promise<boolean> {

@@ -183,6 +183,63 @@ describe("расписание", () => {
     expect(slots).toHaveLength(2);
     expect(slots.every((slot) => slot.weekday !== null)).toBe(true);
   });
+
+  // Р3: удаление старых пар и вставка новых — одна транзакция. Вставку роняет
+  // сам Postgres: начало пары больше, чем помещается в integer.
+  const BROKEN = 2 ** 40;
+
+  it("упавшая вставка недельных слотов оставляет прежнее расписание", async () => {
+    const r = await repo();
+    await r.upsertUser({ userId: 141, username: null, fullName: "Ерлан", lang: "ru" });
+    await r.replaceWeeklySlots(141, [0, 1, 2, 3, 4, 5, 6], [{ weekday: 0, start: 540, end: 630 }], "web");
+    const before = await r.getSlots(141);
+    const stateBefore = await r.scheduleUpdatedAt([141]);
+
+    await expect(
+      r.replaceWeeklySlots(
+        141,
+        [0, 1, 2, 3, 4, 5, 6],
+        [
+          { weekday: 1, start: 600, end: 700 },
+          { weekday: 2, start: BROKEN, end: BROKEN + 60 },
+        ],
+        "web",
+        undefined,
+        { withSoft: true },
+      ),
+    ).rejects.toThrow();
+
+    expect(await r.getSlots(141)).toEqual(before);
+    expect(await r.scheduleUpdatedAt([141])).toEqual(stateBefore);
+  });
+
+  it("со своей транзакцией вызывающего замена недельных слотов откатывается вместе с ней", async () => {
+    const r = await repo();
+    const before = await r.getSlots(141);
+    await expect(
+      r.transaction(async (tx) => {
+        await r.replaceWeeklySlots(141, [0], [{ weekday: 0, start: 900, end: 960 }], "web", tx);
+        throw new Error("сбой после замены");
+      }),
+    ).rejects.toThrow("сбой после замены");
+    expect(await r.getSlots(141)).toEqual(before);
+  });
+
+  it("упавшая вставка занятости из календаря оставляет прежнюю", async () => {
+    const r = await repo();
+    await r.replaceCalendarSlots(141, [{ day: "2026-11-20", start: 600, end: 660 }]);
+    const before = (await r.getSlots(141)).filter((slot) => slot.source === r.CALENDAR_SOURCE);
+    expect(before).toHaveLength(1);
+
+    await expect(
+      r.replaceCalendarSlots(141, [
+        { day: "2026-11-21", start: 600, end: 660 },
+        { day: "2026-11-22", start: BROKEN, end: BROKEN + 60 },
+      ]),
+    ).rejects.toThrow();
+
+    expect((await r.getSlots(141)).filter((slot) => slot.source === r.CALENDAR_SOURCE)).toEqual(before);
+  });
 });
 
 describe("веб-группы и сессии", () => {

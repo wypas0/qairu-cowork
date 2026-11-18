@@ -11,12 +11,46 @@
 
 import "server-only";
 
+import crypto from "node:crypto";
+
 import * as repo from "@/db/repo";
 import type { Chat } from "@/db/schema";
 import { t } from "@/i18n";
-import { siteUrl } from "@/lib/config";
+import { siteUrl, webhookSecret } from "@/lib/config";
 import type { InlineButton } from "./api";
 import { botInfo, botUsername } from "./context";
+
+/**
+ * Подпись номера чата в ссылке `?start=c<номер>_<подпись>`. Ссылку выдаёт
+ * только бот в самом чате, поэтому подделать её для чужой группы нельзя, а
+ * проверка не зависит от того, ответит ли Telegram на getChatMember (про
+ * чужих людей он гарантированно отвечает только админу чата). Ключ — секрет
+ * вебхука, как у ленты календаря: сменить его — отозвать все ссылки.
+ */
+function chatLinkSignature(chatId: number): string {
+  return crypto.createHmac("sha256", webhookSecret()).update(`chatlink:${chatId}`).digest("base64url").slice(0, 16);
+}
+
+/** Параметр ссылки на вступление в Telegram-группу через личку с ботом. */
+export function chatLinkParam(chatId: number): string {
+  return `c${chatId}_${chatLinkSignature(chatId)}`;
+}
+
+/**
+ * Разобрать параметр `c<номер>[_<подпись>]`. `signed: false` — старая ссылка
+ * без подписи (из сообщений до 18.11.2026); неверная подпись — null.
+ */
+export function readChatLinkParam(param: string): { chatId: number; signed: boolean } | null {
+  const match = /^c(-?\d{1,20})(?:_([A-Za-z0-9_-]{16}))?$/.exec(param);
+  if (!match) return null;
+  const chatId = Number(match[1]);
+  if (!Number.isSafeInteger(chatId)) return null;
+  if (match[2] === undefined) return { chatId, signed: false };
+  if (!webhookSecret()) return null;
+  const expected = Buffer.from(chatLinkSignature(chatId));
+  const given = Buffer.from(match[2]);
+  return expected.length === given.length && crypto.timingSafeEqual(expected, given) ? { chatId, signed: true } : null;
+}
 
 /** Адрес страницы сайта или null, если сайт не настроен. */
 export function sitePage(path = "/"): string | null {
@@ -42,7 +76,7 @@ export function webAppButton(text: string, path = "/"): InlineButton | null {
 
 /** Кнопка в групповом чате: открыть личку с ботом и сразу привязаться к этому чату. */
 export async function joinViaBotButton(lang: string, chatId: number, key = "btn_fill_schedule"): Promise<InlineButton> {
-  return { text: t(lang, key), url: `https://t.me/${await botUsername()}?start=c${chatId}` };
+  return { text: t(lang, key), url: `https://t.me/${await botUsername()}?start=${chatLinkParam(chatId)}` };
 }
 
 /**

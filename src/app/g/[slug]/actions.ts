@@ -120,9 +120,13 @@ export async function createMeetingAction(slug: string, formData: FormData): Pro
     const iso = when.slice(0, bar);
     const duration = when.slice(bar + 1);
     const [datePart, timePart = ""] = iso.split("T");
-    const [hours, minutes] = timePart.split(":");
-    const startMin = Number(hours) * 60 + Number(minutes ?? 0);
-    if (isDateStr(datePart) && Number.isFinite(startMin)) {
+    // Выбор времени шлёт «ЧЧ:ММ» с часами 0–23 и минутами 0–59. Другое
+    // подставлено руками: точное время из него не берём, остаётся текст.
+    const clock = /^(\d{1,2}):(\d{2})$/.exec(timePart);
+    const hours = clock ? Number(clock[1]) : -1;
+    const minutes = clock ? Number(clock[2]) : -1;
+    const startMin = hours * 60 + minutes;
+    if (isDateStr(datePart) && hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59) {
       whenStart = zonedWallToUtc(datePart, startMin, chatTz(chat));
       const length = normalizeDuration(Number(duration), DEFAULT_MEETING_MIN);
       durationMin = length;

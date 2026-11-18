@@ -60,6 +60,13 @@ export type IcsBusy = { day: DateStr; start: number; end: number };
 const MAX_PIECES = 3000;
 /** Сколько повторов перебираем максимум на одно событие. */
 const MAX_STEPS = 5000;
+/**
+ * Насколько далеко до окна ищем начало повтора многодневного события. Без
+ * предела событие на 50 лет с ежедневным повтором тянуло за собой 18 тысяч
+ * повторов. Год с запасом: у серии с периодом до года (YEARLY) один из
+ * повторов всё равно начинается в этом запасе и накрывает окно.
+ */
+const MAX_LOOKBACK_DAYS = 366;
 
 const WEEKDAYS = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"];
 
@@ -335,31 +342,48 @@ export function busyFromIcs(text: string, tz: string, fromDay: DateStr, toDay: D
     if (pieces.length < MAX_PIECES) pieces.push({ day, start, end });
   };
 
+  // Конец куска позже этого момента — всё равно за окном. Дальше окна дни не
+  // перебираем: событие может длиться тысячи лет, а у пятизначного года
+  // сравнение строк DateStr врёт.
+  const beyondWindow = addDays(toDay, 2);
+  const beyondWindowMs = zonedWallToUtc(beyondWindow, 0, tz).getTime();
+
   for (const event of events) {
     const length = lengthMinutes(event);
     if (length <= 0) continue;
     const excluded = new Set(event.exdates.map(whenKey));
     const replaced = event.recurrenceId ? null : moved.get(event.uid);
-    // Многодневное событие могло начаться до окна — берём запас на его длину.
-    const windowStart = addDays(fromDay, -Math.ceil(length / 1440));
+    // Многодневное событие могло начаться до окна — берём запас на его длину,
+    // но не больше MAX_LOOKBACK_DAYS: иначе число повторов росло бы с длиной.
+    const windowStart = addDays(fromDay, -Math.min(Math.ceil(length / 1440), MAX_LOOKBACK_DAYS));
     for (const when of occurrences(event, windowStart, toDay)) {
       const key = whenKey(when);
       if (excluded.has(key) || replaced?.has(key)) continue;
       if (when.kind === "date") {
         const days = Math.max(1, Math.round(length / 1440));
-        for (let offset = 0; offset < days; offset += 1) push(addDays(when.day, offset), 0, 1440);
+        // Только дни внутри окна.
+        const firstOffset = Math.max(0, diffDays(when.day, fromDay));
+        const lastOffset = Math.min(days - 1, diffDays(when.day, toDay));
+        for (let offset = firstOffset; offset <= lastOffset; offset += 1) push(addDays(when.day, offset), 0, 1440);
         continue;
       }
       // Точное время: переводим в пояс человека и режем по полуночи.
       const startWall = utcToZonedWall(when.at, tz);
-      const endWall = utcToZonedWall(new Date(when.at.getTime() + length * 60_000), tz);
       if (compareDates(startWall.day, toDay) > 0) continue;
+      const endMs = when.at.getTime() + length * 60_000;
+      const endWall =
+        endMs >= beyondWindowMs ? { day: beyondWindow, minutes: 0 } : utcToZonedWall(new Date(endMs), tz);
       if (startWall.day === endWall.day) {
         push(startWall.day, startWall.minutes, endWall.minutes);
         continue;
       }
       push(startWall.day, startWall.minutes, 1440);
-      for (let day = addDays(startWall.day, 1); compareDates(day, endWall.day) < 0; day = addDays(day, 1)) {
+      const nextDay = addDays(startWall.day, 1);
+      for (
+        let day = compareDates(nextDay, fromDay) < 0 ? fromDay : nextDay;
+        compareDates(day, endWall.day) < 0 && compareDates(day, toDay) <= 0;
+        day = addDays(day, 1)
+      ) {
         push(day, 0, 1440);
       }
       push(endWall.day, 0, endWall.minutes);

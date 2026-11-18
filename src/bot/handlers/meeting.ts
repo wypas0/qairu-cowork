@@ -454,11 +454,18 @@ export async function refreshCard(meeting: Meeting, except?: { chatId: number; m
   });
 }
 
+const VOTE_ANSWERS: ReadonlySet<string | undefined> = new Set(["yes", "maybe", "no", "change"]);
+
 export async function onVote(query: TgCallbackQuery): Promise<void> {
   const message = query.message;
   if (!message || !query.data) return;
   const [, rawId, answer] = query.data.split(":");
   const meetingId = Number(rawId);
+  // Кнопки карточки дают только эти ответы; другое значение подставлено руками.
+  if (!VOTE_ANSWERS.has(answer)) {
+    await answerCallbackQuery({ callback_query_id: query.id });
+    return;
+  }
 
   const meeting = await repo.getMeeting(meetingId);
   if (!meeting) {
@@ -536,6 +543,13 @@ export async function onVote(query: TgCallbackQuery): Promise<void> {
   }
 }
 
+/** Приглашённый, участник группы встречи или один из двоих у встречи вдвоём. */
+async function mayGetMeetingFile(meeting: Meeting, userId: number): Promise<boolean> {
+  if (repo.inviteeIds(meeting).includes(userId)) return true;
+  if (meeting.withUser !== null) return userId === meeting.initiatorId || userId === meeting.withUser;
+  return meeting.chatId !== null && (await repo.isMember(meeting.chatId, userId));
+}
+
 /** Кнопки карточки: выгрузить .ics и отменить встречу. */
 export async function onCardButton(query: TgCallbackQuery): Promise<void> {
   const message = query.message;
@@ -579,6 +593,13 @@ export async function onCardButton(query: TgCallbackQuery): Promise<void> {
     // Отменили из личной копии карточки — общая карточка тоже должна
     // показать отмену, иначе в ней остаются кнопки голосования.
     await refreshCard({ ...meeting, status: "cancelled" }, { chatId: message.chat.id, messageId: message.message_id });
+    return;
+  }
+
+  // Номер встречи в кнопке подставить может кто угодно: файл (цель, место,
+  // время) — только своим. Чужому — тот же ответ, что на несуществующую встречу.
+  if (!(await mayGetMeetingFile(meeting, query.from.id))) {
+    await answerCallbackQuery({ callback_query_id: query.id });
     return;
   }
 
